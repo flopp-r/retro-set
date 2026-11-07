@@ -7,8 +7,8 @@
 //                                                  of the others 200 points below the bot above it; prints the values
 //                                                  to put into src/bots.js. Given a bot, it starts there, the bots
 //                                                  above keeping their values in src/bots.js
-//   node tools/sim-bots.js check [games]           plays each bot against its anchor or the bot above, and prints the
-//                                                  measured ratings
+//   node tools/sim-bots.js check [games] [bot]     plays each bot against its anchor or the bot above, and prints the
+//                                                  measured ratings (given a bot, from there down)
 // Stockfish (stockfish.js 19, GPL-3.0) is installed into a temporary folder on first use. It is only used here to
 // measure; it is never part of the game. Its strength setting (UCI_Elo, 1320 at the lowest) is calibrated by its
 // makers against other engines' ratings, not against people. Games run on every core, in worker threads.
@@ -159,10 +159,12 @@ const CHAIN = [['nell', 'sf1500', 0], ['tariq', 'sf1320', -20], ['ruth', 'tariq'
     if (cmd === 'check') {
       // each bot against its reference, top down; its rating builds on the reference's measured rating (not its target),
       // so the margins add up down the chain (as the square root of the sum of their squares)
-      const games = +x || 200, got = {}, err = {};
-      for (const [id, ref, gap] of CHAIN) {
+      // check 240 tariq: start at Tariq; a reference not measured in this run counts at its target rating
+      const games = +x || 200, got = {}, err = {}, from = y ? CHAIN.findIndex(c => c[0] === y) : 0;
+      if (from < 0) throw new Error(`No bot called "${y}" in the chain`);
+      for (const [id, ref, gap] of CHAIN.slice(from)) {
         const a = spec(id), b = spec(ref), r = await match(a, b, games), bot = BOTS.byId(id), d = elo(r.score), e = band(r, games);
-        const base = ref.startsWith('sf') ? +ref.slice(2) : got[ref], baseErr = ref.startsWith('sf') ? 0 : err[ref];
+        const base = ref.startsWith('sf') ? +ref.slice(2) : got[ref] ?? BOTS.byId(ref).rating, baseErr = ref.startsWith('sf') ? 0 : err[ref] ?? 0;
         got[id] = Math.round(base + d); err[id] = Math.round(Math.sqrt(e * e + baseErr * baseErr));
         console.log(`${line(a, b, r, games)}  → ${bot.name} measures ${got[id]} ±${err[id]} (target ${bot.rating})`);
       }

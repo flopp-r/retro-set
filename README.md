@@ -1,6 +1,6 @@
 # Retro Set
 
-3D pixel-art chess, a sister to Retro Rack. Play a friend on one device, or eight computer opponents from 100 to 1500, with the full rules. Online play is coming next.
+3D pixel-art chess, a sister to Retro Rack. Play a friend on one device, or ten computer opponents from 100 to 1500, with the full rules. Online play is coming next.
 
 Play it at https://flopp-r.github.io/retro-set/
 
@@ -44,16 +44,19 @@ Choose **Vs computer**, pick an opponent and your colour (White, Black or Random
 
 | Opponent | Rating | How they play |
 |---|---|---|
-| Pip | 100 | Has just learnt how the pieces move. |
-| Mabel | 300 | Loves pushing pawns; often leaves a piece hanging. |
-| Dev | 500 | Grabs anything you offer, even when it's a trap. |
-| Priya | 700 | Knows a few openings, then loses the thread. |
-| Gus | 900 | Takes any piece you leave loose. |
-| Ruth | 1100 | Patient: castles early and waits for you to slip. |
-| Tariq | 1300 | Sharp tactics: checks and captures first. |
-| Nell | 1500 | The club champion. Rarely gives anything away. |
+| Torben | 100 | Has just learnt how the pieces move, and leaves them anywhere. |
+| Alfie | 250 | Loves pushing pawns, and forgets the pieces behind them. |
+| Ollie | 400 | Grabs anything you offer, even when it's a trap. |
+| Dom | 550 | Gets the queen out early and goes hunting. |
+| Joseph | 700 | Knows a few openings, then loses the thread. |
+| Barney | 850 | A club-night regular. Takes any piece you leave loose. |
+| Magnus | 1000 | Plays it safe: castles early and waits for you to slip. |
+| Jake | 1150 | Steady. Rarely hangs a piece, but sometimes drifts. |
+| Daws | 1300 | Sharp tactics: looks for checks and captures first. |
+| Ted | 1500 | The strongest here. Gives very little away. |
 
-- **What the ratings mean:** they're measured, not guessed. Nell and Tariq were tuned by playing hundreds of games against Stockfish at its official strength settings (1500 and 1320), and each of the others to be 200 points below the one above, which means the stronger one wins about three games in four. Measured over 240 games each, every bot came out within 25 points of its rating (the lower the bot, the wider the margin: about ±55 for Nell up to ±135 for Pip). They are close to, but not the same as, chess.com ratings: every site's scale is a little different, especially at the low end.
+- **How they play:** like people, every one of them makes real blunders (leaving a piece to be taken, grabbing a pawn that can't be held, missing a mate), Torben on nearly a third of his moves and Ted on about one in thirty, as well as plenty of middling moves.
+- **What the ratings mean:** they're measured, not guessed. Ted and Daws were tuned by playing hundreds of games against Stockfish at its official strength settings (1500 and 1320), and each of the others to be 150 points below the one above, which means the stronger one wins about seven games in ten. Measured over 240 games each, every bot came out within 25 points of its rating (the lower the bot, the wider the margin: about ±55 for Nell up to ±135 for Pip). They are close to, but not the same as, chess.com ratings: every site's scale is a little different, especially at the low end.
 - **Take back** undoes your last move and the computer's reply. **Menu** has **Offer a draw** (the computer accepts only if it thinks it's worse, or the game is level late on) and **Resign**.
 
 ## Installing it as an app

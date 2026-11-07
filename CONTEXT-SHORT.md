@@ -208,7 +208,7 @@ This file records why Retro Set is the way it is: the decisions and their reason
 ## 1. Current status
 
 - The game is live at https://flopp-r.github.io/retro-set/, served by GitHub Pages from the public repository `github.com/flopp-r/retro-set` (branch `main`, root folder).
-- Stage 1 (two players on one device, the full rules) and Stage 2 (eight computer opponents, 100 to 1500) are built; Stage 3 (online) is next. See section 4.
+- Stage 1 (two players on one device, the full rules) and Stage 2 (ten computer opponents, Torben 100 to Ted 1500) are built; Stage 3 (online) is next. See section 4.
 - There is no relay and no online play yet.
 - Everything in section 9 (changes shipped) is live. The version shown at the bottom of the menu matches the `BUILD` value in the committed `index.html`.
 
@@ -225,6 +225,7 @@ Personal working preferences are kept in the owner's own Claude Code settings, n
 1. **Set up from Retro Rack (7 November 2026):** the owner asked for a retro-themed chess game in the style of Retro Rack, their 3D pixel-art pool game, and for the way of working there to be brought across before anything was built. Copied from Retro Rack (as of its pull request #32): the guide for AI assistants (`AGENTS.md`, with `CLAUDE.md` pointing to it), these notes, the README, the build that makes one self-contained `index.html`, the context packs for other AIs, the core and browser tests and their runner, the installable app (manifest, network-first service worker, icons drawn by a script), three.js r159 and the two pixel fonts, and the pixel-art rendering pipeline. A placeholder scene (an empty board) gave the build and the tests something real to draw. The owner then switched on GitHub Pages.
 2. **Stage 1 (7 November 2026):** the owner chose the look, the ways of playing, the rules and the pieces (section 4), and the first stage was built: the rules engine, the 3D pieces, two players on one device.
 3. **Stage 2 (7 November 2026):** the computer opponents: an engine, eight named bots from 100 to 1500, and a tool that measures their strength against Stockfish and each other.
+4. **Ten bots with real blunders (7 November 2026):** the owner renamed the bots and asked for ten, and for real blunders as well as middling moves, most at the low levels but still present at the top. Every bot was re-tuned and re-measured.
 
 ---
 
@@ -266,6 +267,13 @@ Personal working preferences are kept in the owner's own Claude Code settings, n
 - **Take back against the computer** goes back to before your last move, taking its reply too (as on chess.com). **A draw is offered, not agreed:** the bot accepts when a quick search says it's half a pawn or more worse, or, from move 30, level.
 - **No resigning by the bots**: they play on to the end, which suits beginners practising mating.
 
+**Bots: ten opponents and real blunders (7 November 2026)**
+- **The owner's names, ten of them:** Torben, Alfie, Ollie, Dom, Joseph, Barney, Magnus, Jake, Daws and Ted, weakest to strongest. Of the three options put to the owner (ten bots from 100 to 1500, ten from 100 to 1900, or eight with the first eight names) the owner chose **ten from 100 to 1500**: steps of 150 (the last one 200), so both Stockfish anchors (1500 and 1320) still fit. The lines and faces were written for the game (the owner's choice); the repository is public, so nothing personal is said about anyone.
+- **Old saves carry on:** a game or a menu choice from before the renaming moves to the nearest new bot (Pip to Torben, Mabel to Alfie, Dev to Dom, Priya to Joseph, Gus to Barney, Ruth to Jake, Tariq to Daws, Nell to Ted).
+- **Real blunders, not random moves:** before, a bot's "blunder" was any legal move at random, which often wasn't a blunder at all. Now each bot has a set chance each move (30% Torben, 24% Alfie, 19% Ollie, 15% Dom, 12% Joseph, 9% Barney, 7% Magnus, 5% Jake, 4% Daws, 3% Ted) of a move that really loses at least two pawns' worth: leaving a piece to be taken, grabbing a pawn that can't be held, walking into a mate or missing one. Of those, it picks the one that looks best at a glance (the position straight after the move, not the reply), as people do: a blunder looks like a good idea. This is chess.com's sense of a blunder: a move much worse than the best one. The chances were set by hand, falling with strength but never zero, as asked; only the middling-move setting (the temperature) was tuned for the ratings.
+- **The trade-off (told to the owner):** with blunders this frequent, the low bots' ratings come mostly from their blunders, so tuning turned their temperature down: they play fewer middling moves between the blunders than before (Torben's temperature 93, against 107 for the old 100 bot). Lower blunder chances would bring the middling moves back.
+- **Measuring took three rounds:** a tuning run (80 games a step) and then two corrections, each followed by a fresh check of 240 games a bot, ending with every bot within 30 points of its target (section 5). Each correction used the rating points per step of the knob; the second one took them from the bot's two checks, because the tuning steps were too noisy at the low levels, where blunders make strength change slowly with the knob.
+
 **Decisions still to make**
 - **Stage 3, online:** the same as Retro Rack's online play (rooms with codes, a listed rooms board, Rejoin, quick chat), on a new relay.
 - **The board and the room:** the square colours and the room are placeholders.
@@ -282,20 +290,22 @@ Personal working preferences are kept in the owner's own Claude Code settings, n
 
 **The computer opponents** (measured with `tools/sim-bots.js`, 7 November 2026)
 
-| Bot | Target | Looks ahead | k | Temperature | Blunder chance | Style | Measured against | Measured rating |
+| Bot | Target | Looks ahead | Blunder chance | k | Temperature | Style | Measured against | Measured rating |
 |---|---|---|---|---|---|---|---|---|
-| Nell | 1500 | 4 moves | 0.095 | 22 | 0.5% | none | Stockfish 1500: 48.4% (160 games) | 1489 ±55 |
-| Tariq | 1300 | 3 | 0.129 | 33 | 0.8% | checks +25 | Stockfish 1320: 46.0% (240) | 1292 ±44 |
-| Ruth | 1100 | 2 | 0.112 | 27 | 0.6% | castling +40 | Tariq: 22.7% (240) | 1079 ±67 |
-| Gus | 900 | 2 | 0.16 | 43 | 1.3% | none | Ruth: 24.6% (240) | 884 ±84 |
-| Priya | 700 | 1 | 0.133 | 34 | 0.9% | none | Gus: 28.3% (240) | 723 ±98 |
-| Dev | 500 | 1 | 0.205 | 60 | 2.1% | captures +80 | Priya: 23.5% (240) | 518 ±111 |
-| Mabel | 300 | 1 | 0.238 | 74 | 2.8% | pawn moves +30 | Dev: 24.2% (240) | 319 ±123 |
-| Pip | 100 | 1 | 0.309 | 107 | 4.8% | none | Mabel: 21.7% (240) | 96 ±135 |
+| Ted | 1500 | 4 moves | 3% | 0.046 | 11 | none | Stockfish 1500: 53.5% | 1525 ±45 |
+| Daws | 1300 | 3 | 4% | 0.062 | 14 | checks +25 | Stockfish 1320: 45.4% | 1288 ±45 |
+| Jake | 1150 | 2 | 5% | 0.062 | 14 | none | Daws: 34.8% | 1179 ±64 |
+| Magnus | 1000 | 2 | 7% | 0.076 | 17 | castling +40 | Jake: 27.1% | 1007 ±81 |
+| Barney | 850 | 2 | 9% | 0.133 | 34 | none | Magnus: 28.7% | 849 ±95 |
+| Joseph | 700 | 1 | 12% | 0.111 | 27 | none | Barney: 29.4% | 697 ±107 |
+| Dom | 550 | 1 | 15% | 0.157 | 42 | queen moves +25 | Joseph: 31.5% | 562 ±118 |
+| Ollie | 400 | 1 | 19% | 0.237 | 74 | captures +80 | Dom: 30.0% | 415 ±128 |
+| Alfie | 250 | 1 | 24% | 0.248 | 78 | pawn moves +30 | Ollie: 30.2% | 270 ±137 |
+| Torben | 100 | 1 | 30% | 0.279 | 93 | none | Alfie: 29.6% | 119 ±145 |
 
-- Each rating builds on the measured rating of the bot above, so the margins (about two standard errors) add up down the chain: the lowest bots are the least certain. Every bot follows captures through to the end.
-- How they were found: a first tuning run (80 games a step, 90 minutes on 4 cores), then a check (160 games a bot) that put Nell and Tariq on target but every bot below drifting high, up to Pip at 260 ±162. Each of those was moved by its excess, using the rating points per knob step seen while tuning, and a fresh check (240 games a bot, new seeds) gave the figures above.
-- The knob is steep: around these values, 0.01 is worth about 50 to 100 rating points. At full effort (k 0), roughly: looking 4 moves ahead 1650 to 1750, 3 moves about 1600, 2 moves 1380 to 1460, 1 move with captures followed 950 to 1050 (each from 80 games against its reference while tuning, so ±80 or more, and wider where the score was near 0% or 100%). Looking 1 move ahead without following captures measured about 760 points below Dev, so no bot does that.
+- Each measurement is 240 games. Each rating builds on the measured rating of the bot above, so the margins (about two standard errors) add up down the chain: the lowest bots are the least certain. Every bot follows captures through to the end.
+- The rounds: the tuning run put the bots in place; the first check (240 games a bot) measured Ted 1525 ±45 but Daws 72 short and the gaps below nearer 190 than 150, down to Torben at −91; the first correction overshot at the bottom (Torben 271), since there strength changes faster with the knob than the tuning steps showed; the second, using each bot's two checks, gave the figures above (Ted from the first check, unchanged since).
+- Looking 1 move ahead without following captures measured about 760 points below the 500 bot of the first eight, so no bot does that.
 - Stockfish: stockfish.js 19.0.1, the full single-threaded engine, 60 ms a move, `UCI_LimitStrength` on.
 
 **The camera in a game**
@@ -309,7 +319,7 @@ Personal working preferences are kept in the owner's own Claude Code settings, n
 ## 6. How things are tested
 
 - **Rules:** `tests/core.test.js` (28 tests): perft counts for five standard positions, castling, en passant, promotion, pins, checkmate, stalemate, each draw, resigning, take back, notation and saving, and that the context packs are up to date.
-- **Engine and bots:** `tests/bots.test.js` (13 tests): the cast, the knob, the evaluation, mates, captures, what happens without following captures, seeds, legal moves, a whole bot game. Their strength: `tools/sim-bots.js` (section 5).
+- **Engine and bots:** `tests/bots.test.js` (18 tests): the cast, blunder chances, the renaming, the knob, the evaluation, mates, captures, what happens without following captures, real blunders, seeds, legal moves, a whole bot game. Their strength: `tools/sim-bots.js` (section 5).
 - **The browser:** headless Chromium (Playwright) with software WebGL (SwiftShader). The page exposes `window.__rs` (state, position, moves, where each square is on the screen and so on) to make scripting easy; the `play` and `cpu` tests play with real mouse taps and drags at those positions. `node tests/browser/run-all.js` runs them all (see `AGENTS.md`, Testing): `file`, `fit`, `play`, `cpu` and `app`.
 - **Software WebGL is slow,** so keep test windows small (about 480×360) unless the size is what's being tested.
 
@@ -351,6 +361,7 @@ Every change merged into `main`, newest last. The version is the fingerprint sho
 |---|---|---|---|
 | 7 Nov 2026 | (first commit, no pull request) | 2cc43742 | The working setup from Retro Rack: guides, one-file build, context packs, tests, installable app; a placeholder board. |
 | 7 Nov 2026 | #1 | 4e335390 | Stage 1: two players on one device with the full rules; low-poly classic pieces; tap or drag to move; take back, resign, agree a draw; the view turning to the player to move; Resume after a reload. |
+| 7 Nov 2026 | #2 | 4be88115 | Stage 2: eight computer opponents from 100 to 1500 (Pip to Nell), measured against Stockfish and each other; the Vs computer screen, your colour, take back of both moves, draw offers, Resume against the computer. |
 
 ---
 
@@ -414,7 +425,7 @@ Choose **Vs computer**, pick an opponent and your colour (White, Black or Random
 | Ted | 1500 | The strongest here. Gives very little away. |
 
 - **How they play:** like people, every one of them makes real blunders (leaving a piece to be taken, grabbing a pawn that can't be held, missing a mate), Torben on nearly a third of his moves and Ted on about one in thirty, as well as plenty of middling moves.
-- **What the ratings mean:** they're measured, not guessed. Ted and Daws were tuned by playing hundreds of games against Stockfish at its official strength settings (1500 and 1320), and each of the others to be 150 points below the one above, which means the stronger one wins about seven games in ten. Measured over 240 games each, every bot came out within 25 points of its rating (the lower the bot, the wider the margin: about ±55 for Nell up to ±135 for Pip). They are close to, but not the same as, chess.com ratings: every site's scale is a little different, especially at the low end.
+- **What the ratings mean:** they're measured, not guessed. Ted and Daws were tuned by playing hundreds of games against Stockfish at its official strength settings (1500 and 1320), and each of the others to be 150 points below the one above, which means the stronger one wins about seven games in ten. Measured over 240 games each, every bot came out within 30 points of its rating (the lower the bot, the wider the margin: about ±45 for Ted up to ±145 for Torben). They are close to, but not the same as, chess.com ratings: every site's scale is a little different, especially at the low end.
 - **Take back** undoes your last move and the computer's reply. **Menu** has **Offer a draw** (the computer accepts only if it thinks it's worse, or the game is level late on) and **Resign**.
 
 ## Installing it as an app

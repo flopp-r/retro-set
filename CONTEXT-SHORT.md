@@ -280,6 +280,24 @@ Personal working preferences are kept in the owner's own Claude Code settings, n
 - Light squares `#c4a67c`, dark squares `#5a3b78`, the frame `#3a2452`. White pieces `#efe1c3`, black pieces `#2c2140`. The light squares were darkened from `#d8c3a0` because under the lamp they washed out next to the white pieces.
 - Piece heights: king 8.7 cm, queen 7.7, bishop 6.8, knight 6.3, rook 5.3, pawn 4.3. Bases 2.9 cm (pawn) to 3.8 cm (king) across. Pieces taken stand at 80% size.
 
+**The computer opponents** (measured with `tools/sim-bots.js`, 7 November 2026)
+
+| Bot | Target | Looks ahead | k | Temperature | Blunder chance | Style | Measured against | Measured rating |
+|---|---|---|---|---|---|---|---|---|
+| Nell | 1500 | 4 moves | 0.095 | 22 | 0.5% | none | Stockfish 1500: 48.4% (160 games) | 1489 ±55 |
+| Tariq | 1300 | 3 | 0.129 | 33 | 0.8% | checks +25 | Stockfish 1320: 46.0% (240) | 1292 ±44 |
+| Ruth | 1100 | 2 | 0.112 | 27 | 0.6% | castling +40 | Tariq: 22.7% (240) | 1079 ±67 |
+| Gus | 900 | 2 | 0.16 | 43 | 1.3% | none | Ruth: 24.6% (240) | 884 ±84 |
+| Priya | 700 | 1 | 0.133 | 34 | 0.9% | none | Gus: 28.3% (240) | 723 ±98 |
+| Dev | 500 | 1 | 0.205 | 60 | 2.1% | captures +80 | Priya: 23.5% (240) | 518 ±111 |
+| Mabel | 300 | 1 | 0.238 | 74 | 2.8% | pawn moves +30 | Dev: 24.2% (240) | 319 ±123 |
+| Pip | 100 | 1 | 0.309 | 107 | 4.8% | none | Mabel: 21.7% (240) | 96 ±135 |
+
+- Each rating builds on the measured rating of the bot above, so the margins (about two standard errors) add up down the chain: the lowest bots are the least certain. Every bot follows captures through to the end.
+- How they were found: a first tuning run (80 games a step, 90 minutes on 4 cores), then a check (160 games a bot) that put Nell and Tariq on target but every bot below drifting high, up to Pip at 260 ±162. Each of those was moved by its excess, using the rating points per knob step seen while tuning, and a fresh check (240 games a bot, new seeds) gave the figures above.
+- The knob is steep: around these values, 0.01 is worth about 50 to 100 rating points. At full effort (k 0), roughly: looking 4 moves ahead 1650 to 1750, 3 moves about 1600, 2 moves 1380 to 1460, 1 move with captures followed 950 to 1050 (each from 80 games against its reference while tuning, so ±80 or more, and wider where the score was near 0% or 100%). Looking 1 move ahead without following captures measured about 760 points below Dev, so no bot does that.
+- Stockfish: stockfish.js 19.0.1, the full single-threaded engine, 60 ms a move, `UCI_LimitStrength` on.
+
 **The camera in a game**
 - Tilted 0.95 rad (54°) down to start, between 0.35 and 1.45 rad when tilted by hand; zoom 0.6 to 2.2 times the distance that fits the board.
 
@@ -291,7 +309,7 @@ Personal working preferences are kept in the owner's own Claude Code settings, n
 ## 6. How things are tested
 
 - **Rules:** `tests/core.test.js` (28 tests): perft counts for five standard positions, castling, en passant, promotion, pins, checkmate, stalemate, each draw, resigning, take back, notation and saving, and that the context packs are up to date.
-- **Engine and bots:** `tests/bots.test.js` (13 tests): the cast, the knob, the evaluation, mates, captures, the weakest bots' mistakes, seeds, legal moves, a whole bot game. Their strength: `tools/sim-bots.js` (section 5).
+- **Engine and bots:** `tests/bots.test.js` (13 tests): the cast, the knob, the evaluation, mates, captures, what happens without following captures, seeds, legal moves, a whole bot game. Their strength: `tools/sim-bots.js` (section 5).
 - **The browser:** headless Chromium (Playwright) with software WebGL (SwiftShader). The page exposes `window.__rs` (state, position, moves, where each square is on the screen and so on) to make scripting easy; the `play` and `cpu` tests play with real mouse taps and drags at those positions. `node tests/browser/run-all.js` runs them all (see `AGENTS.md`, Testing): `file`, `fit`, `play`, `cpu` and `app`.
 - **Software WebGL is slow,** so keep test windows small (about 480×360) unless the size is what's being tested.
 
@@ -302,6 +320,7 @@ Personal working preferences are kept in the owner's own Claude Code settings, n
 - **Two players on one device, with the full rules:** built (Stage 1).
 - **The computer opponents:** built (Stage 2).
 - **Online play (Stage 3):** next.
+- **Nell's thinking** comes in steps of up to about a tenth of a second (one candidate move searched 3 moves deep at a time), so on a slow phone the picture may stutter while she thinks; the search could pause more often if that shows.
 - **Possible for the bots later:** more of them (above 1500, or in between); a hint button; the bots saying something now and then (as chess.com's do); tuning the weakest bots to human mistake figures as well, if the owner finds them unlike real beginners.
 - **Small things noticed in Stage 1:** the piece could follow the finger while dragged; sound (a wooden "tock" on a move); a bigger move list on phones.
 - **Still open** are listed in section 4, "Decisions still to make".
@@ -392,7 +411,7 @@ Choose **Vs computer**, pick an opponent and your colour (White, Black or Random
 | Tariq | 1300 | Sharp tactics: checks and captures first. |
 | Nell | 1500 | The club champion. Rarely gives anything away. |
 
-- **What the ratings mean:** they're measured, not guessed. Nell and Tariq were tuned by playing hundreds of games against Stockfish at its official strength settings (1500 and 1320), and each of the others to be 200 points below the one above, which means the stronger one wins about three games in four. They are close to, but not the same as, chess.com ratings: every site's scale is a little different, especially at the low end.
+- **What the ratings mean:** they're measured, not guessed. Nell and Tariq were tuned by playing hundreds of games against Stockfish at its official strength settings (1500 and 1320), and each of the others to be 200 points below the one above, which means the stronger one wins about three games in four. Measured over 240 games each, every bot came out within 25 points of its rating (the lower the bot, the wider the margin: about ±55 for Nell up to ±135 for Pip). They are close to, but not the same as, chess.com ratings: every site's scale is a little different, especially at the low end.
 - **Take back** undoes your last move and the computer's reply. **Menu** has **Offer a draw** (the computer accepts only if it thinks it's worse, or the game is level late on) and **Resign**.
 
 ## Installing it as an app

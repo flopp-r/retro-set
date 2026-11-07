@@ -53,7 +53,7 @@ Choose **Vs computer**, pick an opponent and your colour (White, Black or Random
 | Tariq | 1300 | Sharp tactics: checks and captures first. |
 | Nell | 1500 | The club champion. Rarely gives anything away. |
 
-- **What the ratings mean:** they're measured, not guessed. Nell and Tariq were tuned by playing hundreds of games against Stockfish at its official strength settings (1500 and 1320), and each of the others to be 200 points below the one above, which means the stronger one wins about three games in four. They are close to, but not the same as, chess.com ratings: every site's scale is a little different, especially at the low end.
+- **What the ratings mean:** they're measured, not guessed. Nell and Tariq were tuned by playing hundreds of games against Stockfish at its official strength settings (1500 and 1320), and each of the others to be 200 points below the one above, which means the stronger one wins about three games in four. Measured over 240 games each, every bot came out within 25 points of its rating (the lower the bot, the wider the margin: about ±55 for Nell up to ±135 for Pip). They are close to, but not the same as, chess.com ratings: every site's scale is a little different, especially at the low end.
 - **Take back** undoes your last move and the computer's reply. **Menu** has **Offer a draw** (the computer accepts only if it thinks it's worse, or the game is level late on) and **Resign**.
 
 ## Installing it as an app

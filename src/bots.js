@@ -15,9 +15,9 @@ const knob = k => ({ temp: Math.round(5 + 595 * Math.pow(k, 1.5)), blunder: Math
 // qs are chosen by hand, k by tools/sim-bots.js. style: bonuses (centipawns) for the moves the bot likes.
 const LIST = [
   { id: 'pip', name: 'Pip', rating: 100, look: { s: 'cap', skin: '#f6d2b4', hair: '#d9a441', shirt: '#6cb8ff' },
-    blurb: 'Has just learnt how the pieces move. Anything can happen.', cfg: { depth: 1, qs: true, k: 0.4 } },
+    blurb: 'Has just learnt how the pieces move. Anything can happen.', cfg: { depth: 1, qs: true, k: 0.28 } },
   { id: 'mabel', name: 'Mabel', rating: 300, look: { s: 'long', skin: '#f2c49b', hair: '#c9c3bd', shirt: '#b04a7a' },
-    blurb: 'Loves pushing her pawns, and often leaves a piece hanging.', cfg: { depth: 1, qs: true, k: 0.3, style: { pawn: 30 } } },
+    blurb: 'Loves pushing her pawns, and often leaves a piece hanging.', cfg: { depth: 1, qs: true, k: 0.222, style: { pawn: 30 } } },
   { id: 'dev', name: 'Dev', rating: 500, look: { s: 'man', skin: '#a8714a', hair: '#1a1206', shirt: '#ff6f8f' },
     blurb: 'Grabs anything you offer, even when it\'s a trap.', cfg: { depth: 1, qs: true, k: 0.187, style: { capture: 80 } } },
   { id: 'priya', name: 'Priya', rating: 700, look: { s: 'glasses', skin: '#d9a07a', hair: '#1a1206', shirt: '#1d8a74' },

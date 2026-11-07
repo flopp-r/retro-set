@@ -157,11 +157,14 @@ const CHAIN = [['nell', 'sf1500', 0], ['tariq', 'sf1320', -20], ['ruth', 'tariq'
       console.log('Put these into src/bots.js:'); for (const [id] of CHAIN.slice(from)) console.log(`  ${id}: k ${tuned[id]}`);
     }
     if (cmd === 'check') {
-      const games = +x || 200;
+      // each bot against its reference, top down; its rating builds on the reference's measured rating (not its target),
+      // so the margins add up down the chain (as the square root of the sum of their squares)
+      const games = +x || 200, got = {}, err = {};
       for (const [id, ref, gap] of CHAIN) {
-        const a = spec(id), b = spec(ref), r = await match(a, b, games), bot = BOTS.byId(id);
-        const refRating = ref.startsWith('sf') ? +ref.slice(2) : BOTS.byId(ref).rating;
-        console.log(`${line(a, b, r, games)}  → ${bot.name} measures about ${Math.round(refRating + elo(r.score))} (target ${bot.rating})`);
+        const a = spec(id), b = spec(ref), r = await match(a, b, games), bot = BOTS.byId(id), d = elo(r.score), e = band(r, games);
+        const base = ref.startsWith('sf') ? +ref.slice(2) : got[ref], baseErr = ref.startsWith('sf') ? 0 : err[ref];
+        got[id] = Math.round(base + d); err[id] = Math.round(Math.sqrt(e * e + baseErr * baseErr));
+        console.log(`${line(a, b, r, games)}  → ${bot.name} measures ${got[id]} ±${err[id]} (target ${bot.rating})`);
       }
     }
   } finally { pool.stop(); console.log(`(${Math.round((Date.now() - t0) / 1000)} s)`); }

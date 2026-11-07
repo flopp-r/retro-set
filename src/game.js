@@ -561,9 +561,9 @@ for (const id of ['#pause', '#promo', '#over']) {   // a tap outside the panel c
 
 // ------------------------------------------------------------------ menus
 // The menu's screens: home and Vs computer (the bots, your colour). M holds the choices, kept between visits.
-const M = { bot: 'gus', colour: 'random' };
+const M = { bot: 'barney', colour: 'random' };
 try { Object.assign(M, JSON.parse(localStorage.getItem('retroSet.menu') || '{}')); } catch (e) {}
-if (!BT.byId(M.bot)) M.bot = 'gus';
+M.bot = (BT.byId(M.bot) || BT.byId('barney')).id;   // a bot from before the renaming becomes the nearest new one
 const saveM = () => { try { localStorage.setItem('retroSet.menu', JSON.stringify(M)); } catch (e) {} };
 let screen = 'home';
 function menuGo(name) {
@@ -578,7 +578,7 @@ function refreshHome() {
   const saved = loadSaved(), b = $('#bResume');
   b.hidden = !saved;
   $('#bLocal .cardTxt').textContent = saved && !saved.vs ? 'New game (replaces the saved one)' : 'One device, take turns';
-  $('#bCpu .cardTxt').textContent = saved && saved.vs ? 'New game (replaces the saved one)' : `Eight opponents, ${BT.LIST[0].rating} to ${BT.LIST[BT.LIST.length - 1].rating}`;
+  $('#bCpu .cardTxt').textContent = saved && saved.vs ? 'New game (replaces the saved one)' : `${BT.LIST.length === 10 ? 'Ten' : BT.LIST.length} opponents, ${BT.LIST[0].rating} to ${BT.LIST[BT.LIST.length - 1].rating}`;
   if (saved) { const bot = saved.vs && BT.byId(saved.vs.bot); b.textContent = `Resume: ${bot ? 'vs ' + bot.name : 'two players'}, move ${Math.ceil((saved.g.list.length + 1) / 2)}`; }
 }
 function renderCpu() {
@@ -636,7 +636,7 @@ function loadSaved() {
     if (!d || !Array.isArray(d.moves)) return null;
     let g = C.newGame(d.start);
     for (const s of d.moves) { g = C.playUci(g, String(s)); if (!g) return null; }
-    const v = d.vs && BT.byId(d.vs.bot) && /^[wb]$/.test(d.vs.me) ? { bot: d.vs.bot, me: d.vs.me } : null;
+    const v = d.vs && BT.byId(d.vs.bot) && /^[wb]$/.test(d.vs.me) ? { bot: BT.byId(d.vs.bot).id, me: d.vs.me } : null;
     return g.result ? null : { g, vs: v };
   } catch (e) { return null; }
 }

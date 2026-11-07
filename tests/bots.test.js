@@ -13,22 +13,31 @@ const mirror = fen => { const [p, t, c, e] = fen.split(' '); const sw = s => s.r
   return [sw(p.split('/').reverse().join('/')), t === 'w' ? 'b' : 'w', c === '-' ? '-' : [...sw(c)].sort().join(''), e === '-' ? '-' : e[0] + (9 - e[1]), 0, 1].join(' '); };
 
 console.log('\nThe bots');
-test('eight bots, 100 to 1500 in steps of 200, each with a name, a face, a line and settings', () => {
-  assert.deepStrictEqual(BOTS.LIST.map(b => b.rating), [100, 300, 500, 700, 900, 1100, 1300, 1500]);
-  assert.strictEqual(new Set(BOTS.LIST.map(b => b.id)).size, 8);
+test('ten bots, Torben 100 to Ted 1500 in steps of 150 (the last 200), each with a name, a face, a line and settings', () => {
+  assert.deepStrictEqual(BOTS.LIST.map(b => b.name), ['Torben', 'Alfie', 'Ollie', 'Dom', 'Joseph', 'Barney', 'Magnus', 'Jake', 'Daws', 'Ted']);
+  assert.deepStrictEqual(BOTS.LIST.map(b => b.rating), [100, 250, 400, 550, 700, 850, 1000, 1150, 1300, 1500]);
+  assert.strictEqual(new Set(BOTS.LIST.map(b => b.id)).size, 10);
   for (const b of BOTS.LIST) {
     assert.ok(b.name && b.blurb && b.look && b.look.s && b.look.skin && b.look.hair && b.look.shirt, b.id + ' is missing something');
-    assert.ok(b.cfg.depth >= 1 && b.cfg.depth <= 4 && b.cfg.k >= 0 && b.cfg.k <= 1.42, b.id + '\'s settings are out of range');
+    assert.ok(b.cfg.depth >= 1 && b.cfg.depth <= 4 && b.cfg.k >= 0 && b.cfg.k <= 1.6 && b.cfg.qs, b.id + '\'s settings are out of range');
   }
+});
+test('every bot blunders now and then: most often the weakest, less as they get stronger, never never', () => {
+  const r = BOTS.LIST.map(b => b.cfg.blunder);
+  for (let i = 1; i < r.length; i++) assert.ok(r[i] <= r[i - 1], BOTS.LIST[i].id);
+  assert.ok(r[0] >= 0.2 && r[r.length - 1] > 0, r.join(', '));
+});
+test('a game against a bot from before the renaming carries on against the nearest new one', () => {
+  assert.deepStrictEqual(['pip', 'mabel', 'dev', 'priya', 'gus', 'ruth', 'tariq', 'nell'].map(id => BOTS.byId(id).id), ['torben', 'alfie', 'dom', 'joseph', 'barney', 'jake', 'daws', 'ted']);
 });
 test('stronger bots look at least as far ahead', () => {
   for (let i = 1; i < BOTS.LIST.length; i++) assert.ok(BOTS.LIST[i].cfg.depth >= BOTS.LIST[i - 1].cfg.depth, BOTS.LIST[i].id);
 });
-test('the knob: 0 is the engine\'s best, turning it up only ever makes mistakes likelier, and at the top every move is random', () => {
-  assert.deepStrictEqual(BOTS.knob(0), { temp: 5, blunder: 0 });
+test('the knob: 0 is the engine\'s best, turning it up only ever makes middling moves likelier, and at the top they\'re nearly random', () => {
+  assert.deepStrictEqual(BOTS.knob(0), { temp: 5 });
   let last = BOTS.knob(0);
-  for (let k = 0.05; k <= 1.42; k += 0.05) { const n = BOTS.knob(k); assert.ok(n.temp >= last.temp && n.blunder >= last.blunder, 'at ' + k); last = n; }
-  assert.strictEqual(BOTS.knob(1.42).blunder, 1);
+  for (let k = 0.05; k <= 1.6; k += 0.05) { const n = BOTS.knob(k); assert.ok(n.temp >= last.temp, 'at ' + k); last = n; }
+  assert.ok(BOTS.knob(1.42).temp > 1000);
 });
 
 console.log('\nThe engine');
@@ -58,8 +67,23 @@ test('following captures through, it doesn\'t take a defended pawn with its quee
 test('looking one move ahead without following captures, it does (why every bot follows captures: measured, that alone is weaker than 100)', () => {
   assert.strictEqual(best('4k3/8/2p5/3p4/8/8/3Q4/4K3 w - - 0 1', { depth: 1, qs: false }), 'Qxd5');
 });
+test('a blunder is a real one: a move that loses material, the one that looks best at a glance', () => {
+  // the queen can grab the d5 pawn (defended by c6) or step onto c4 or e4 (attacked by d5): all lose the queen; the grab
+  // looks best at a glance (a pawn up, if you don't look at the reply), so it's the likeliest
+  const fen = '4k3/8/2p5/3p4/8/8/3Q4/4K3 w - - 0 1', count = {};
+  for (let s = 1; s <= 30; s++) { const g = C.newGame(fen), m = C.san(g.pos, C.runThink(g, { depth: 2, qs: true, temp: 5, blunder: 1 }, C.rng(s))); count[m] = (count[m] || 0) + 1; }
+  assert.ok(Object.keys(count).every(m => ['Qxd5', 'Qc4', 'Qe4'].includes(m)), JSON.stringify(count));
+  assert.ok(count.Qxd5 >= 15, JSON.stringify(count));
+});
+test('missing a mate in one counts as a blunder (as on chess.com: a move much worse than the best one)', () => {
+  assert.notStrictEqual(best('6k1/5ppp/8/8/8/8/5PPP/R5K1 w - - 0 1', { depth: 2, qs: true, blunder: 1 }), 'Ra8#');
+});
+test('with no blunder to make (no move loses anything), a blundering bot plays as it would anyway', () => {
+  const g = C.newGame('8/8/8/4k3/8/8/8/4K2R w - - 0 1');
+  for (let s = 1; s <= 10; s++) assert.strictEqual(C.uci(C.runThink(g, { depth: 2, qs: true, temp: 20, blunder: 1 }, C.rng(s))), C.uci(C.runThink(g, { depth: 2, qs: true, temp: 20, blunder: 0 }, C.rng(s))));
+});
 test('the same seed gives the same choice; different seeds vary a weak bot\'s moves', () => {
-  const g = C.newGame(), cfg = BOTS.settings(BOTS.byId('mabel'));
+  const g = C.newGame(), cfg = BOTS.settings(BOTS.byId('alfie'));
   assert.strictEqual(C.uci(C.runThink(g, cfg, C.rng(42))), C.uci(C.runThink(g, cfg, C.rng(42))));
   const seen = new Set(); for (let s = 1; s <= 20; s++) seen.add(C.uci(C.runThink(g, cfg, C.rng(s))));
   assert.ok(seen.size >= 4, 'only ' + seen.size + ' different first moves in 20 games');
@@ -70,11 +94,11 @@ test('every bot plays a legal move, and the thinking can be spread out (it yield
     const it = C.think(g, BOTS.settings(b), C.rng(3)); let r, steps = 0;
     while (!(r = it.next()).done) steps++;
     assert.ok(C.play(g, r.value), b.id + ' played an illegal move');
-    if (b.cfg.k < 1) assert.ok(steps > 0 || BOTS.settings(b).blunder > 0, b.id + ' never yielded');
+    assert.ok(steps > 0, b.id + ' never yielded');
   }
 });
 test('a whole game between two bots ends properly', () => {
-  let g = C.newGame(); const rnd = C.rng(5), w = BOTS.settings(BOTS.byId('dev')), b = BOTS.settings(BOTS.byId('mabel'));
+  let g = C.newGame(); const rnd = C.rng(5), w = BOTS.settings(BOTS.byId('ollie')), b = BOTS.settings(BOTS.byId('alfie'));
   while (!g.result && g.list.length < 300) g = C.play(g, C.runThink(g, g.pos.turn === 'w' ? w : b, rnd));
   assert.ok(g.list.length > 10);
 });

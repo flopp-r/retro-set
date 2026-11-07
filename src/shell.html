@@ -37,7 +37,7 @@ button:focus-visible{outline:3px dashed var(--chalk);outline-offset:2px}
 .mTop{display:flex;align-items:center;gap:14px;padding:14px 20px 0;flex:none}
 #mTitle{font-family:'Press Start 2P',monospace;font-weight:400;font-size:12px;line-height:1.4;color:var(--lamp);margin:0}
 /* Vs computer: the bots, the one picked, your colour */
-.botGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.botGrid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
 .botCard{display:flex;flex-direction:column;align-items:center;gap:4px;padding:7px 4px 6px;font:inherit;color:var(--paper);background:var(--plum);border:3px solid var(--ink);border-radius:0;cursor:pointer;box-shadow:inset -3px -3px 0 rgba(0,0,0,.35),inset 3px 3px 0 rgba(255,255,255,.1)}
 .botCard:hover{background:var(--plum2)}
 .botCard[aria-pressed="true"]{border-color:var(--lamp);background:var(--plum2)}
@@ -140,7 +140,7 @@ button:focus-visible{outline:3px dashed var(--chalk);outline-offset:2px}
         <div class="quickRow"><button class="btn" id="bResume" type="button" hidden></button></div>
         <div class="cards">
           <button class="card" type="button" id="bLocal"><span class="cardName">Two players</span><span class="cardTxt">One device, take turns</span></button>
-          <button class="card" type="button" id="bCpu"><span class="cardName">Vs computer</span><span class="cardTxt">Eight opponents</span></button>
+          <button class="card" type="button" id="bCpu"><span class="cardName">Vs computer</span><span class="cardTxt">Ten opponents</span></button>
           <button class="card" type="button" id="bOnline" disabled><span class="cardName">Online</span><span class="cardTxt">Coming soon</span></button>
         </div>
         <p id="ver"></p>

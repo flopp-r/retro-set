@@ -212,10 +212,11 @@ const finish = (g, score, why) => g.result ? g : { ...g, result: { score, why } 
 // ---------------------------------------------------------------- the computer player
 // A small engine: it scores a position by material and where the pieces stand, and searches a set number of moves
 // ahead (negamax with alpha-beta), then follows captures until the position is quiet (so it doesn't stop in the middle
-// of an exchange). Each computer opponent (see bots.js) weakens it the way people of that strength play: the weakest
-// look only one move ahead and don't see the reply, and every one of them picks a less good move now and then, more
-// often the worse it is (a softmax over the moves' scores, with a temperature), plus a chance of an outright blunder
-// (any legal move). Strength is measured, not guessed: see tools/sim-bots.js.
+// of an exchange). Each computer opponent (see bots.js) weakens it the way people of that strength play: the low ones
+// look only one move ahead, so they miss forks, pins and threats; every one of them plays a middling move now and then,
+// more often the weaker it is (a softmax over the moves' scores, with a temperature); and every one blunders now and
+// then: a move that really loses material, picked because it looks good at a glance. Strength is measured, not
+// guessed: see tools/sim-bots.js.
 const VALUE = { P: 100, N: 320, B: 330, R: 500, Q: 900, K: 0 };
 const PHASE = { P: 0, N: 1, B: 1, R: 2, Q: 4, K: 0 };   // how much of the middlegame is left: 24 with every piece on
 // where each piece likes to stand, in centipawns, from White's side with a8 first (as a board is printed): the
@@ -320,12 +321,15 @@ function rng(seed) {
 }
 // Chooses the computer's move. A generator: it yields after scoring each move, so the page can spread the thinking
 // over several frames; run it to the end (see runThink) and its return value is the move. cfg: depth (moves looked
-// ahead), qs (follow captures to the end), temp (centipawns: how readily it picks a worse move), blunder (the chance of
-// any legal move), and style bonuses in centipawns for the kind of move the player likes (capture, check, pawn, castle).
+// ahead), qs (follow captures to the end), temp (centipawns: how readily it picks a middling move), blunder (the chance,
+// each move, of a blunder: see below), and style bonuses in centipawns for the moves the player likes (capture, check,
+// pawn, castle, queen).
+const BLUNDER = 200;   // a blunder loses at least this much (centipawns): a piece, two pawns, or walking into a mate
+const pick = (items, w, rnd) => { let r = rnd() * w.reduce((a, b) => a + b, 0); for (let i = 0; i < items.length; i++) { r -= w[i]; if (r <= 0) return items[i]; } return items[items.length - 1]; };
 function* think(g, cfg, rnd) {
   const pos = g.pos, moves = legalMoves(pos), ctx = { nodes: 0, qs: !!cfg.qs }, st = cfg.style || {};
   if (!moves.length) return null;
-  if (rnd() < (cfg.blunder || 0)) return moves[Math.floor(rnd() * moves.length)];
+  const slip = rnd() < (cfg.blunder || 0);   // this move, a blunder (if there's one to make)
   // the opening: a little more variety, so the same moves aren't played every game
   const temp = Math.max(1, cfg.temp || 1, g.list.length < 8 ? 30 : 0), scored = [];
   // a move scoring far below the best so far would almost never be picked, so its exact score isn't needed: the search
@@ -342,15 +346,23 @@ function* think(g, cfg, rnd) {
     if (m.cap) sc += st.capture || 0;
     if (kind(m.p) === 'P') sc += st.pawn || 0;
     if (m.castle) sc += st.castle || 0;
+    if (kind(m.p) === 'Q') sc += st.queen || 0;
     if (st.check && inCheck(n)) sc += st.check;
     scored.push([m, sc]);
     yield ctx.nodes;
   }
   const top = Math.max(...scored.map(x => x[1]));
-  const w = scored.map(([, sc]) => Math.exp(Math.max(-50, (sc - top) / temp)));
-  let r = rnd() * w.reduce((a, b) => a + b, 0);
-  for (let i = 0; i < scored.length; i++) { r -= w[i]; if (r <= 0) return scored[i][0]; }
-  return scored[scored.length - 1][0];
+  if (slip) {
+    // A blunder, the way people make one: of the moves that lose at least BLUNDER, the one that looks best at a glance,
+    // judging only the position straight after it, not the reply (grabbing a pawn the queen can't hold, say). With no
+    // such move to make, the move is chosen as usual.
+    const bad = scored.filter(([, sc]) => sc <= top - BLUNDER);
+    if (bad.length) {
+      const glance = bad.map(([m]) => -evaluate(makeMove(pos, m))), hi = Math.max(...glance);
+      return pick(bad, glance.map(v => Math.exp(Math.max(-50, (v - hi) / 50))), rnd)[0];
+    }
+  }
+  return pick(scored, scored.map(([, sc]) => Math.exp(Math.max(-50, (sc - top) / temp))), rnd)[0];
 }
 // runs think() to the end at once (the tests and the tools; the page spreads it over frames instead)
 function runThink(g, cfg, rnd) { const it = think(g, cfg, rnd); let r; while (!(r = it.next()).done); return r.value; }

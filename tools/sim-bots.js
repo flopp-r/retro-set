@@ -112,8 +112,8 @@ function band(r, games) {
 }
 const line = (a, b, r, games) => `${a.name.padEnd(12)} v ${b.name.padEnd(12)} ${(r.score * 100).toFixed(1).padStart(5)}%  (${r.w} won, ${r.d} drawn, ${r.l} lost; ${Math.round(r.plies)} plies a game)  ${elo(r.score) >= 0 ? '+' : ''}${Math.round(elo(r.score))} ±${band(r, games)}`;
 
-// each bot's reference and the score it should get against it: the top two against Stockfish, the rest 200 below the bot above
-const CHAIN = [['nell', 'sf1500', 0], ['tariq', 'sf1320', -20], ['ruth', 'tariq', -200], ['gus', 'ruth', -200], ['priya', 'gus', -200], ['dev', 'priya', -200], ['mabel', 'dev', -200], ['pip', 'mabel', -200]];
+// each bot's reference and its rating gap to it: the top two against Stockfish, each of the rest against the bot above
+const CHAIN = BOTS.LIST.slice().reverse().map((b, i, all) => i === 0 ? [b.id, 'sf1500', b.rating - 1500] : i === 1 ? [b.id, 'sf1320', b.rating - 1320] : [b.id, all[i - 1].id, b.rating - all[i - 1].rating]);
 
 (async () => {
   const [cmd, x, y, z] = process.argv.slice(2);
@@ -139,13 +139,14 @@ const CHAIN = [['nell', 'sf1500', 0], ['tariq', 'sf1320', -20], ['ruth', 'tariq'
           const me = { name: `${id}@${k.toFixed(3)}`, cfg: BOTS.settings(bot, k) }, r = await match(me, refSpec, games);
           console.log('  ' + line(me, refSpec, r, games)); return E(r.score);
         };
-        let lo = [0, await at(0)];
-        if (lo[1] < want) { console.log(`${bot.name} can't reach ${bot.rating} at depth ${bot.cfg.depth}: give it a deeper search\n`); tuned[id] = 0; continue; }
-        let hi = null;
-        for (const k of [0.4, 0.8, 1.1, 1.42]) { const e = await at(k); if (e < want) { hi = [k, e]; break; } lo = [k, e]; }
-        if (!hi) { console.log(`${bot.name} is still too strong with every move random?\n`); tuned[id] = 1.42; continue; }
+        // start from the bot's current value, step until the target is between two tries, then close in
+        let lo = null, hi = null, k0 = tuned[id], e0 = await at(k0);
+        if (e0 >= want) { lo = [k0, e0]; for (let k = k0 + 0.03; k <= 1.6; k += 0.03) { const e = await at(k); if (e < want) { hi = [k, e]; break; } lo = [k, e]; } }
+        else { hi = [k0, e0]; for (let k = Math.max(0, k0 - 0.03); ; k = Math.max(0, k - 0.03)) { const e = await at(k); if (e >= want) { lo = [k, e]; break; } hi = [k, e]; if (k === 0) break; } }
+        if (!lo) { console.log(`${bot.name} can't reach ${bot.rating} at depth ${bot.cfg.depth}: give it a deeper search or fewer blunders\n`); tuned[id] = 0; continue; }
+        if (!hi) { console.log(`${bot.name} is still too strong with the knob at its top\n`); tuned[id] = lo[0]; continue; }
         let k = lo[0];
-        for (let i = 0; i < 3; i++) {
+        for (let i = 0; i < 2; i++) {
           k = lo[0] + (want - lo[1]) * (hi[0] - lo[0]) / (hi[1] - lo[1]);
           k = Math.min(hi[0] - 0.01, Math.max(lo[0] + 0.01, k));
           const e = await at(k);

@@ -1,0 +1,11 @@
+{
+  "name": "retro-set",
+  "private": true,
+  "description": "Retro Set: 3D pixel-art chess",
+  "scripts": {
+    "build": "node tools/build.js",
+    "test": "node tests/core.test.js",
+    "test:browser": "node tests/browser/run-all.js",
+    "icons": "node tools/make-icons.js"
+  }
+}

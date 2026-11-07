@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Retro Set: 3D pixel chess</title>
+<meta name="theme-color" content="#1a1433">
+<link rel="icon" type="image/png" href="data:image/png;base64,__FAVICON__">
+<style>
+@font-face{font-family:'Press Start 2P';src:url(data:font/woff2;base64,__PS2P__) format('woff2');font-display:block}
+@font-face{font-family:'VT323';src:url(data:font/woff2;base64,__VT323__) format('woff2');font-display:block}
+/* Retro Rack's palette, so the two games look like a family */
+:root{--night:#1a1433;--plum:#3a2452;--plum2:#4e3270;--lamp:#ffc56b;--chalk:#6cb8ff;--rose:#ff6f8f;--paper:#f7ead2;--ink:#0d0a1c}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--night);color:var(--paper);font-family:'VT323',ui-monospace,monospace;font-size:22px;line-height:1.15;-webkit-user-select:none;user-select:none;touch-action:none;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+#view{position:fixed;left:0;top:0;display:block;image-rendering:pixelated;image-rendering:crisp-edges}
+.panel{background:rgba(22,17,44,.9);border:3px solid var(--lamp);box-shadow:6px 6px 0 var(--ink)}
+.btn{font-family:'Press Start 2P',monospace;font-size:10px;line-height:1.35;color:var(--paper);background:var(--plum);border:3px solid var(--ink);border-radius:0;box-shadow:inset -3px -3px 0 rgba(0,0,0,.35),inset 3px 3px 0 rgba(255,255,255,.1);padding:8px 10px;cursor:pointer}
+.btn:hover{background:var(--plum2)}
+.btn:active{transform:translate(2px,2px)}
+.btn[aria-pressed="true"]{background:var(--lamp);color:var(--ink)}
+.btn:disabled{opacity:.45;cursor:default;transform:none}
+button:focus-visible{outline:3px dashed var(--chalk);outline-offset:2px}
+
+/* shared by the menus and the panels that will come (settings, game over and so on) */
+.row{display:grid;grid-template-columns:104px 1fr;gap:6px 14px;align-items:start;margin:0 0 12px}
+.lbl{color:var(--lamp);font-size:22px;padding-top:6px}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.note{font-size:20px;opacity:.82;max-width:46ch}
+.actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:20px}
+/* menu: a panel on the left with a stack of screens (one for now), the board in view behind it */
+#menu{position:fixed;inset:0;display:flex;align-items:center;justify-content:flex-start;padding:3vh 4vw;pointer-events:none;overflow:hidden}
+#menuPanel{pointer-events:auto;width:min(560px,94vw);max-height:94vh;display:flex;flex-direction:column;overflow:hidden;padding:0}
+#mStage{display:grid;overflow:auto;min-height:0;padding:16px 20px 14px}
+.mScreen{grid-area:1 / 1;min-width:0}
+.title{font-family:'Press Start 2P',monospace;font-weight:400;font-size:clamp(26px,4.2vw,42px);line-height:1.15;color:var(--lamp);margin:0 0 16px;text-shadow:3px 3px 0 var(--rose),6px 6px 0 var(--plum2),9px 9px 0 var(--ink)}
+.tag{margin:0 0 6px}
+#ver{margin:12px 0 0;font-size:16px;opacity:.5}
+/* phones held sideways (and other short screens): smaller everything, so every screen fits without scrolling */
+@media (max-height:500px){
+  #menu{padding:2vh 3vw}
+  .title{font-size:22px;margin-bottom:10px}
+  #mStage{padding:10px 14px 8px}
+  .note{font-size:18px}
+  #ver{margin-top:6px;font-size:15px}
+}
+</style>
+</head>
+<body>
+<canvas id="view" aria-label="3D chess board"></canvas>
+<div id="menu">
+  <div id="menuPanel" class="panel">
+    <div id="mStage">
+      <section class="mScreen" id="sc-home">
+        <h1 class="title">Retro Set</h1>
+        <p class="tag">3D pixel chess.</p>
+        <p class="note">Under construction: the board is set up, the game comes next.</p>
+        <p id="ver"></p>
+      </section>
+    </div>
+  </div>
+</div>
+<script type="module">__BUNDLE__</script>
+</body>
+</html>

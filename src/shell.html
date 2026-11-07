@@ -34,6 +34,20 @@ button:focus-visible{outline:3px dashed var(--chalk);outline-offset:2px}
 #menu{position:fixed;inset:0;display:flex;align-items:center;justify-content:flex-start;padding:3vh 4vw;pointer-events:none;overflow:hidden}
 #menuPanel{pointer-events:auto;width:min(560px,94vw);max-height:94vh;display:flex;flex-direction:column;overflow:hidden;padding:0}
 #mStage{display:grid;overflow:auto;min-height:0;padding:16px 20px 14px}
+.mTop{display:flex;align-items:center;gap:14px;padding:14px 20px 0;flex:none}
+#mTitle{font-family:'Press Start 2P',monospace;font-weight:400;font-size:12px;line-height:1.4;color:var(--lamp);margin:0}
+/* Vs computer: the bots, the one picked, your colour */
+.botGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.botCard{display:flex;flex-direction:column;align-items:center;gap:4px;padding:7px 4px 6px;font:inherit;color:var(--paper);background:var(--plum);border:3px solid var(--ink);border-radius:0;cursor:pointer;box-shadow:inset -3px -3px 0 rgba(0,0,0,.35),inset 3px 3px 0 rgba(255,255,255,.1)}
+.botCard:hover{background:var(--plum2)}
+.botCard[aria-pressed="true"]{border-color:var(--lamp);background:var(--plum2)}
+.portrait{image-rendering:pixelated;flex:none}
+.botName{font-family:'Press Start 2P',monospace;font-size:9px;color:var(--lamp);white-space:nowrap}
+.botElo{font-size:18px;line-height:1}
+#botBlurb{font-size:20px;margin:10px 0 8px;min-height:2.3em}
+.cpuRow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:space-between}
+.cpuRow .lbl{padding-top:0}
+#bPlay{font-size:12px;padding:12px 16px;background:var(--rose);color:var(--ink)}#bPlay:hover{background:#ff8ba5}
 .mScreen{grid-area:1 / 1;min-width:0}
 .title{font-family:'Press Start 2P',monospace;font-weight:400;font-size:clamp(26px,4.2vw,42px);line-height:1.15;color:var(--lamp);margin:0 0 16px;text-shadow:3px 3px 0 var(--rose),6px 6px 0 var(--plum2),9px 9px 0 var(--ink)}
 .quickRow{display:flex;flex-wrap:wrap;gap:8px}.quickRow>.btn{margin-bottom:12px;text-align:left}
@@ -55,6 +69,8 @@ button:focus-visible{outline:3px dashed var(--chalk);outline-offset:2px}
 .pl.active::before{content:'\25B6';color:var(--lamp)}
 .chip{width:12px;height:12px;border:2px solid var(--ink);flex:none}
 #plW .chip{background:var(--wpiece)}#plB .chip{background:var(--bpiece);outline:1px solid var(--paper)}
+.plFace:empty{display:none}.plFace img{display:block;height:24px;width:auto;margin:-4px 0}
+#toast{position:fixed;top:calc(var(--bb,60px) + 8px);left:50%;transform:translateX(-50%);padding:5px 12px;font-size:20px;background:var(--ink);border:3px solid var(--lamp);white-space:nowrap;max-width:94vw}
 #mid{min-width:190px;padding:5px 10px;text-align:center}
 #turnLine{font-size:20px}
 #turnLine.check{color:var(--rose)}
@@ -92,6 +108,10 @@ button:focus-visible{outline:3px dashed var(--chalk);outline-offset:2px}
   #bResume{font-size:10px;padding:9px 12px}.quickRow>.btn{margin-bottom:8px}
   .note{font-size:18px}
   #ver{margin-top:6px;font-size:15px}
+  .mTop{padding:8px 14px 0}
+  .botGrid{gap:5px}.botCard{padding:4px 3px;gap:2px;flex-direction:row;justify-content:center}.botCard .portrait{height:22px;width:auto}.botName{font-size:7px}.botElo{font-size:15px}
+  #botBlurb{font-size:16px;margin:5px 0 4px;min-height:0}
+  #bPlay{font-size:10px;padding:8px 12px}.cpuRow .btn{font-size:8px;padding:6px 7px}
   .ovPanel{padding:12px 16px 12px}.ovPanel h2{font-size:12px;margin-bottom:8px}.ovPanel .row{margin-bottom:6px}
   #overTitle{font-size:16px!important}#overWhy{font-size:20px}
   #promoBtns canvas{width:36px;height:45px}#promoBtns .btn{padding:6px 4px;gap:4px}
@@ -113,26 +133,33 @@ button:focus-visible{outline:3px dashed var(--chalk);outline-offset:2px}
 <canvas id="view" aria-label="3D chess board"></canvas>
 <div id="menu">
   <div id="menuPanel" class="panel">
+    <div class="mTop" id="mTop" hidden><button class="btn" id="mBack" type="button" aria-label="Back">&lt; Back</button><h2 id="mTitle"></h2></div>
     <div id="mStage">
       <section class="mScreen" id="sc-home">
         <h1 class="title">Retro Set</h1>
         <div class="quickRow"><button class="btn" id="bResume" type="button" hidden></button></div>
         <div class="cards">
           <button class="card" type="button" id="bLocal"><span class="cardName">Two players</span><span class="cardTxt">One device, take turns</span></button>
-          <button class="card" type="button" id="bCpu" disabled><span class="cardName">Vs computer</span><span class="cardTxt">Coming next</span></button>
+          <button class="card" type="button" id="bCpu"><span class="cardName">Vs computer</span><span class="cardTxt">Eight opponents</span></button>
           <button class="card" type="button" id="bOnline" disabled><span class="cardName">Online</span><span class="cardTxt">Coming soon</span></button>
         </div>
         <p id="ver"></p>
+      </section>
+      <section class="mScreen" id="sc-cpu" data-title="Vs computer" hidden>
+        <div class="botGrid" id="botGrid"></div>
+        <p id="botBlurb"></p>
+        <div class="cpuRow"><span class="lbl">You play</span><div class="seg" id="sColour"><button class="btn" type="button" data-v="white">White</button><button class="btn" type="button" data-v="random">Random</button><button class="btn" type="button" data-v="black">Black</button></div><button class="btn" id="bPlay" type="button">Play</button></div>
       </section>
     </div>
   </div>
 </div>
 <div id="hud" hidden>
   <div id="bar">
-    <div class="pl" id="plW"><span class="chip"></span><span class="plName">White</span></div>
+    <div class="pl" id="plW"><span class="chip"></span><span class="plFace"></span><span class="plName">White</span></div>
     <div id="mid"><div id="turnLine"></div><div id="lastMove"></div></div>
-    <div class="pl" id="plB"><span class="chip"></span><span class="plName">Black</span></div>
+    <div class="pl" id="plB"><span class="chip"></span><span class="plFace"></span><span class="plName">Black</span></div>
   </div>
+  <div id="toast" hidden></div>
   <div id="movesBox"><h3>Moves</h3><div id="moveList"></div></div>
   <div id="tools">
     <button class="btn" id="bMenu" type="button">Menu</button>
@@ -143,8 +170,8 @@ button:focus-visible{outline:3px dashed var(--chalk);outline-offset:2px}
 <div id="pause" class="overlay" hidden>
   <div class="panel ovPanel" role="dialog" aria-labelledby="pauseTitle">
     <h2 id="pauseTitle">Menu</h2>
-    <div class="row"><span class="lbl">Turn the board</span><div class="seg" id="sTurn"><button class="btn" type="button" data-v="1">On</button><button class="btn" type="button" data-v="0">Off</button></div></div>
-    <p class="note">On: after each move the view turns round to the player whose move it is.</p>
+    <div class="row onlyLocal"><span class="lbl">Turn the board</span><div class="seg" id="sTurn"><button class="btn" type="button" data-v="1">On</button><button class="btn" type="button" data-v="0">Off</button></div></div>
+    <p class="note onlyLocal">On: after each move the view turns round to the player whose move it is.</p>
     <div id="pauseBtns">
       <button class="btn" id="bResumeGame" type="button">Resume</button>
       <button class="btn" id="bDraw" type="button">Agree a draw</button>

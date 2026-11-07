@@ -1,5 +1,5 @@
 // ============================================================================
-//  RETRO SET — core: the chess rules (and, to come, the computer player)
+//  RETRO SET — core: the chess rules and the computer player
 // ============================================================================
 // No DOM here: this file also runs in Node, for the tests and tools. Squares are numbered 0 to 63, a1 = 0, b1 = 1 …
 // h8 = 63 (rank × 8 + file). A position is { b, turn, castle, ep, half, full }: b is 64 strings, a piece letter
@@ -209,7 +209,153 @@ function undo(g) {
 // a result the board didn't decide: a resignation ('resigned', the winner's score) or an agreed draw ('agreed')
 const finish = (g, score, why) => g.result ? g : { ...g, result: { score, why } };
 
+// ---------------------------------------------------------------- the computer player
+// A small engine: it scores a position by material and where the pieces stand, and searches a set number of moves
+// ahead (negamax with alpha-beta), then follows captures until the position is quiet (so it doesn't stop in the middle
+// of an exchange). Each computer opponent (see bots.js) weakens it the way people of that strength play: the weakest
+// look only one move ahead and don't see the reply, and every one of them picks a less good move now and then, more
+// often the worse it is (a softmax over the moves' scores, with a temperature), plus a chance of an outright blunder
+// (any legal move). Strength is measured, not guessed: see tools/sim-bots.js.
+const VALUE = { P: 100, N: 320, B: 330, R: 500, Q: 900, K: 0 };
+const PHASE = { P: 0, N: 1, B: 1, R: 2, Q: 4, K: 0 };   // how much of the middlegame is left: 24 with every piece on
+// where each piece likes to stand, in centipawns, from White's side with a8 first (as a board is printed): the
+// "simplified evaluation function" tables (Tomasz Michniewski). KE is the king in the endgame.
+const PST = {
+  P: [0, 0, 0, 0, 0, 0, 0, 0, 50, 50, 50, 50, 50, 50, 50, 50, 10, 10, 20, 30, 30, 20, 10, 10, 5, 5, 10, 25, 25, 10, 5, 5, 0, 0, 0, 20, 20, 0, 0, 0, 5, -5, -10, 0, 0, -10, -5, 5, 5, 10, 10, -20, -20, 10, 10, 5, 0, 0, 0, 0, 0, 0, 0, 0],
+  N: [-50, -40, -30, -30, -30, -30, -40, -50, -40, -20, 0, 0, 0, 0, -20, -40, -30, 0, 10, 15, 15, 10, 0, -30, -30, 5, 15, 20, 20, 15, 5, -30, -30, 0, 15, 20, 20, 15, 0, -30, -30, 5, 10, 15, 15, 10, 5, -30, -40, -20, 0, 5, 5, 0, -20, -40, -50, -40, -30, -30, -30, -30, -40, -50],
+  B: [-20, -10, -10, -10, -10, -10, -10, -20, -10, 0, 0, 0, 0, 0, 0, -10, -10, 0, 5, 10, 10, 5, 0, -10, -10, 5, 5, 10, 10, 5, 5, -10, -10, 0, 10, 10, 10, 10, 0, -10, -10, 10, 10, 10, 10, 10, 10, -10, -10, 5, 0, 0, 0, 0, 5, -10, -20, -10, -10, -10, -10, -10, -10, -20],
+  R: [0, 0, 0, 0, 0, 0, 0, 0, 5, 10, 10, 10, 10, 10, 10, 5, -5, 0, 0, 0, 0, 0, 0, -5, -5, 0, 0, 0, 0, 0, 0, -5, -5, 0, 0, 0, 0, 0, 0, -5, -5, 0, 0, 0, 0, 0, 0, -5, -5, 0, 0, 0, 0, 0, 0, -5, 0, 0, 0, 5, 5, 0, 0, 0],
+  Q: [-20, -10, -10, -5, -5, -10, -10, -20, -10, 0, 0, 0, 0, 0, 0, -10, -10, 0, 5, 5, 5, 5, 0, -10, -5, 0, 5, 5, 5, 5, 0, -5, 0, 0, 5, 5, 5, 5, 0, -5, -10, 5, 5, 5, 5, 5, 0, -10, -10, 0, 5, 0, 0, 0, 0, -10, -20, -10, -10, -5, -5, -10, -10, -20],
+  K: [-30, -40, -40, -50, -50, -40, -40, -30, -30, -40, -40, -50, -50, -40, -40, -30, -30, -40, -40, -50, -50, -40, -40, -30, -30, -40, -40, -50, -50, -40, -40, -30, -20, -30, -30, -40, -40, -30, -30, -20, -10, -20, -20, -20, -20, -20, -20, -10, 20, 20, 0, 0, 0, 0, 20, 20, 20, 30, 10, 0, 0, 10, 30, 20],
+  KE: [-50, -40, -30, -20, -20, -30, -40, -50, -30, -20, -10, 0, 0, -10, -20, -30, -30, -10, 20, 30, 30, 20, -10, -30, -30, -10, 30, 40, 40, 30, -10, -30, -30, -10, 30, 40, 40, 30, -10, -30, -30, -10, 20, 30, 30, 20, -10, -30, -30, -30, 0, 0, 0, 0, -30, -30, -50, -30, -30, -30, -30, -30, -30, -50],
+};
+// the score of a position for the side to move, in centipawns (100 = a pawn): material and where the pieces stand
+// (the king's table moving from staying sheltered to coming out as the pieces come off), then the pawns (passed pawns
+// worth more the further on they are, doubled and isolated pawns worth less), rooks on open files, the bishop pair,
+// and the pawns sheltering a castled king while there's still a middlegame
+const PASSED_MG = [0, 5, 5, 10, 15, 25, 40, 0], PASSED_EG = [0, 10, 15, 25, 45, 75, 120, 0];
+function evaluate(pos) {
+  const b = pos.b, wp = [0, 0, 0, 0, 0, 0, 0, 0], bp = [0, 0, 0, 0, 0, 0, 0, 0], wMax = new Array(8).fill(-1), bMin = new Array(8).fill(8);
+  const wMin = new Array(8).fill(8), bMax = new Array(8).fill(-1);
+  let sc = 0, phase = 0, wk = 4, bk = 60, wb = 0, bb = 0;
+  for (let s = 0; s < 64; s++) {
+    const p = b[s];
+    if (!p) continue;
+    const k = kind(p), w = p === k, f = s & 7, r = s >> 3;
+    if (k === 'K') { if (w) wk = s; else bk = s; continue; }
+    const v = VALUE[k] + PST[k][w ? s ^ 56 : s];
+    sc += w ? v : -v; phase += PHASE[k];
+    if (k === 'P') { if (w) { wp[f]++; wMax[f] = Math.max(wMax[f], r); wMin[f] = Math.min(wMin[f], r); } else { bp[f]++; bMin[f] = Math.min(bMin[f], r); bMax[f] = Math.max(bMax[f], r); } }
+    if (k === 'B') { if (w) wb++; else bb++; }
+  }
+  const t = Math.min(phase, 24) / 24;
+  let x = t * (PST.K[wk ^ 56] - PST.K[bk]) + (1 - t) * (PST.KE[wk ^ 56] - PST.KE[bk]);
+  if (wb >= 2) x += 30; if (bb >= 2) x -= 30;
+  for (let s = 0; s < 64; s++) {
+    const p = b[s];
+    if (p !== 'P' && p !== 'p' && p !== 'R' && p !== 'r') continue;
+    const f = s & 7, r = s >> 3, lo = Math.max(0, f - 1), hi = Math.min(7, f + 1);
+    if (p === 'P') {
+      let free = true; for (let g = lo; g <= hi; g++) if (bMax[g] > r) free = false;   // no black pawn ahead on this file or beside it
+      if (free) x += t * PASSED_MG[r] + (1 - t) * PASSED_EG[r];
+      if ((f === 0 || !wp[f - 1]) && (f === 7 || !wp[f + 1])) x -= 12;
+    } else if (p === 'p') {
+      let free = true; for (let g = lo; g <= hi; g++) if (wMin[g] < r) free = false;
+      if (free) x -= t * PASSED_MG[7 - r] + (1 - t) * PASSED_EG[7 - r];
+      if ((f === 0 || !bp[f - 1]) && (f === 7 || !bp[f + 1])) x += 12;
+    } else {
+      const own = p === 'R' ? wp[f] : bp[f], theirs = p === 'R' ? bp[f] : wp[f], v = !own ? (theirs ? 9 : 18) : 0;
+      x += p === 'R' ? v : -v;
+    }
+  }
+  for (let f = 0; f < 8; f++) { if (wp[f] > 1) x -= 12 * (wp[f] - 1); if (bp[f] > 1) x += 12 * (bp[f] - 1); }
+  // the king's pawn shelter: own pawns just in front of it and beside, while there's a middlegame to be safe from
+  const shelter = (k, pawn, dir) => { let n = 0; for (let df = -1; df <= 1; df++) for (const dr of [1, 2]) { const q = at((k & 7) + df, (k >> 3) + dir * dr); if (q >= 0 && b[q] === pawn) n++; } return Math.min(n, 3); };
+  if ((wk >> 3) <= 1) x += 10 * t * shelter(wk, 'P', 1);
+  if ((bk >> 3) >= 6) x -= 10 * t * shelter(bk, 'p', -1);
+  sc += Math.round(x);
+  return pos.turn === 'w' ? sc : -sc;
+}
+const MATE = 100000;
+// captures first, the most valuable piece taken by the least valuable taker; promotions with them
+const order = ms => ms.sort((a, b) => ((b.cap ? VALUE[kind(b.cap)] * 10 - VALUE[kind(b.p)] : 0) + (b.promo ? 8000 : 0)) - ((a.cap ? VALUE[kind(a.cap)] * 10 - VALUE[kind(a.p)] : 0) + (a.promo ? 8000 : 0)));
+const leaves = (pos, n) => { const k = kingSq(n.b, pos.turn); return k >= 0 && attacked(n.b, k, n.turn); };   // a move that leaves the mover's own king attacked
+function quiesce(pos, alpha, beta, ctx) {
+  ctx.nodes++;
+  const stand = evaluate(pos);
+  if (stand >= beta) return stand;
+  if (stand > alpha) alpha = stand;
+  for (const m of order(pseudoMoves(pos).filter(m => m.cap || m.promo))) {
+    const n = makeMove(pos, m);
+    if (leaves(pos, n)) continue;
+    const sc = -quiesce(n, -beta, -alpha, ctx);
+    if (sc >= beta) return sc;
+    if (sc > alpha) alpha = sc;
+  }
+  return alpha;
+}
+function negamax(pos, depth, alpha, beta, ply, ctx) {
+  const chk = inCheck(pos);
+  if (chk && ctx.qs && ply < 12) depth++;   // in check: look one move further, so the search never stops with a king attacked
+  if (depth <= 0) { if (ctx.qs) return quiesce(pos, alpha, beta, ctx); ctx.nodes++; return evaluate(pos); }
+  ctx.nodes++;
+  if (pos.half >= 100) return 0;
+  let legal = 0, best = -Infinity;
+  for (const m of order(pseudoMoves(pos))) {
+    const n = makeMove(pos, m);
+    if (leaves(pos, n)) continue;
+    legal++;
+    const sc = -negamax(n, depth - 1, -beta, -alpha, ply + 1, ctx);
+    if (sc > best) best = sc;
+    if (sc > alpha) alpha = sc;
+    if (alpha >= beta) break;
+  }
+  if (!legal) return chk ? -MATE + ply : 0;
+  return best;
+}
+// a seeded random number generator (mulberry32): the computer's choices repeat exactly for the same seed
+function rng(seed) {
+  let a = seed >>> 0;
+  return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+// Chooses the computer's move. A generator: it yields after scoring each move, so the page can spread the thinking
+// over several frames; run it to the end (see runThink) and its return value is the move. cfg: depth (moves looked
+// ahead), qs (follow captures to the end), temp (centipawns: how readily it picks a worse move), blunder (the chance of
+// any legal move), and style bonuses in centipawns for the kind of move the player likes (capture, check, pawn, castle).
+function* think(g, cfg, rnd) {
+  const pos = g.pos, moves = legalMoves(pos), ctx = { nodes: 0, qs: !!cfg.qs }, st = cfg.style || {};
+  if (!moves.length) return null;
+  if (rnd() < (cfg.blunder || 0)) return moves[Math.floor(rnd() * moves.length)];
+  // the opening: a little more variety, so the same moves aren't played every game
+  const temp = Math.max(1, cfg.temp || 1, g.list.length < 8 ? 30 : 0), scored = [];
+  // a move scoring far below the best so far would almost never be picked, so its exact score isn't needed: the search
+  // only has to show it's below this floor (much quicker)
+  let floor = -Infinity;
+  for (const m of order(moves.slice())) {
+    const n = makeMove(pos, m), k = repKey(n);
+    // a move that repeats the position a third time is a draw; otherwise search the reply
+    // (looking one move ahead, the search doesn't see the reply, so a mate in one or a stalemate is checked here)
+    const shallow = (cfg.depth || 1) <= 1 && !legalMoves(n).length;
+    const raw = g.keys.filter(x => x === k).length >= 2 ? 0 : shallow ? (inCheck(n) ? MATE : 0) : -negamax(n, (cfg.depth || 1) - 1, -Infinity, -floor, 1, ctx);
+    floor = Math.max(floor, raw - Math.max(60, 12 * temp));
+    let sc = raw;
+    if (m.cap) sc += st.capture || 0;
+    if (kind(m.p) === 'P') sc += st.pawn || 0;
+    if (m.castle) sc += st.castle || 0;
+    if (st.check && inCheck(n)) sc += st.check;
+    scored.push([m, sc]);
+    yield ctx.nodes;
+  }
+  const top = Math.max(...scored.map(x => x[1]));
+  const w = scored.map(([, sc]) => Math.exp(Math.max(-50, (sc - top) / temp)));
+  let r = rnd() * w.reduce((a, b) => a + b, 0);
+  for (let i = 0; i < scored.length; i++) { r -= w[i]; if (r <= 0) return scored[i][0]; }
+  return scored[scored.length - 1][0];
+}
+// runs think() to the end at once (the tests and the tools; the page spreads it over frames instead)
+function runThink(g, cfg, rnd) { const it = think(g, cfg, rnd); let r; while (!(r = it.next()).done); return r.value; }
+
 return { START, FILES, sq, sqName, colour, other, kind, shade, parseFen, toFen, attacked, inCheck, pseudoMoves, legalMoves, makeMove, perft,
-  san, uci, repKey, deadPosition, judge, newGame, play, playUci, undo, finish };
+  san, uci, repKey, deadPosition, judge, newGame, play, playUci, undo, finish, VALUE, evaluate, negamax, rng, think, runThink };
 })();
 if (typeof module !== 'undefined') module.exports = CORE;

@@ -1,4 +1,4 @@
-// Every screen fits without scrolling at phone, tablet and computer sizes, including a phone on its side (762x341): the home screen (with and without a game to resume), the game's bar and buttons, and its panels (menu, promotion, result).
+// Every screen fits without scrolling at phone, tablet and computer sizes, including a phone on its side (762x341): the home screen (with and without a game to resume), Vs computer, the game's bar and buttons, and its panels (menu, promotion, result).
 const { chromium, SITE, shot, watch, ok } = require('./lib');   // over http: the checks reload the page, and storage must carry over
 const overlap = (a, b) => a && b && a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1;
 (async () => {
@@ -20,6 +20,13 @@ const overlap = (a, b) => a && b && a.left < b.right - 1 && b.left < a.right - 1
     r = await fits('#mStage'); r2 = await fits('#menuPanel');
     ok(good(r) && good(r2) && await p.isVisible('#bResume'), say({ ...r, on: r2.on }, 'the home screen with Resume'));
     if (w === 762) await p.screenshot({ path: shot('fit-home-phone.png') });
+    // Vs computer: the eight bots, the line about the one picked, your colour and Play
+    await p.click('#bCpu'); await p.waitForTimeout(200);
+    r = await fits('#mStage'); r2 = await fits('#menuPanel');
+    const play = await p.evaluate(() => { const r = document.querySelector('#bPlay').getBoundingClientRect(); return r.bottom <= innerHeight && r.right <= innerWidth; });
+    ok(good(r) && good(r2) && play, say({ ...r, on: r2.on && play }, 'Vs computer'));
+    if (w === 762) await p.screenshot({ path: shot('fit-cpu-phone.png') });
+    await p.click('#mBack'); await p.waitForTimeout(150);
     // in a game: the bar, the moves and the buttons keep clear of each other
     await p.click('#bResume'); await p.waitForTimeout(300);
     const boxes = await p.evaluate(() => Object.fromEntries(['#plW', '#mid', '#plB', '#movesBox', '#tools'].map(s => { const e = document.querySelector(s), r = e.getBoundingClientRect(); return [s, getComputedStyle(e).display === 'none' ? null : { left: r.left, right: r.right, top: r.top, bottom: r.bottom }]; })));

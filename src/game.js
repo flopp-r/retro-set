@@ -237,21 +237,75 @@ function pieceIcon(k, c) {
   return cv;
 }
 
+// ------------------------------------------------------------------ faces
+// The bots' pixel portraits: Retro Rack's arcade-style people (the same sprites as its career opponents), drawn with a
+// look { s: style, skin, hair, shirt }.
+const BODY = ['.ssssss.', 's.ssss.s', 's.ssss.s', 'f.ssss.f', '..pppp..', '..p..p..', '..p..p..', '.bb..bb.'];
+const SPRITES = {
+  man: ['..hhhh..', '.hffffh.', '..ffff..', '...ff...', ...BODY],
+  long: ['..hhhh..', '.hhffhh.', '.hffffh.', '.h.ff.h.', ...BODY],
+  bald: ['..ffff..', '.ffffff.', '..ffff..', '...ff...', ...BODY],
+  cap: ['..ssss..', '.sssssss', '..ffff..', '...ff...', ...BODY],
+  glasses: ['..hhhh..', '.hggggh.', '..ffff..', '...ff...', ...BODY],
+  beard: ['..hhhh..', '.hffffh.', '..hhhh..', '...hh...', ...BODY],
+};
+const SPRITE_COL = { h: '#5a3420', f: '#f2c49b', p: '#1a1433', b: '#0d0a1c', g: '#0d0a1c' };
+function drawSprite(g, name, x0, y0, shirt, pal) {
+  SPRITES[name].forEach((row, y) => { for (let x = 0; x < row.length; x++) { const ch = row[x]; if (ch === '.') continue; g.fillStyle = ch === 's' ? shirt : (pal && pal[ch]) || SPRITE_COL[ch]; g.fillRect(x0 + x, y0 + y, 1, 1); } });
+}
+function portrait(look, scale) {
+  const c = document.createElement('canvas'), g = c.getContext('2d'); c.width = 10; c.height = 14;
+  drawSprite(g, look.s, 1, 1, look.shirt, { f: look.skin, h: look.hair });
+  const img = new Image(); img.src = c.toDataURL(); img.className = 'portrait'; img.alt = ''; img.width = 10 * scale; img.height = 14 * scale;
+  return img;
+}
+
 // ------------------------------------------------------------------ game state
-// state: 'menu', 'play' (waiting for a move), 'anim' (a move gliding into place), 'promo' (choosing what a pawn
-// becomes) or 'over'. G is the game (see core.js); sel is the square of the piece picked up, targets its legal moves.
-let state = 'menu', G = null, sel = -1, targets = [], promoAt = null;
+// state: 'menu', 'play' (waiting for a move), 'think' (the computer choosing its move), 'anim' (a move gliding into
+// place), 'promo' (choosing what a pawn becomes) or 'over'. G is the game (see core.js); sel is the square of the piece
+// picked up, targets its legal moves. vs: null for two players on one device, or { bot (its id), me ('w' or 'b') }.
+let state = 'menu', G = null, sel = -1, targets = [], promoAt = null, vs = null, botRnd = null;
+const BT = BOTS;
 const turnName = c => c === 'w' ? 'White' : 'Black';
+const botOf = () => vs && BT.byId(vs.bot);
+const botTurn = () => !!vs && G.pos.turn !== vs.me;
+const myMoves = () => !vs || G.list.some(x => C.colour(x.m.p) === vs.me);   // against the computer, take back needs a move of yours to take back
 function select(s) { sel = s; targets = s >= 0 ? C.legalMoves(G.pos).filter(m => m.from === s) : []; showMarks(); }
 const clearSel = () => select(-1);
-const mine = s => s >= 0 && state === 'play' && C.colour(G.pos.b[s]) === G.pos.turn;
-function startLocal(g) {
+const mine = s => s >= 0 && state === 'play' && !botTurn() && C.colour(G.pos.b[s]) === G.pos.turn;
+// starts a game (g: a game to carry on, else a new one) against opp ({ bot, me }) or, with no opp, for two players
+function startGame(g, opp) {
+  vs = opp || null; THINK = null;
+  if (vs) botRnd = C.rng(Math.floor(Math.random() * 4294967296));
   G = g || C.newGame(); state = G.result ? 'over' : 'play'; sel = -1; targets = [];
   closePanels(); placeAll(G);
-  Object.assign(cam, { mode: 'play', base: S.turn && G.pos.turn === 'b' ? PI : 0, yawOff: 0, pitch: 0.95, zoom: 1 });
+  Object.assign(cam, { mode: 'play', base: vs ? (vs.me === 'w' ? 0 : PI) : S.turn && G.pos.turn === 'b' ? PI : 0, yawOff: 0, pitch: 0.95, zoom: 1 });
   $('#menu').hidden = true; $('#hud').hidden = false;
   save(); hud(); showMarks(); arm();
-  if (state === 'over') showOver();
+  if (state === 'over') showOver(); else if (botTurn()) startThink();
+}
+const startLocal = g => startGame(g, null);
+// a new game against the bot picked in the menu, in the colour picked (Random tosses a coin each game)
+function startCpu() {
+  const me = M.colour === 'white' ? 'w' : M.colour === 'black' ? 'b' : Math.random() < 0.5 ? 'w' : 'b';
+  startGame(null, { bot: M.bot, me });
+}
+// The computer's move: think() (core.js) is a generator, stepped for at most 12 ms a frame so the page never freezes,
+// and the move waits until the bot has "thought" for half a second to a second or so, so it doesn't snap back at once.
+let THINK = null;   // { it, ready (the earliest time to move), move (once chosen) }
+let QUICK = false;  // the tests skip the pause
+function startThink() {
+  state = 'think';
+  THINK = { it: C.think(G, BT.settings(botOf()), botRnd), ready: performance.now() + (QUICK ? 0 : 500 + botRnd() * 700), move: undefined };
+  hud();
+}
+function thinkTick(now) {
+  if (state !== 'think' || !THINK) return;
+  const end = performance.now() + 12;
+  while (THINK.move === undefined && performance.now() < end) { const r = THINK.it.next(); if (r.done) THINK.move = r.value; }
+  if (THINK.move === undefined || now < THINK.ready || !$('#pause').hidden) return;   // not while the Menu panel is open
+  const m = THINK.move; THINK = null; state = 'play';
+  if (m) tryMove({ from: m.from, to: m.to, promo: m.promo });
 }
 // plays a move given as { from, to, promo }: the pieces glide into place, then the game moves on
 function tryMove(want) {
@@ -270,16 +324,30 @@ function tryMove(want) {
 }
 function afterMove() {
   state = G.result ? 'over' : 'play';
-  if (S.turn && state === 'play') cam.base = G.pos.turn === 'w' ? 0 : PI;
+  if (S.turn && !vs && state === 'play') cam.base = G.pos.turn === 'w' ? 0 : PI;
   save(); hud(); showMarks();
   if (state === 'over') setTimeout(() => { if (state === 'over' && G.result) showOver(); }, reduceMotion ? 0 : 500);
+  else if (botTurn()) startThink();
 }
+// Take back: one move on a shared device; against the computer, back to before your last move (its reply goes too)
 function takeBack() {
-  if (!G || !G.list.length || state === 'anim' || state === 'promo' || (G.result && /resigned|agreed/.test(G.result.why))) return;
-  G = C.undo(G); state = 'play'; closePanels(); clearSel(); placeAll(G);
-  if (S.turn) cam.base = G.pos.turn === 'w' ? 0 : PI;
+  if (!G || !G.list.length || state === 'anim' || state === 'promo' || (G.result && /resigned|agreed/.test(G.result.why)) || !myMoves()) return;
+  let n = C.undo(G);
+  if (vs) { THINK = null; while (n.list.length && n.pos.turn !== vs.me) n = C.undo(n); }
+  G = n; state = 'play'; closePanels(); clearSel(); placeAll(G);
+  if (S.turn && !vs) cam.base = G.pos.turn === 'w' ? 0 : PI;
   save(); hud(); showMarks();
+  if (botTurn()) startThink();   // only when the computer is White and every move was taken back
 }
+// Against the computer, a draw is offered rather than agreed: it accepts when it thinks it's worse by half a pawn or
+// more, or, from move 30, when it thinks the game is level
+function offerDraw() {
+  const bot = botOf(), sc = C.negamax(G.pos, 2, -Infinity, Infinity, 0, { nodes: 0, qs: true }), its = G.pos.turn === vs.me ? -sc : sc;
+  if (its <= -50 || (G.list.length >= 60 && its <= 50)) { G = C.finish(G, '1/2-1/2', 'agreed'); THINK = null; afterMove(); toast(`${bot.name} accepts the draw.`); }
+  else toast(`${bot.name} declines the draw.`);
+}
+let toastT = 0;
+function toast(text) { const t = $('#toast'); t.textContent = text; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 2600); }
 function askPromo(from, to) {
   promoAt = { from, to }; state = 'promo';
   const box = $('#promoBtns'); box.textContent = '';
@@ -365,6 +433,7 @@ canvas.addEventListener('pointerup', pointerEnd);
 canvas.addEventListener('pointercancel', pointerEnd);
 canvas.addEventListener('wheel', e => { if (state === 'menu') return; e.preventDefault(); cam.zoom = clamp(cam.zoom * Math.pow(1.1, Math.sign(e.deltaY)), 0.6, 2.2); }, { passive: false });
 addEventListener('keydown', e => {
+  if (e.key === 'Escape' && state === 'menu' && screen !== 'home') { $('#mBack').click(); return; }
   if (e.key !== 'Escape' || state === 'menu') return;
   if (!$('#promo').hidden) cancelPromo(); else if (!$('#over').hidden) $('#over').hidden = true; else togglePause();
 });
@@ -404,8 +473,14 @@ function hud() {
   if (!G) return;
   const over = !!G.result, check = !over && C.inCheck(G.pos);
   $('#plW').classList.toggle('active', !over && G.pos.turn === 'w'); $('#plB').classList.toggle('active', !over && G.pos.turn === 'b');
+  const bot = botOf();
+  for (const c of ['w', 'b']) {   // the names (and against the computer, its face)
+    const pl = $(c === 'w' ? '#plW' : '#plB'), its = bot && c !== vs.me;
+    pl.querySelector('.plName').textContent = !vs ? turnName(c) : its ? `${bot.name} ${bot.rating}` : 'You';
+    const face = pl.querySelector('.plFace'); face.textContent = ''; if (its) face.append(portrait(bot.look, 2));
+  }
   const tl = $('#turnLine');
-  tl.textContent = over ? resultText(G.result)[0] : `${turnName(G.pos.turn)} to move${check ? ': check!' : ''}`;
+  tl.textContent = over ? resultText(G.result)[0] : state === 'think' ? `${bot.name} is thinking…` : vs ? `Your move${check ? ': check!' : ''}` : `${turnName(G.pos.turn)} to move${check ? ': check!' : ''}`;
   tl.classList.toggle('check', check);
   const last = G.list[G.list.length - 1];
   $('#lastMove').textContent = last ? `${Math.ceil(G.list.length / 2)}.${G.list.length % 2 ? '' : '..'} ${last.san}` : '';
@@ -417,15 +492,17 @@ function hud() {
     list.append(row);
   }
   list.scrollTop = list.scrollHeight;
-  $('#bUndo').disabled = !G.list.length || (over && /resigned|agreed/.test(G.result.why));
+  $('#bUndo').disabled = !G.list.length || (over && /resigned|agreed/.test(G.result.why)) || !myMoves();
 }
 function resultText(r) {
-  const win = r.score === '1-0' ? 'White wins' : r.score === '0-1' ? 'Black wins' : 'A draw';
+  const bot = botOf(), who = c => !vs ? turnName(c) : c === vs.me ? 'You' : bot.name;
+  const winner = r.score === '1-0' ? 'w' : r.score === '0-1' ? 'b' : '', loser = winner && C.other(winner);
+  const win = !winner ? 'A draw' : vs && winner === vs.me ? 'You win' : `${who(winner)} wins`;
   return {
     checkmate: ['Checkmate', win], stalemate: ['Stalemate', 'A draw: no legal move, but not in check'],
     repetition: ['Draw', 'The same position three times'], fifty: ['Draw', 'Fifty moves each with no capture or pawn move'],
-    material: ['Draw', 'Not enough pieces left to checkmate'], agreed: ['Draw', 'Agreed by both players'],
-    resigned: [`${r.score === '1-0' ? 'Black' : 'White'} resigns`, win],
+    material: ['Draw', 'Not enough pieces left to checkmate'], agreed: ['Draw', vs ? 'Agreed' : 'Agreed by both players'],
+    resigned: [vs && loser === vs.me ? 'You resign' : `${who(loser)} resigns`, win],
   }[r.why] || ['Game over', win];
 }
 function showOver() {
@@ -439,7 +516,13 @@ function togglePause(open = $('#pause').hidden) {
   if (open && state === 'over') { showOver(); return; }
   if (open && state === 'promo') cancelPromo();
   $('#pause').hidden = !open;
-  if (open) { disarm(); $('#bResign').textContent = `${turnName(G.pos.turn)} resigns`; for (const b of document.querySelectorAll('#sTurn .btn')) b.setAttribute('aria-pressed', String(!!+b.dataset.v === S.turn)); }
+  if (open) {
+    disarm();
+    $('#bResign').textContent = vs ? 'Resign' : `${turnName(G.pos.turn)} resigns`;
+    $('#bDraw').textContent = vs ? 'Offer a draw' : 'Agree a draw';
+    for (const e of document.querySelectorAll('.onlyLocal')) e.hidden = !!vs;   // turning the board is for a shared device
+    for (const b of document.querySelectorAll('#sTurn .btn')) b.setAttribute('aria-pressed', String(!!+b.dataset.v === S.turn));
+  }
 }
 // a button that needs a second tap within 3 seconds, for the ones that end the game
 const ARMED = new Map();
@@ -453,15 +536,21 @@ $('#bMenu').onclick = () => togglePause(true);
 $('#bUndo').onclick = takeBack;
 $('#bFlip').onclick = () => { cam.base += PI; };
 $('#bResumeGame').onclick = () => togglePause(false);
-$('#bDraw').onclick = e => confirmTap(e.currentTarget, 'Both agree?', () => { G = C.finish(G, '1/2-1/2', 'agreed'); afterMove(); $('#pause').hidden = true; });
-$('#bResign').onclick = e => confirmTap(e.currentTarget, 'Sure? Tap again', () => { G = C.finish(G, G.pos.turn === 'w' ? '0-1' : '1-0', 'resigned'); afterMove(); $('#pause').hidden = true; });
+$('#bDraw').onclick = e => {
+  if (vs) { $('#pause').hidden = true; offerDraw(); return; }
+  confirmTap(e.currentTarget, 'Both agree?', () => { G = C.finish(G, '1/2-1/2', 'agreed'); afterMove(); $('#pause').hidden = true; });
+};
+$('#bResign').onclick = e => confirmTap(e.currentTarget, 'Sure? Tap again', () => {
+  const loser = vs ? vs.me : G.pos.turn;
+  THINK = null; G = C.finish(G, loser === 'w' ? '0-1' : '1-0', 'resigned'); afterMove(); $('#pause').hidden = true;
+});
 $('#bQuit').onclick = () => toMenu();
 for (const b of document.querySelectorAll('#sTurn .btn')) b.onclick = () => {
   S.turn = !!+b.dataset.v; saveS(); togglePause(true);
   if (S.turn && G) cam.base = G.pos.turn === 'w' ? 0 : PI;
 };
 $('#bPromoCancel').onclick = cancelPromo;
-$('#bAgain').onclick = () => startLocal();
+$('#bAgain').onclick = () => vs ? startCpu() : startLocal();
 $('#bLook').onclick = () => { $('#over').hidden = true; };
 $('#bOverMenu').onclick = () => toMenu();
 for (const id of ['#pause', '#promo', '#over']) {   // a tap outside the panel closes it (only if the press began outside too)
@@ -471,39 +560,73 @@ for (const id of ['#pause', '#promo', '#over']) {   // a tap outside the panel c
 }
 
 // ------------------------------------------------------------------ menus
+// The menu's screens: home and Vs computer (the bots, your colour). M holds the choices, kept between visits.
+const M = { bot: 'gus', colour: 'random' };
+try { Object.assign(M, JSON.parse(localStorage.getItem('retroSet.menu') || '{}')); } catch (e) {}
+if (!BT.byId(M.bot)) M.bot = 'gus';
+const saveM = () => { try { localStorage.setItem('retroSet.menu', JSON.stringify(M)); } catch (e) {} };
+let screen = 'home';
+function menuGo(name) {
+  screen = name;
+  for (const sc of document.querySelectorAll('#menuPanel .mScreen')) sc.hidden = sc.id !== 'sc-' + name;
+  const sc = $('#sc-' + name);
+  $('#mTop').hidden = name === 'home'; $('#mTitle').textContent = sc.dataset.title || '';
+  if (name === 'cpu') renderCpu();
+  if (name === 'home') refreshHome(); else arm();
+}
 function refreshHome() {
   const saved = loadSaved(), b = $('#bResume');
   b.hidden = !saved;
-  $('#bLocal .cardTxt').textContent = saved ? 'New game (replaces the saved one)' : 'One device, take turns';
-  if (saved) b.textContent = `Resume: move ${Math.ceil((saved.list.length + 1) / 2)}, ${turnName(saved.pos.turn)} to play`;
+  $('#bLocal .cardTxt').textContent = saved && !saved.vs ? 'New game (replaces the saved one)' : 'One device, take turns';
+  $('#bCpu .cardTxt').textContent = saved && saved.vs ? 'New game (replaces the saved one)' : `Eight opponents, ${BT.LIST[0].rating} to ${BT.LIST[BT.LIST.length - 1].rating}`;
+  if (saved) { const bot = saved.vs && BT.byId(saved.vs.bot); b.textContent = `Resume: ${bot ? 'vs ' + bot.name : 'two players'}, move ${Math.ceil((saved.g.list.length + 1) / 2)}`; }
 }
+function renderCpu() {
+  const grid = $('#botGrid'); grid.textContent = '';
+  for (const bot of BT.LIST) {
+    const b = document.createElement('button'); b.className = 'botCard'; b.type = 'button'; b.dataset.bot = bot.id; b.setAttribute('aria-pressed', String(M.bot === bot.id));
+    const name = document.createElement('span'); name.className = 'botName'; name.textContent = bot.name;
+    const elo = document.createElement('span'); elo.className = 'botElo'; elo.textContent = bot.rating;
+    b.append(portrait(bot.look, 2), name, elo);
+    b.onclick = () => { M.bot = bot.id; saveM(); renderCpu(); };
+    grid.append(b);
+  }
+  const bot = BT.byId(M.bot);
+  $('#botBlurb').textContent = `${bot.name}, ${bot.rating}: ${bot.blurb}`;
+  for (const b of document.querySelectorAll('#sColour .btn')) b.setAttribute('aria-pressed', String(b.dataset.v === M.colour));
+}
+for (const b of document.querySelectorAll('#sColour .btn')) b.onclick = () => { M.colour = b.dataset.v; saveM(); renderCpu(); };
 function toMenu() {
-  state = 'menu'; closePanels(); clearSel();
+  state = 'menu'; THINK = null; closePanels(); clearSel();
   cam.mode = 'menu'; cam.a = cam.cur.yaw;
   $('#hud').hidden = true; $('#menu').hidden = false;
-  refreshHome(); showMarks();
   if (armed) { armed = false; history.back(); }
+  menuGo('home'); showMarks();
 }
 $('#bLocal').onclick = () => startLocal();
-$('#bResume').onclick = () => { const g = loadSaved(); if (g) startLocal(g); };
+$('#bCpu').onclick = () => menuGo('cpu');
+$('#bPlay').onclick = () => startCpu();
+$('#mBack').onclick = () => { if (armed) { armed = false; history.back(); } menuGo('home'); };
+$('#bResume').onclick = () => { const s = loadSaved(); if (s) startGame(s.g, s.vs); };
 // The phone's back gesture: while in a game one history entry is kept armed, so going back opens the menu panel
 // (or closes the one that's open) instead of leaving the page.
 let armed = false;
 function arm() { if (armed) return; try { history.pushState({ rs: 1 }, ''); armed = true; } catch (e) {} }
 addEventListener('popstate', () => {
   armed = false;
-  if (state === 'menu') return;
+  if (state === 'menu') { if (screen !== 'home') menuGo('home'); return; }
   if (!$('#promo').hidden) cancelPromo(); else if (!$('#over').hidden) $('#over').hidden = true; else togglePause();
   arm();
 });
 
 // ------------------------------------------------------------------ saving
-// The game on the board is saved after every move (the starting position and the moves, as e2e4 and so on), so a
-// reload or a closed tab can carry on from the home screen's Resume button. A finished game is forgotten.
+// The game on the board is saved after every move (the starting position, the moves as e2e4 and so on, and against the
+// computer which bot and your colour), so a reload or a closed tab can carry on from the home screen's Resume button.
+// A finished game is forgotten.
 const SAVE = 'retroSet.game';
 function save() {
   try {
-    if (G && !G.result) localStorage.setItem(SAVE, JSON.stringify({ v: 1, start: G.start, moves: G.list.map(x => C.uci(x.m)) }));
+    if (G && !G.result) localStorage.setItem(SAVE, JSON.stringify({ v: 1, start: G.start, moves: G.list.map(x => C.uci(x.m)), vs }));
     else localStorage.removeItem(SAVE);
   } catch (e) {}
 }
@@ -513,7 +636,8 @@ function loadSaved() {
     if (!d || !Array.isArray(d.moves)) return null;
     let g = C.newGame(d.start);
     for (const s of d.moves) { g = C.playUci(g, String(s)); if (!g) return null; }
-    return g.result ? null : g;
+    const v = d.vs && BT.byId(d.vs.bot) && /^[wb]$/.test(d.vs.me) ? { bot: d.vs.bot, me: d.vs.me } : null;
+    return g.result ? null : { g, vs: v };
   } catch (e) { return null; }
 }
 
@@ -532,7 +656,7 @@ let frames = 0, lastT = performance.now();
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, (now - lastT) / 1000); lastT = now;
-  glideTick(dt);
+  glideTick(dt); thinkTick(now);
   cam.update(dt);
   renderer.info.reset();
   renderer.setRenderTarget(rt); renderer.render(scene, camera);
@@ -541,8 +665,8 @@ function frame(now) {
 }
 addEventListener('resize', resize);
 resize(); applyLook();
-placeAll(loadSaved() || C.newGame());   // behind the menu: the game waiting to be resumed, or a fresh set
-refreshHome();
+{ const s = loadSaved(); placeAll(s ? s.g : C.newGame()); }   // behind the menu: the game waiting to be resumed, or a fresh set
+menuGo('home');
 requestAnimationFrame(frame);
 // for the browser tests: what the page is doing, without reaching into its internals
 window.__rs = {
@@ -551,6 +675,8 @@ window.__rs = {
   get sel() { return sel >= 0 ? C.sqName(sel) : ''; }, get view() { return { base: cam.base, yaw: cam.cur.yaw }; },
   get pieces() { return onSq.filter(Boolean).length; }, get taken() { return PIECES.children.length - onSq.filter(Boolean).length; },
   start2(fen) { startLocal(C.newGame(fen)); },   // a two-player game from a given position
+  startCpu(bot, me, fen) { startGame(C.newGame(fen), { bot, me }); },   // a game against a bot, from a given position
+  get vs() { return vs; }, set quick(v) { QUICK = !!v; },
   squareScreen(name) {   // where a square's middle is on the screen, in page pixels
     const s = C.sq(name), v = new THREE.Vector3(sqX(s), 0.004, sqZ(s)).project(camera), r = canvas.getBoundingClientRect();
     return [r.left + (v.x + 1) / 2 * r.width, r.top + (1 - v.y) / 2 * r.height];

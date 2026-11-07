@@ -7,7 +7,7 @@ const read = p => fs.readFileSync(path.join(root, p), 'utf8');
 const b64 = p => fs.readFileSync(path.join(root, p)).toString('base64');
 
 // the game code, in this order; a new file in src/ goes in this list (and in SOURCE in make-context.js)
-const CODE = ['src/core.js', 'src/game.js'];
+const CODE = ['src/core.js', 'src/bots.js', 'src/game.js'];
 
 let html = read('src/shell.html');
 html = html.replace('__PS2P__', () => b64('vendor/press-start-2p-latin-400-normal.woff2'));

@@ -10,7 +10,8 @@ const read = p => fs.readFileSync(path.join(root, p), 'utf8');
 const DOCS = ['AGENTS.md', 'HANDOVER.md', 'README.md'];
 // the source written for this project, in reading order: [path, code-block language, what it is]
 const SOURCE = [
-  ['src/core.js', 'js', 'The chess rules and the computer player (both still to come). No DOM; also runs in Node for the tests and tools.'],
+  ['src/core.js', 'js', 'The chess rules and the computer player\'s engine. No DOM; also runs in Node for the tests and tools.'],
+  ['src/bots.js', 'js', 'The computer opponents: names, faces, blurbs, ratings and settings. No DOM; also runs in Node.'],
   ['src/game.js', 'js', 'Everything in the browser: rendering, camera, menus and the installable app.'],
   ['src/shell.html', 'html', 'Page markup and CSS. The build fills in the fonts, favicon and code (__PS2P__, __VT323__, __FAVICON__, __BUNDLE__).'],
   ['sw.js', 'js', 'Service worker for the installable app (network first).'],
@@ -19,6 +20,7 @@ const SOURCE = [
   ['tools/build.js', 'js', 'Builds index.html and these context packs.'],
   ['tools/make-context.js', 'js', 'Builds CONTEXT.md and CONTEXT-SHORT.md (this pack).'],
   ['tools/make-icons.js', 'js', 'Draws the app icons.'],
+  ['tools/sim-bots.js', 'js', 'Measures and tunes the computer opponents\' strength against Stockfish and each other.'],
   ['tests/core.test.js', 'js', 'Tests of src/core.js; also checks these packs are up to date.'],
   ['tests/browser/lib.js', 'js', 'Shared helpers for the browser tests.'],
   ['tests/browser/run-all.js', 'js', 'Runs the browser tests against a local copy of the site.'],

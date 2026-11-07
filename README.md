@@ -1,6 +1,6 @@
 # Retro Set
 
-3D pixel-art chess, a sister to Retro Rack. Two players can play on one device now, with the full rules; playing the computer and playing online are coming next.
+3D pixel-art chess, a sister to Retro Rack. Play a friend on one device, or eight computer opponents from 100 to 1500, with the full rules. Online play is coming next.
 
 Play it at https://flopp-r.github.io/retro-set/
 
@@ -37,6 +37,24 @@ GitHub occasionally renames buttons. If something doesn't match exactly, look fo
 - **Menu:** resign, agree a draw (both need a second tap, so a slip can't end the game), or quit. On a phone, the back gesture opens it.
 - **The end of a game:** checkmate, stalemate, the same position three times, fifty moves each without a capture or a pawn move, or too few pieces left to checkmate.
 - **Resume:** a game in progress is saved after every move. If you close the page, the home screen offers **Resume** next time.
+
+## Playing the computer
+
+Choose **Vs computer**, pick an opponent and your colour (White, Black or Random), then **Play**.
+
+| Opponent | Rating | How they play |
+|---|---|---|
+| Pip | 100 | Has just learnt how the pieces move. |
+| Mabel | 300 | Loves pushing pawns; often leaves a piece hanging. |
+| Dev | 500 | Grabs anything you offer, even when it's a trap. |
+| Priya | 700 | Knows a few openings, then loses the thread. |
+| Gus | 900 | Takes any piece you leave loose. |
+| Ruth | 1100 | Patient: castles early and waits for you to slip. |
+| Tariq | 1300 | Sharp tactics: checks and captures first. |
+| Nell | 1500 | The club champion. Rarely gives anything away. |
+
+- **What the ratings mean:** they're measured, not guessed. Nell and Tariq were tuned by playing hundreds of games against Stockfish at its official strength settings (1500 and 1320), and each of the others to be 200 points below the one above, which means the stronger one wins about three games in four. Measured over 240 games each, every bot came out within 25 points of its rating (the lower the bot, the wider the margin: about ±55 for Nell up to ±135 for Pip). They are close to, but not the same as, chess.com ratings: every site's scale is a little different, especially at the low end.
+- **Take back** undoes your last move and the computer's reply. **Menu** has **Offer a draw** (the computer accepts only if it thinks it's worse, or the game is level late on) and **Resign**.
 
 ## Installing it as an app
 

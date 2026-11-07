@@ -4,8 +4,9 @@
   "description": "Retro Set: 3D pixel-art chess",
   "scripts": {
     "build": "node tools/build.js",
-    "test": "node tests/core.test.js",
+    "test": "node tests/core.test.js && node tests/bots.test.js",
     "test:browser": "node tests/browser/run-all.js",
-    "icons": "node tools/make-icons.js"
+    "icons": "node tools/make-icons.js",
+    "sim-bots": "node tools/sim-bots.js"
   }
 }

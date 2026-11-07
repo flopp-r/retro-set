@@ -99,7 +99,7 @@ const { chromium, SITE, shot, watch, ok } = require('./lib');
   await move('e2', 'e4'); await move('c7', 'c5');
   await p.reload(); await p.waitForTimeout(1200);
   i = await rs(() => ({ shown: !document.querySelector('#bResume').hidden, txt: document.querySelector('#bResume').textContent, card: document.querySelector('#bLocal .cardTxt').textContent }));
-  ok(i.shown && /move 2, White to play/.test(i.txt), `after a reload the home screen offers "${i.txt}"`);
+  ok(i.shown && /two players, move 2/.test(i.txt), `after a reload the home screen offers "${i.txt}"`);
   ok(/replaces/.test(i.card), `and the Two players card says a new game replaces it ("${i.card}")`);
   await p.click('#bResume'); await p.waitForTimeout(300);
   ok(await rs(() => window.__rs.moves.join(' ')) === 'e4 c5', 'Resume carries on from the same position');

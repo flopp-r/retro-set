@@ -582,21 +582,21 @@ const knob = k => ({ temp: Math.round(5 + 595 * Math.pow(k, 1.5)), blunder: Math
 // qs are chosen by hand, k by tools/sim-bots.js. style: bonuses (centipawns) for the moves the bot likes.
 const LIST = [
   { id: 'pip', name: 'Pip', rating: 100, look: { s: 'cap', skin: '#f6d2b4', hair: '#d9a441', shirt: '#6cb8ff' },
-    blurb: 'Has just learnt how the pieces move. Anything can happen.', cfg: { depth: 1, qs: false, k: 0.9 } },
+    blurb: 'Has just learnt how the pieces move. Anything can happen.', cfg: { depth: 1, qs: true, k: 0.4 } },
   { id: 'mabel', name: 'Mabel', rating: 300, look: { s: 'long', skin: '#f2c49b', hair: '#c9c3bd', shirt: '#b04a7a' },
-    blurb: 'Loves pushing her pawns, and often leaves a piece hanging.', cfg: { depth: 1, qs: false, k: 0.7, style: { pawn: 30 } } },
+    blurb: 'Loves pushing her pawns, and often leaves a piece hanging.', cfg: { depth: 1, qs: true, k: 0.3, style: { pawn: 30 } } },
   { id: 'dev', name: 'Dev', rating: 500, look: { s: 'man', skin: '#a8714a', hair: '#1a1206', shirt: '#ff6f8f' },
-    blurb: 'Grabs anything you offer, even when it\'s a trap.', cfg: { depth: 1, qs: true, k: 0.5, style: { capture: 80 } } },
+    blurb: 'Grabs anything you offer, even when it\'s a trap.', cfg: { depth: 1, qs: true, k: 0.187, style: { capture: 80 } } },
   { id: 'priya', name: 'Priya', rating: 700, look: { s: 'glasses', skin: '#d9a07a', hair: '#1a1206', shirt: '#1d8a74' },
-    blurb: 'Knows a few openings, then loses the thread.', cfg: { depth: 1, qs: true, k: 0.4 } },
+    blurb: 'Knows a few openings, then loses the thread.', cfg: { depth: 1, qs: true, k: 0.123 } },
   { id: 'gus', name: 'Gus', rating: 900, look: { s: 'beard', skin: '#f2c49b', hair: '#b5432a', shirt: '#56399a' },
-    blurb: 'A club-night regular. Takes any piece you leave loose.', cfg: { depth: 2, qs: true, k: 0.4 } },
+    blurb: 'A club-night regular. Takes any piece you leave loose.', cfg: { depth: 2, qs: true, k: 0.158 } },
   { id: 'ruth', name: 'Ruth', rating: 1100, look: { s: 'long', skin: '#6b4429', hair: '#1a1206', shirt: '#ffc56b' },
-    blurb: 'Patient and careful: castles early and waits for you to slip.', cfg: { depth: 2, qs: true, k: 0.25, style: { castle: 40 } } },
+    blurb: 'Patient and careful: castles early and waits for you to slip.', cfg: { depth: 2, qs: true, k: 0.104, style: { castle: 40 } } },
   { id: 'tariq', name: 'Tariq', rating: 1300, look: { s: 'man', skin: '#d9a07a', hair: '#5a3420', shirt: '#f7ead2' },
-    blurb: 'Sharp tactics. Looks for checks and captures first.', cfg: { depth: 3, qs: true, k: 0.25, style: { check: 25 } } },
+    blurb: 'Sharp tactics. Looks for checks and captures first.', cfg: { depth: 3, qs: true, k: 0.126, style: { check: 25 } } },
   { id: 'nell', name: 'Nell', rating: 1500, look: { s: 'glasses', skin: '#f6d2b4', hair: '#5a3420', shirt: '#6cb8ff' },
-    blurb: 'The club champion. Rarely gives anything away.', cfg: { depth: 4, qs: true, k: 0.3 } },
+    blurb: 'The club champion. Rarely gives anything away.', cfg: { depth: 4, qs: true, k: 0.095 } },
 ];
 // a bot's full settings for think(): its own, with the knob turned into temp and blunder
 const settings = (bot, k = bot.cfg.k) => ({ ...bot.cfg, ...knob(k) });
@@ -616,7 +616,7 @@ const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const lerp = (a, b, t) => a + (b - a) * t;
 const ease = t => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
 const wrapA = a => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
-const BUILD = 'aae794a8';   // version: tools/build.js fills in a fingerprint of the game code
+const BUILD = 'e422b393';   // version: tools/build.js fills in a fingerprint of the game code
 const reduceMotion = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 // ------------------------------------------------------------------ settings

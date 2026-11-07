@@ -3,9 +3,10 @@
 //   node tools/sim-bots.js match <a> <b> [games]   a, b: a bot (pip, mabel …), a bot with another knob setting
 //                                                  (nell@0.15, or nell@0.15/4 to look 4 moves ahead), or Stockfish
 //                                                  at a strength (sf1320, sf1500)
-//   node tools/sim-bots.js tune [games]            finds each bot's knob: Nell and Tariq against Stockfish, then each
+//   node tools/sim-bots.js tune [games] [bot]      finds each bot's knob: Nell and Tariq against Stockfish, then each
 //                                                  of the others 200 points below the bot above it; prints the values
-//                                                  to put into src/bots.js
+//                                                  to put into src/bots.js. Given a bot, it starts there, the bots
+//                                                  above keeping their values in src/bots.js
 //   node tools/sim-bots.js check [games]           plays each bot against its anchor or the bot above, and prints the
 //                                                  measured ratings
 // Stockfish (stockfish.js 19, GPL-3.0) is installed into a temporary folder on first use. It is only used here to
@@ -127,8 +128,11 @@ const CHAIN = [['nell', 'sf1500', 0], ['tariq', 'sf1320', -20], ['ruth', 'tariq'
     if (cmd === 'tune') {
       // each bot's knob, top down (so each reference already has its tuned value): k = 0 first (its best), then
       // stepping the knob up until it's below the target, then closing in by straight-line steps in rating points
-      const games = +x || 80, tuned = {}, E = s => elo(Math.min(0.98, Math.max(0.02, s)));
-      for (const [id, ref, gap] of CHAIN) {
+      // tune 80 mabel: start the chain at Mabel, the bots above keeping their values in src/bots.js
+      const games = +x || 80, tuned = Object.fromEntries(BOTS.LIST.map(b => [b.id, b.cfg.k])), E = s => elo(Math.min(0.98, Math.max(0.02, s)));
+      const from = y ? CHAIN.findIndex(c => c[0] === y) : 0;
+      if (from < 0) throw new Error(`No bot called "${y}" in the chain`);
+      for (const [id, ref, gap] of CHAIN.slice(from)) {
         const bot = BOTS.byId(id), want = E(expected(gap));
         const refSpec = ref.startsWith('sf') ? spec(ref) : { name: ref, bot: ref, cfg: BOTS.settings(BOTS.byId(ref), tuned[ref]) };
         const at = async k => {
@@ -150,7 +154,7 @@ const CHAIN = [['nell', 'sf1500', 0], ['tariq', 'sf1320', -20], ['ruth', 'tariq'
         tuned[id] = Math.round((lo[0] + (want - lo[1]) * (hi[0] - lo[0]) / (hi[1] - lo[1])) * 1000) / 1000;
         console.log(`${bot.name} (${bot.rating}): k = ${tuned[id]}  (want ${(expected(gap) * 100).toFixed(1)}% against ${ref})\n`);
       }
-      console.log('Put these into src/bots.js:'); for (const [id] of CHAIN) console.log(`  ${id}: k ${tuned[id]}`);
+      console.log('Put these into src/bots.js:'); for (const [id] of CHAIN.slice(from)) console.log(`  ${id}: k ${tuned[id]}`);
     }
     if (cmd === 'check') {
       const games = +x || 200;

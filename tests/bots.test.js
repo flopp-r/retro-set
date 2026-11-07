@@ -55,7 +55,7 @@ test('looking two moves ahead, saves its queen from a pawn', () => {
 test('following captures through, it doesn\'t take a defended pawn with its queen', () => {
   assert.notStrictEqual(best('4k3/8/2p5/3p4/8/8/3Q4/4K3 w - - 0 1', { depth: 1, qs: true }), 'Qxd5');
 });
-test('looking one move ahead without following captures, it does (the weakest bots\' mistake)', () => {
+test('looking one move ahead without following captures, it does (why every bot follows captures: measured, that alone is weaker than 100)', () => {
   assert.strictEqual(best('4k3/8/2p5/3p4/8/8/3Q4/4K3 w - - 0 1', { depth: 1, qs: false }), 'Qxd5');
 });
 test('the same seed gives the same choice; different seeds vary a weak bot\'s moves', () => {

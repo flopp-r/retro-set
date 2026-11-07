@@ -1,6 +1,8 @@
 # Retro Set
 
-3D pixel-art chess, a sister to Retro Rack. **Under construction:** the working setup is in place and the page shows an empty board; the game comes next.
+3D pixel-art chess, a sister to Retro Rack. Two players can play on one device now, with the full rules; playing the computer and playing online are coming next.
+
+Play it at https://flopp-r.github.io/retro-set/
 
 ## What's in this folder
 
@@ -25,6 +27,16 @@ Do this once, after the setup has been merged into the `main` branch.
 3. Wait a minute or two and refresh the page. It will show the site address, `https://flopp-r.github.io/retro-set/`. Open it: you should see the Retro Set title in front of a board, and the version at the bottom of the panel.
 
 GitHub occasionally renames buttons. If something doesn't match exactly, look for the closest option with the same meaning.
+
+## How to play
+
+- **Moving:** tap a piece, then the square to move it to (blue dots show where it can go; a ring means it can take a piece there). Or drag the piece onto the square. To castle, move the king two squares towards the rook.
+- **Promotion:** when a pawn reaches the far side, choose what it becomes.
+- **The view:** drag across an empty part of the screen to turn the board round, or up and down to tilt it. Zoom with the mouse wheel, or pinch on a phone. After each move the view turns round to the player whose move it is; switch that off under **Menu**, **Turn the board**. The **Turn** button swings the board round by hand.
+- **Take back** undoes the last move (as often as you like).
+- **Menu:** resign, agree a draw (both need a second tap, so a slip can't end the game), or quit. On a phone, the back gesture opens it.
+- **The end of a game:** checkmate, stalemate, the same position three times, fifty moves each without a capture or a pawn move, or too few pieces left to checkmate.
+- **Resume:** a game in progress is saved after every move. If you close the page, the home screen offers **Resume** next time.
 
 ## Installing it as an app
 

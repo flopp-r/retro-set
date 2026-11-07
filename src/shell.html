@@ -10,7 +10,7 @@
 @font-face{font-family:'Press Start 2P';src:url(data:font/woff2;base64,__PS2P__) format('woff2');font-display:block}
 @font-face{font-family:'VT323';src:url(data:font/woff2;base64,__VT323__) format('woff2');font-display:block}
 /* Retro Rack's palette, so the two games look like a family */
-:root{--night:#1a1433;--plum:#3a2452;--plum2:#4e3270;--lamp:#ffc56b;--chalk:#6cb8ff;--rose:#ff6f8f;--paper:#f7ead2;--ink:#0d0a1c}
+:root{--night:#1a1433;--plum:#3a2452;--plum2:#4e3270;--lamp:#ffc56b;--chalk:#6cb8ff;--rose:#ff6f8f;--paper:#f7ead2;--ink:#0d0a1c;--wpiece:#efe1c3;--bpiece:#2c2140}
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;overflow:hidden;background:var(--night);color:var(--paper);font-family:'VT323',ui-monospace,monospace;font-size:22px;line-height:1.15;-webkit-user-select:none;user-select:none;touch-action:none;-webkit-tap-highlight-color:transparent}
 [hidden]{display:none!important}
@@ -21,30 +21,92 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--night);color:var
 .btn:active{transform:translate(2px,2px)}
 .btn[aria-pressed="true"]{background:var(--lamp);color:var(--ink)}
 .btn:disabled{opacity:.45;cursor:default;transform:none}
+.btn.warn{background:var(--rose);color:var(--ink)}
 button:focus-visible{outline:3px dashed var(--chalk);outline-offset:2px}
 
-/* shared by the menus and the panels that will come (settings, game over and so on) */
-.row{display:grid;grid-template-columns:104px 1fr;gap:6px 14px;align-items:start;margin:0 0 12px}
+/* shared by the menus and the panels */
+.row{display:grid;grid-template-columns:150px 1fr;gap:6px 14px;align-items:start;margin:0 0 12px}
 .lbl{color:var(--lamp);font-size:22px;padding-top:6px}
 .seg{display:flex;flex-wrap:wrap;gap:6px}
 .note{font-size:20px;opacity:.82;max-width:46ch}
 .actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:20px}
-/* menu: a panel on the left with a stack of screens (one for now), the board in view behind it */
+/* menu: a panel on the left with a stack of screens (one for now), the board in view beside it */
 #menu{position:fixed;inset:0;display:flex;align-items:center;justify-content:flex-start;padding:3vh 4vw;pointer-events:none;overflow:hidden}
 #menuPanel{pointer-events:auto;width:min(560px,94vw);max-height:94vh;display:flex;flex-direction:column;overflow:hidden;padding:0}
 #mStage{display:grid;overflow:auto;min-height:0;padding:16px 20px 14px}
 .mScreen{grid-area:1 / 1;min-width:0}
 .title{font-family:'Press Start 2P',monospace;font-weight:400;font-size:clamp(26px,4.2vw,42px);line-height:1.15;color:var(--lamp);margin:0 0 16px;text-shadow:3px 3px 0 var(--rose),6px 6px 0 var(--plum2),9px 9px 0 var(--ink)}
-.tag{margin:0 0 6px}
+.quickRow{display:flex;flex-wrap:wrap;gap:8px}.quickRow>.btn{margin-bottom:12px;text-align:left}
+#bResume{font-size:12px;padding:12px 16px;background:var(--lamp);color:var(--ink)}#bResume:hover{background:#ffd48e}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+.card{display:flex;flex-direction:column;gap:6px;text-align:left;padding:10px 12px;font:inherit;color:var(--paper);background:var(--plum);border:3px solid var(--ink);border-radius:0;cursor:pointer;box-shadow:inset -3px -3px 0 rgba(0,0,0,.35),inset 3px 3px 0 rgba(255,255,255,.1),4px 4px 0 var(--ink);transition:transform .12s,background .12s,border-color .12s}
+.card:hover:not(:disabled){background:var(--plum2);border-color:var(--lamp);transform:translate(-1px,-2px)}
+.card:active:not(:disabled){transform:translate(2px,2px)}
+.card:disabled{opacity:.5;cursor:default}
+.cardName{font-family:'Press Start 2P',monospace;font-size:11px;line-height:1.3;color:var(--lamp);white-space:nowrap}
+.cardTxt{font-size:18px;line-height:1;opacity:.72}
 #ver{margin:12px 0 0;font-size:16px;opacity:.5}
+/* in a game: the players and whose move it is along the top, the moves on the right, the buttons bottom left */
+#hud{position:fixed;inset:0;pointer-events:none}
+#bar{position:fixed;top:8px;left:50%;transform:translateX(-50%);display:flex;gap:8px;align-items:stretch}
+.pl,#mid,#movesBox{background:rgba(22,17,44,.86);border:3px solid var(--plum2);box-shadow:5px 5px 0 var(--ink)}
+.pl{display:flex;align-items:center;gap:8px;padding:6px 10px;font-family:'Press Start 2P',monospace;font-size:8px;white-space:nowrap}
+.pl.active{border-color:var(--lamp)}
+.pl.active::before{content:'\25B6';color:var(--lamp)}
+.chip{width:12px;height:12px;border:2px solid var(--ink);flex:none}
+#plW .chip{background:var(--wpiece)}#plB .chip{background:var(--bpiece);outline:1px solid var(--paper)}
+#mid{min-width:190px;padding:5px 10px;text-align:center}
+#turnLine{font-size:20px}
+#turnLine.check{color:var(--rose)}
+#lastMove{font-size:16px;opacity:.75}
+#lastMove:empty{display:none}
+#movesBox{position:fixed;top:8px;right:8px;width:164px;max-height:calc(100vh - 80px);display:flex;flex-direction:column;pointer-events:auto}
+#movesBox h3{font-family:'Press Start 2P',monospace;font-weight:400;font-size:8px;color:var(--lamp);margin:0;padding:7px 9px 5px}
+#moveList{overflow-y:auto;padding:0 9px 7px;font-size:19px;line-height:1.1;scrollbar-color:var(--plum2) transparent;-webkit-user-select:text;user-select:text}
+#moveList:empty::before{content:'No moves yet';opacity:.6}
+.mvRow{display:grid;grid-template-columns:28px 1fr 1fr;gap:4px}.mvN{opacity:.55}
+.mvRow span.now{color:var(--lamp)}
+#tools{position:fixed;left:8px;bottom:8px;display:flex;gap:6px;pointer-events:auto}
+#tools .btn{font-size:9px}
+/* panels over the game: Menu (pause), the promotion choice and the result */
+.overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(13,10,28,.45);padding:4vh 4vw;z-index:5}
+.ovPanel{width:min(460px,92vw);max-height:92vh;overflow:auto;padding:20px 22px 18px}
+.ovPanel h2{font-family:'Press Start 2P',monospace;font-weight:400;font-size:16px;color:var(--lamp);margin:0 0 14px}
+.ovPanel .actions{margin-top:14px}
+#pauseBtns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#pauseBtns .btn{padding:11px 8px}
+#promo{background:rgba(13,10,28,.25)}
+#promoBtns{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+#promoBtns .btn{display:flex;flex-direction:column;align-items:center;gap:8px;padding:10px 4px 8px}
+#promoBtns canvas{width:48px;height:60px;image-rendering:pixelated}
+#overTitle{font-size:24px!important;text-shadow:3px 3px 0 var(--rose),6px 6px 0 var(--ink)}
+#overWhy{font-size:24px;margin:0 0 4px}
+#overMoves{font-size:19px;opacity:.75;margin:0}
 /* phones held sideways (and other short screens): smaller everything, so every screen fits without scrolling */
 @media (max-height:500px){
   #menu{padding:2vh 3vw}
   .title{font-size:22px;margin-bottom:10px}
   #mStage{padding:10px 14px 8px}
+  .cards{grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:7px}
+  .card{padding:6px 9px;gap:4px}.cardName{font-size:9px}.cardTxt{font-size:16px}
+  #bResume{font-size:10px;padding:9px 12px}.quickRow>.btn{margin-bottom:8px}
   .note{font-size:18px}
   #ver{margin-top:6px;font-size:15px}
+  .ovPanel{padding:12px 16px 12px}.ovPanel h2{font-size:12px;margin-bottom:8px}.ovPanel .row{margin-bottom:6px}
+  #overTitle{font-size:16px!important}#overWhy{font-size:20px}
+  #promoBtns canvas{width:36px;height:45px}#promoBtns .btn{padding:6px 4px;gap:4px}
 }
+@media (max-width:760px),(max-height:500px){
+  #movesBox{display:none}
+  .pl{padding:5px 7px;font-size:7px;gap:6px}.chip{width:10px;height:10px}
+  #mid{min-width:130px;padding:3px 7px}#turnLine{font-size:17px}#lastMove{font-size:14px}
+  #tools .btn{font-size:8px;padding:7px 8px}
+}
+@media (max-width:440px){
+  .pl .plName{display:none}#mid{min-width:0}   /* upright phones: the colour chips say who's who */
+  .row{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){.card{transition:none}.card:hover:not(:disabled){transform:none}}
 </style>
 </head>
 <body>
@@ -54,11 +116,56 @@ button:focus-visible{outline:3px dashed var(--chalk);outline-offset:2px}
     <div id="mStage">
       <section class="mScreen" id="sc-home">
         <h1 class="title">Retro Set</h1>
-        <p class="tag">3D pixel chess.</p>
-        <p class="note">Under construction: the board is set up, the game comes next.</p>
+        <div class="quickRow"><button class="btn" id="bResume" type="button" hidden></button></div>
+        <div class="cards">
+          <button class="card" type="button" id="bLocal"><span class="cardName">Two players</span><span class="cardTxt">One device, take turns</span></button>
+          <button class="card" type="button" id="bCpu" disabled><span class="cardName">Vs computer</span><span class="cardTxt">Coming next</span></button>
+          <button class="card" type="button" id="bOnline" disabled><span class="cardName">Online</span><span class="cardTxt">Coming soon</span></button>
+        </div>
         <p id="ver"></p>
       </section>
     </div>
+  </div>
+</div>
+<div id="hud" hidden>
+  <div id="bar">
+    <div class="pl" id="plW"><span class="chip"></span><span class="plName">White</span></div>
+    <div id="mid"><div id="turnLine"></div><div id="lastMove"></div></div>
+    <div class="pl" id="plB"><span class="chip"></span><span class="plName">Black</span></div>
+  </div>
+  <div id="movesBox"><h3>Moves</h3><div id="moveList"></div></div>
+  <div id="tools">
+    <button class="btn" id="bMenu" type="button">Menu</button>
+    <button class="btn" id="bUndo" type="button">Take back</button>
+    <button class="btn" id="bFlip" type="button" title="Turn the board round">Turn</button>
+  </div>
+</div>
+<div id="pause" class="overlay" hidden>
+  <div class="panel ovPanel" role="dialog" aria-labelledby="pauseTitle">
+    <h2 id="pauseTitle">Menu</h2>
+    <div class="row"><span class="lbl">Turn the board</span><div class="seg" id="sTurn"><button class="btn" type="button" data-v="1">On</button><button class="btn" type="button" data-v="0">Off</button></div></div>
+    <p class="note">On: after each move the view turns round to the player whose move it is.</p>
+    <div id="pauseBtns">
+      <button class="btn" id="bResumeGame" type="button">Resume</button>
+      <button class="btn" id="bDraw" type="button">Agree a draw</button>
+      <button class="btn" id="bResign" type="button">Resign</button>
+      <button class="btn" id="bQuit" type="button">Quit to menu</button>
+    </div>
+  </div>
+</div>
+<div id="promo" class="overlay" hidden>
+  <div class="panel ovPanel" role="dialog" aria-labelledby="promoTitle">
+    <h2 id="promoTitle">Promote to</h2>
+    <div id="promoBtns"></div>
+    <div class="actions"><button class="btn" id="bPromoCancel" type="button">Cancel</button></div>
+  </div>
+</div>
+<div id="over" class="overlay" hidden>
+  <div class="panel ovPanel" role="dialog" aria-labelledby="overTitle">
+    <h2 id="overTitle"></h2>
+    <p id="overWhy"></p>
+    <p id="overMoves"></p>
+    <div class="actions"><button class="btn" id="bAgain" type="button">Play again</button><button class="btn" id="bLook" type="button">See the board</button><button class="btn" id="bOverMenu" type="button">Main menu</button></div>
   </div>
 </div>
 <script type="module">__BUNDLE__</script>

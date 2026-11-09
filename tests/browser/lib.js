@@ -1,5 +1,5 @@
-// Shared bits for the browser tests: Playwright, the address of the local test site, and where screenshots go.
-// run-all.js builds the game and starts the site; AGENTS.md (Testing) explains the set-up.
+// Shared bits for the browser tests: Playwright, the addresses of the local test sites and relay, and where screenshots
+// go. run-all.js builds the game and starts the sites and the relay; AGENTS.md (Testing) explains the set-up.
 const path = require('path'), os = require('os'), fs = require('fs');
 
 function loadPlaywright() {
@@ -11,12 +11,14 @@ function loadPlaywright() {
 const pw = loadPlaywright();
 
 const ROOT = path.resolve(__dirname, '..', '..');                                  // the repository
-const WORK = process.env.RS_WORK || path.join(os.tmpdir(), 'retro-set-browser-tests');  // test site and screenshots
+const WORK = process.env.RS_WORK || path.join(os.tmpdir(), 'retro-set-browser-tests');  // test sites, relay copy, screenshots
 const FILE = 'file://' + path.join(ROOT, 'index.html');                             // the built game, opened from disk
-// the current build served like GitHub Pages (under /retro-set/). Ports differ from Retro Rack's, so both projects'
-// tests can run at once.
-const SITE = { new: 'http://127.0.0.1:8180/retro-set/' };
-const PORTS = { new: 8180, app: 8190 };
+// Two copies of the game served like GitHub Pages (under /retro-set/): the current build, and the current build with
+// its version changed (to stand in for "a different version"). Ports differ from Retro Rack's, so both projects' tests
+// can run at once. RELAY: the local relay, for the online tests (?relay= in a page's address).
+const SITE = { new: 'http://127.0.0.1:8180/retro-set/', alt: 'http://127.0.0.1:8182/retro-set/' };
+const PORTS = { new: 8180, alt: 8182, app: 8190, relay: 8797 };
+const RELAY = `?relay=ws://127.0.0.1:${PORTS.relay}`;
 const shot = name => { const d = path.join(WORK, 'shots'); fs.mkdirSync(d, { recursive: true }); return path.join(d, name); };
 // software WebGL, as in a Claude Code cloud session (no graphics card)
 const GL = ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'];
@@ -42,4 +44,4 @@ function watch(p, log = []) {
 }
 const ok = (c, msg) => { console.log((c ? 'PASS ' : 'FAIL ') + msg); if (!c) process.exitCode = 1; };
 
-module.exports = { ...pw, chromium, ROOT, WORK, FILE, SITE, PORTS, shot, watch, ok };
+module.exports = { ...pw, chromium, ROOT, WORK, FILE, SITE, PORTS, RELAY, shot, watch, ok };

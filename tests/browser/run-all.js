@@ -1,13 +1,15 @@
-// Runs the browser tests: builds the game, serves a copy of it locally like GitHub Pages, then runs each *.test.js in
-// this folder in turn and prints a summary. Usage:
+// Runs the browser tests: builds the game, serves two copies of it locally like GitHub Pages (the current build, and
+// the current build with a different version number), starts the relay locally, then runs each *.test.js in this
+// folder in turn and prints a summary. Usage:
 //   node tests/browser/run-all.js            every test
 //   node tests/browser/run-all.js fit file   only tests whose file name contains one of the words
-// Needs Playwright with Chromium. (When online play is added, this also starts the relay locally, as Retro Rack's does.)
+// Needs Playwright with Chromium, and npm for the relay's packages (installed once into a temporary folder).
 const { spawn, execFileSync } = require('child_process');
 const http = require('http'), fs = require('fs'), path = require('path');
 const { ROOT, WORK, PORTS } = require('./lib');
 
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.png': 'image/png', '.webmanifest': 'application/manifest+json', '.md': 'text/plain' };
+const sleep = ms => new Promise(r => setTimeout(r, ms));
 const say = t => console.log(`\x1b[36m${t}\x1b[0m`);
 
 // a static server that behaves like GitHub Pages for this repository: everything under /retro-set/
@@ -28,8 +30,29 @@ function serve(dir, port) {
 function copySite(dir, html) {
   fs.rmSync(dir, { recursive: true, force: true }); fs.mkdirSync(dir, { recursive: true });
   for (const f of ['sw.js', 'manifest.webmanifest', 'README.md']) fs.copyFileSync(path.join(ROOT, f), path.join(dir, f));
+  fs.writeFileSync(path.join(dir, 'config.js'), `window.RETRO_SET_RELAY = "ws://127.0.0.1:${PORTS.relay}";\n`);   // the local relay, never a real one
   fs.cpSync(path.join(ROOT, 'icons'), path.join(dir, 'icons'), { recursive: true });
   fs.writeFileSync(path.join(dir, 'index.html'), html);
+}
+const get = url => new Promise(r => { http.get(url, res => { let b = ''; res.on('data', d => b += d); res.on('end', () => r(b)); }).on('error', () => r(null)); });
+
+// the relay, run locally by Wrangler (Cloudflare's own runtime), started fresh each run so no rooms are left over
+async function startRelay() {
+  if (/relay is running/.test(await get(`http://127.0.0.1:${PORTS.relay}/`) || '')) { say(`Using the relay already running on port ${PORTS.relay}.`); return null; }
+  const dir = path.join(WORK, 'relay');
+  fs.mkdirSync(dir, { recursive: true });
+  for (const f of ['package.json', 'package-lock.json', 'wrangler.jsonc']) fs.copyFileSync(path.join(ROOT, 'relay', f), path.join(dir, f));
+  fs.cpSync(path.join(ROOT, 'relay', 'src'), path.join(dir, 'src'), { recursive: true });
+  if (!fs.existsSync(path.join(dir, 'node_modules', 'wrangler'))) {
+    say('Installing the relay\'s packages (first run only)…');
+    execFileSync('npm', ['ci', '--no-audit', '--no-fund'], { cwd: dir, stdio: 'inherit' });
+  }
+  fs.rmSync(path.join(dir, '.wrangler', 'state'), { recursive: true, force: true });
+  say('Starting the relay locally…');
+  const log = fs.openSync(path.join(WORK, 'relay.log'), 'w');
+  const p = spawn('npx', ['wrangler', 'dev', '--port', String(PORTS.relay), '--ip', '127.0.0.1'], { cwd: dir, stdio: ['ignore', log, log], env: { ...process.env, WRANGLER_SEND_METRICS: 'false' }, detached: true });
+  for (let i = 0; i < 120; i++) { if (/relay is running/.test(await get(`http://127.0.0.1:${PORTS.relay}/`) || '')) return p; await sleep(1000); }
+  throw new Error(`The relay didn't start; see ${path.join(WORK, 'relay.log')}`);
 }
 
 (async () => {
@@ -40,12 +63,15 @@ function copySite(dir, html) {
 
   say('Building index.html…');
   execFileSync(process.execPath, [path.join(ROOT, 'tools', 'build.js')], { stdio: 'inherit' });
-  copySite(path.join(WORK, 'www-new'), fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8'));
+  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  copySite(path.join(WORK, 'www-new'), html);
+  copySite(path.join(WORK, 'www-alt'), html.replace(/const BUILD = '[0-9a-f]{8}'/, "const BUILD = 'deadbeef'"));
 
-  let server;
-  try { server = await serve(path.join(WORK, 'www-new'), PORTS.new); }
-  catch (e) { console.error(`Couldn't start the test site (${e.message}). Is something else using port ${PORTS.new}?`); process.exit(2); }
-  process.on('SIGINT', () => { server.close(); process.exit(130); });
+  const servers = [], relay = await startRelay();
+  const stop = () => { for (const s of servers) s.close(); if (relay) try { process.kill(-relay.pid); } catch (e) {} };
+  process.on('SIGINT', () => { stop(); process.exit(130); });
+  try { servers.push(await serve(path.join(WORK, 'www-new'), PORTS.new), await serve(path.join(WORK, 'www-alt'), PORTS.alt)); }
+  catch (e) { stop(); console.error(`Couldn't start the test sites (${e.message}). Is something else using ports ${PORTS.new} and ${PORTS.alt}?`); process.exit(2); }
 
   const results = [];
   for (const t of tests) {
@@ -61,7 +87,7 @@ function copySite(dir, html) {
     });
     results.push({ t, pass, fail, code, s: Math.round((Date.now() - t0) / 1000) });
   }
-  server.close();
+  stop();
 
   say('\n=== Summary');
   for (const r of results) console.log(`${r.fail || r.code ? 'FAIL' : 'ok  '}  ${r.t.padEnd(28)} ${String(r.pass).padStart(3)} passed, ${r.fail} failed${r.code ? `, exit code ${r.code}` : ''}  (${r.s} s)`);

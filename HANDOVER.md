@@ -7,8 +7,8 @@ This file records why Retro Set is the way it is: the decisions and their reason
 ## 1. Current status
 
 - The game is live at https://flopp-r.github.io/retro-set/, served by GitHub Pages from the public repository `github.com/flopp-r/retro-set` (branch `main`, root folder).
-- Stage 1 (two players on one device, the full rules) and Stage 2 (ten computer opponents, Torben 100 to Ted 1500) are built; Stage 3 (online) is next. See section 4.
-- There is no relay and no online play yet.
+- Stage 1 (two players on one device, the full rules), Stage 2 (ten computer opponents, Torben 100 to Ted 1500) and Stage 3 (online play, as close to Retro Rack's as possible) are built. See section 4.
+- Online play needs the relay: a Cloudflare Worker named `retro-set-relay`, set up by the owner from this repository's `relay/` folder (`README.md`, step 2), with its address in `config.js` (step 3). Until then `config.js` is empty and the Online card says "Not set up yet".
 - Everything in section 9 (changes shipped) is live. The version shown at the bottom of the menu matches the `BUILD` value in the committed `index.html`.
 
 ---
@@ -25,6 +25,7 @@ Personal working preferences are kept in the owner's own Claude Code settings, n
 2. **Stage 1 (7 November 2026):** the owner chose the look, the ways of playing, the rules and the pieces (section 4), and the first stage was built: the rules engine, the 3D pieces, two players on one device.
 3. **Stage 2 (7 November 2026):** the computer opponents: an engine, eight named bots from 100 to 1500, and a tool that measures their strength against Stockfish and each other.
 4. **Ten bots with real blunders (7 November 2026):** the owner renamed the bots and asked for ten, and for real blunders as well as middling moves, most at the low levels but still present at the top. Every bot was re-tuned and re-measured.
+5. **Stage 3, online play (9 November 2026):** the owner asked for it "as close to Retro Rack as possible": its relay, screens, Rejoin and checks were ported, with the changes chess needs (section 4).
 
 ---
 
@@ -73,8 +74,16 @@ Personal working preferences are kept in the owner's own Claude Code settings, n
 - **The trade-off (told to the owner):** with blunders this frequent, the low bots' ratings come mostly from their blunders, so tuning turned their temperature down: they play fewer middling moves between the blunders than before (Torben's temperature 93, against 107 for the old 100 bot). Lower blunder chances would bring the middling moves back.
 - **Measuring took three rounds:** a tuning run (80 games a step) and then two corrections, each followed by a fresh check of 240 games a bot, ending with every bot within 30 points of its target (section 5). Each correction used the rating points per step of the knob; the second one took them from the bot's two checks, because the tuning steps were too noisy at the low levels, where blunders make strength change slowly with the knob.
 
+**Stage 3: online play (9 November 2026)**
+- **As close to Retro Rack as possible (the owner's words):** the same relay (a Room per room code, a Lobby for the open-rooms list, hibernating WebSockets on the free plan), the same screens (Online: your name, the open rooms, Join with code, Create a room; then the room's settings; the waiting room with the code and the invite link to copy), the same invite links, reconnecting by a per-tab id, duplicated tabs, Rejoin for 3 hours, the version check before a game and the warning during one, preset quick chat, Play again needing both players, and leaving on purpose forgetting the game. The code was copied and adapted rather than rewritten, so a fix in one game can be carried to the other.
+- **Its own Worker,** `retro-set-relay`, not Retro Rack's, so a change to one game can't break the other. Retro Rack's ideas box (part of its relay) was left out: it isn't online play, and could be ported on its own if wanted.
+- **What chess changes:** the room's setting is your colour (White, Random or Black) instead of the type of pool game, and Open rooms shows it; Play again swaps the colours (Retro Rack alternates the break); Retro Rack's re-rack offer becomes a draw offer, accepted or declined; conceding a frame becomes resigning. Only the moves travel, so there's no live aim preview and no "input-only check" of shot physics: instead the receiver plays a move only if it's legal and reaches the same position as the sender's, and otherwise fetches the whole game.
+- **No take back online,** as in Retro Rack (which has no undo online). A take-back request, as on chess.com, could be added (section 7).
+- **No moving while the other player is away:** the move would go nowhere, so it's held back with a message, as Retro Rack does with a shot.
+- **If both players close their apps,** a fresh game starts when they rejoin, as in Retro Rack: the game lives only in the players' open pages. Keeping it would be easy in chess (each page can save the moves) but changes how games start, so it's in the ideas list.
+- **Names in Open rooms** are cleaned by the relay (14 characters, no `<` or `>`), as in Retro Rack, and chat is presets only, so there's nothing to moderate.
+
 **Decisions still to make**
-- **Stage 3, online:** the same as Retro Rack's online play (rooms with codes, a listed rooms board, Rejoin, quick chat), on a new relay.
 - **The board and the room:** the square colours and the room are placeholders.
 - **Later extras, if wanted:** clocks, sound, puzzles (as Retro Rack has trick shots), a career against named computer players, looks to earn (boards, piece sets, rooms), a replay of the game move by move.
 
@@ -120,7 +129,8 @@ Personal working preferences are kept in the owner's own Claude Code settings, n
 
 - **Rules:** `tests/core.test.js` (28 tests): perft counts for five standard positions, castling, en passant, promotion, pins, checkmate, stalemate, each draw, resigning, take back, notation and saving, and that the context packs are up to date.
 - **Engine and bots:** `tests/bots.test.js` (18 tests): the cast, blunder chances, the renaming, the knob, the evaluation, mates, captures, what happens without following captures, real blunders, seeds, legal moves, a whole bot game. Their strength: `tools/sim-bots.js` (section 5).
-- **The browser:** headless Chromium (Playwright) with software WebGL (SwiftShader). The page exposes `window.__rs` (state, position, moves, where each square is on the screen and so on) to make scripting easy; the `play` and `cpu` tests play with real mouse taps and drags at those positions. `node tests/browser/run-all.js` runs them all (see `AGENTS.md`, Testing): `file`, `fit`, `play`, `cpu` and `app`.
+- **The browser:** headless Chromium (Playwright) with software WebGL (SwiftShader). The page exposes `window.__rs` (state, position, moves, where each square is on the screen and so on) to make scripting easy; the `play` and `cpu` tests play with real mouse taps and drags at those positions. `node tests/browser/run-all.js` runs them all (see `AGENTS.md`, Testing): `file`, `fit`, `play`, `cpu`, `online`, `rejoin` and `app`.
+- **Online:** the real Cloudflare runtime runs locally (`npx wrangler dev`, on port 8797), and the game is opened with `?relay=ws://127.0.0.1:8797` in **separate browser contexts**, so each gets its own client id. After every move both windows' positions and moves must match. Covered: the invite link, colours, a reload, chat, draw offers, Play again, a doctored move, an absent opponent, resigning, duplicated tabs, different versions before and during a game (a copy of the site with its version changed), Rejoin in every case Retro Rack covers.
 - **Software WebGL is slow,** so keep test windows small (about 480×360) unless the size is what's being tested.
 
 ---
@@ -129,12 +139,13 @@ Personal working preferences are kept in the owner's own Claude Code settings, n
 
 - **Two players on one device, with the full rules:** built (Stage 1).
 - **The computer opponents:** built (Stage 2).
-- **Online play (Stage 3):** next.
+- **Online play (Stage 3):** built, once the owner has set up the relay.
+- **Possible for online play later:** keeping the game when both players close their apps (each page could save the moves, and Rejoin bring them back; it changes how games start, so both players need the new version); a take-back request; clocks; Retro Rack's ideas box.
 - **Nell's thinking** comes in steps of up to about a tenth of a second (one candidate move searched 3 moves deep at a time), so on a slow phone the picture may stutter while she thinks; the search could pause more often if that shows.
 - **Possible for the bots later:** more of them (above 1500, or in between); a hint button; the bots saying something now and then (as chess.com's do); tuning the weakest bots to human mistake figures as well, if the owner finds them unlike real beginners.
 - **Small things noticed in Stage 1:** the piece could follow the finger while dragged; sound (a wooden "tock" on a move); a bigger move list on phones.
 - **Still open** are listed in section 4, "Decisions still to make".
-- **From Retro Rack, ready to port when wanted:** the menu screens with sliding panels and Play again, Settings with tabs, the phone layout, sound and volume, vibration, fullscreen and the sideways hint, the computer player's search spread across frames, online rooms with Rejoin and the version check, the players' ideas box, the career, and the locker of looks.
+- **From Retro Rack, ready to port when wanted:** the menu screens with sliding panels, Settings with tabs, the phone layout, sound and volume, vibration, fullscreen and the sideways hint, the players' ideas box, the career, and the locker of looks.
 
 ---
 
@@ -143,7 +154,7 @@ Personal working preferences are kept in the owner's own Claude Code settings, n
 - Work happens in Claude Code, which pushes to GitHub through its GitHub connector.
 - **Node.js** is needed for `node tools/build.js` and `node tests/core.test.js`. If it's missing, install the LTS version from nodejs.org.
 - **The routine** (details in `AGENTS.md`, "How changes are made"): describe a change; Claude Code explains the options and builds the one chosen on a branch, rebuilds `index.html`, runs the tests and opens a pull request. When the owner says "merge it", it is squash-merged into `main`, and the live site updates a minute or two later (Ctrl+F5 to see it).
-- **Keep it to one change at a time.**
+- **Keep it to one change at a time.** Test online changes with the local relay before merging, since both players need the same version.
 - **To undo a change,** revert it and push the revert, so the site goes back to how it was.
 
 **Suggested first message in a new session:**
@@ -162,3 +173,4 @@ Every change merged into `main`, newest last. The version is the fingerprint sho
 | 7 Nov 2026 | (first commit, no pull request) | 2cc43742 | The working setup from Retro Rack: guides, one-file build, context packs, tests, installable app; a placeholder board. |
 | 7 Nov 2026 | #1 | 4e335390 | Stage 1: two players on one device with the full rules; low-poly classic pieces; tap or drag to move; take back, resign, agree a draw; the view turning to the player to move; Resume after a reload. |
 | 7 Nov 2026 | #2 | 4be88115 | Stage 2: eight computer opponents from 100 to 1500 (Pip to Nell), measured against Stockfish and each other; the Vs computer screen, your colour, take back of both moves, draw offers, Resume against the computer. |
+| 7 Nov 2026 | #3 | 35265639 | Ten bots named by the owner (Torben 100 to Ted 1500) that make real blunders as well as middling moves, re-tuned and re-measured: every bot within 30 points of its target. |

@@ -2,6 +2,9 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
+<script>window.RETRO_SET_RELAY = "";</script>
+<!-- Online play: the relay address lives in config.js, next to this file. -->
+<script src="config.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Retro Set: 3D pixel chess</title>
 <meta name="theme-color" content="#1a1433">
@@ -47,7 +50,29 @@ button:focus-visible{outline:3px dashed var(--chalk);outline-offset:2px}
 #botBlurb{font-size:20px;margin:10px 0 8px;min-height:2.3em}
 .cpuRow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:space-between}
 .cpuRow .lbl{padding-top:0}
-#bPlay{font-size:12px;padding:12px 16px;background:var(--rose);color:var(--ink)}#bPlay:hover{background:#ff8ba5}
+#bPlay,#bStart,#bCreate{font-size:12px;padding:12px 16px;background:var(--rose);color:var(--ink)}#bPlay:hover,#bStart:hover,#bCreate:hover{background:#ff8ba5}
+#bRejoin{font-size:12px;padding:12px 16px;background:var(--lamp);color:var(--ink)}#bRejoin:hover{background:#ffd48e}
+/* online (as in Retro Rack): your name, the open rooms, join with a code, create a room; the new room's settings */
+input{font-family:'VT323',monospace;font-size:21px;color:var(--paper);background:var(--ink);border:3px solid var(--plum2);border-radius:0;padding:5px 8px;-webkit-user-select:text;user-select:text;outline:none}
+input:focus{border-color:var(--chalk)}
+.onl{display:flex;flex-direction:column;gap:8px}
+.field{display:flex;align-items:center;gap:10px;font-size:20px}
+#netName{width:170px}#netCode{width:140px;text-transform:uppercase;letter-spacing:2px}
+.note.warn{color:var(--rose)}.note.warn:empty{display:none}
+.roomsHead{display:flex;justify-content:space-between;align-items:baseline;font-size:20px;color:var(--lamp);margin-top:4px}
+#roomList{display:flex;flex-direction:column;gap:6px;max-height:172px;overflow:auto;padding:6px;background:rgba(13,10,28,.55);border:3px solid var(--plum2)}
+#roomList .note{margin:2px 4px}
+.roomItem{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 8px;background:var(--plum);border:3px solid var(--ink)}
+.roomItem .rn{font-size:20px}.roomItem .rm{font-size:17px;opacity:.8}.roomItem .btn{flex:none}
+.onlRow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
+#sc-room .row{grid-template-columns:120px 1fr}#sc-room .note{grid-column:2}
+/* the waiting room */
+#lobbyPanel{width:min(460px,92vw);padding:20px 22px}
+#lobbyPanel h2{font-family:'Press Start 2P',monospace;font-weight:400;font-size:12px;color:var(--lamp);margin:0 0 14px}
+#lobbyCode{font-family:'Press Start 2P',monospace;font-size:30px;letter-spacing:8px;color:var(--lamp);margin:6px 0 12px;text-shadow:3px 3px 0 var(--rose),5px 5px 0 var(--ink)}
+#lobbyStatus{font-size:22px;margin:0 0 10px}
+#lobbyLink{width:100%;font-size:17px}
+#lobbyPanel .note{margin:12px 0 0}
 .mScreen{grid-area:1 / 1;min-width:0}
 .title{font-family:'Press Start 2P',monospace;font-weight:400;font-size:clamp(26px,4.2vw,42px);line-height:1.15;color:var(--lamp);margin:0 0 16px;text-shadow:3px 3px 0 var(--rose),6px 6px 0 var(--plum2),9px 9px 0 var(--ink)}
 .quickRow{display:flex;flex-wrap:wrap;gap:8px}.quickRow>.btn{margin-bottom:12px;text-align:left}
@@ -72,6 +97,11 @@ button:focus-visible{outline:3px dashed var(--chalk);outline-offset:2px}
 .plFace:empty{display:none}.plFace img{display:block;height:24px;width:auto;margin:-4px 0}
 #toast{position:fixed;top:calc(var(--bb,60px) + 8px);left:50%;transform:translateX(-50%);padding:5px 12px;font-size:20px;background:var(--ink);border:3px solid var(--lamp);white-space:nowrap;max-width:94vw}
 #mid{min-width:190px;padding:5px 10px;text-align:center}
+#net{font-size:16px;margin-top:3px}#net:empty{display:none}
+#net::before{content:'\25CF  ';color:#7dffb0}#net[data-ok="0"]::before{color:var(--rose)}
+#chatPop{position:fixed;left:8px;bottom:52px;display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:8px;z-index:6;pointer-events:auto}
+#chatPop .btn{font-size:8px;padding:7px 6px}
+.offerPanel p{margin:0 0 6px;font-size:22px}
 #turnLine{font-size:20px}
 #turnLine.check{color:var(--rose)}
 #lastMove{font-size:16px;opacity:.75}
@@ -112,6 +142,12 @@ button:focus-visible{outline:3px dashed var(--chalk);outline-offset:2px}
   .botGrid{gap:5px}.botCard{padding:4px 3px;gap:2px;flex-direction:row;justify-content:center}.botCard .portrait{height:22px;width:auto}.botName{font-size:7px}.botElo{font-size:15px}
   #botBlurb{font-size:16px;margin:5px 0 4px;min-height:0}
   #bPlay{font-size:10px;padding:8px 12px}.cpuRow .btn{font-size:8px;padding:6px 7px}
+  #bStart,#bCreate,#bRejoin{font-size:10px;padding:9px 12px}
+  .onl{gap:5px}#roomList{max-height:78px}#netName,#netCode{font-size:18px;padding:2px 6px}.field,.roomsHead{font-size:18px}
+  #sc-room .row{grid-template-columns:90px 1fr;margin-bottom:6px}#sc-room .lbl{font-size:18px;padding-top:3px}#sc-room .note{font-size:16px}
+  #menu .seg .btn{font-size:8px;padding:6px 7px}
+  #lobbyPanel{padding:12px 16px}#lobbyCode{font-size:22px;margin:2px 0 6px}#lobbyStatus{font-size:18px;margin-bottom:6px}#lobbyPanel .note{margin-top:6px;font-size:16px}#lobbyPanel .actions{margin-top:8px}
+  #chatPop{bottom:44px}
   .ovPanel{padding:12px 16px 12px}.ovPanel h2{font-size:12px;margin-bottom:8px}.ovPanel .row{margin-bottom:6px}
   #overTitle{font-size:16px!important}#overWhy{font-size:20px}
   #promoBtns canvas{width:36px;height:45px}#promoBtns .btn{padding:6px 4px;gap:4px}
@@ -137,13 +173,27 @@ button:focus-visible{outline:3px dashed var(--chalk);outline-offset:2px}
     <div id="mStage">
       <section class="mScreen" id="sc-home">
         <h1 class="title">Retro Set</h1>
-        <div class="quickRow"><button class="btn" id="bResume" type="button" hidden></button></div>
+        <div class="quickRow"><button class="btn" id="bRejoin" type="button" hidden></button><button class="btn" id="bResume" type="button" hidden></button></div>
         <div class="cards">
           <button class="card" type="button" id="bLocal"><span class="cardName">Two players</span><span class="cardTxt">One device, take turns</span></button>
           <button class="card" type="button" id="bCpu"><span class="cardName">Vs computer</span><span class="cardTxt">Ten opponents</span></button>
-          <button class="card" type="button" id="bOnline" disabled><span class="cardName">Online</span><span class="cardTxt">Coming soon</span></button>
+          <button class="card" type="button" id="bOnline"><span class="cardName">Online</span><span class="cardTxt">Rooms and invite links</span></button>
         </div>
         <p id="ver"></p>
+      </section>
+      <section class="mScreen" id="sc-online" data-title="Online" hidden>
+        <div class="onl">
+          <label class="field">Your name <input id="netName" maxlength="14" placeholder="Player" autocomplete="nickname"></label>
+          <div class="roomsHead"><span>Open rooms</span><span id="roomsLive"></span></div>
+          <div id="roomList"></div>
+          <div class="onlRow"><div class="seg"><input id="netCode" maxlength="8" placeholder="Room code" autocomplete="off" spellcheck="false" aria-label="Room code"><button class="btn" id="bJoin" type="button">Join with code</button></div><button class="btn" id="bCreate" type="button">Create a room</button></div>
+          <div class="note warn" id="netNote" role="status"></div>
+        </div>
+      </section>
+      <section class="mScreen" id="sc-room" data-title="New room" hidden>
+        <div class="row"><span class="lbl">You play</span><div class="seg" id="sNetColour"><button class="btn" type="button" data-v="white">White</button><button class="btn" type="button" data-v="random">Random</button><button class="btn" type="button" data-v="black">Black</button></div></div>
+        <div class="row"><span class="lbl">Room</span><div class="seg" id="sListed"><button class="btn" type="button" data-v="1">Listed</button><button class="btn" type="button" data-v="0">Private</button></div><p class="note" id="listedTxt"></p></div>
+        <div class="actions"><button class="btn" id="bStart" type="button">Create room</button></div>
       </section>
       <section class="mScreen" id="sc-cpu" data-title="Vs computer" hidden>
         <div class="botGrid" id="botGrid"></div>
@@ -156,7 +206,7 @@ button:focus-visible{outline:3px dashed var(--chalk);outline-offset:2px}
 <div id="hud" hidden>
   <div id="bar">
     <div class="pl" id="plW"><span class="chip"></span><span class="plFace"></span><span class="plName">White</span></div>
-    <div id="mid"><div id="turnLine"></div><div id="lastMove"></div></div>
+    <div id="mid"><div id="turnLine"></div><div id="lastMove"></div><div id="net"></div></div>
     <div class="pl" id="plB"><span class="chip"></span><span class="plFace"></span><span class="plName">Black</span></div>
   </div>
   <div id="toast" hidden></div>
@@ -165,6 +215,7 @@ button:focus-visible{outline:3px dashed var(--chalk);outline-offset:2px}
     <button class="btn" id="bMenu" type="button">Menu</button>
     <button class="btn" id="bUndo" type="button">Take back</button>
     <button class="btn" id="bFlip" type="button" title="Turn the board round">Turn</button>
+    <button class="btn" id="bChat" type="button" title="Quick chat" hidden>Chat</button>
   </div>
 </div>
 <div id="pause" class="overlay" hidden>
@@ -185,6 +236,24 @@ button:focus-visible{outline:3px dashed var(--chalk);outline-offset:2px}
     <h2 id="promoTitle">Promote to</h2>
     <div id="promoBtns"></div>
     <div class="actions"><button class="btn" id="bPromoCancel" type="button">Cancel</button></div>
+  </div>
+</div>
+<div id="chatPop" class="panel" hidden></div>
+<div id="offer" class="overlay" hidden>
+  <div class="panel ovPanel offerPanel" role="dialog" aria-labelledby="offerTxt">
+    <p id="offerTxt"></p>
+    <div class="actions"><button class="btn" id="bOfferYes" type="button">Accept</button><button class="btn" id="bOfferNo" type="button">Decline</button></div>
+  </div>
+</div>
+<div id="lobby" class="overlay" hidden>
+  <div id="lobbyPanel" class="panel" role="dialog" aria-labelledby="lobbyTitle">
+    <h2 id="lobbyTitle">Online game</h2>
+    <div class="lbl">Room code</div>
+    <div id="lobbyCode">-----</div>
+    <p id="lobbyStatus" role="status">Connecting…</p>
+    <input id="lobbyLink" readonly aria-label="Invite link">
+    <div class="actions"><button class="btn" id="bCopyLink" type="button">Copy invite link</button><button class="btn" id="bLobbyCancel" type="button">Cancel</button></div>
+    <p class="note" id="lobbyNote"></p>
   </div>
 </div>
 <div id="over" class="overlay" hidden>

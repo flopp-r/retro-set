@@ -269,10 +269,11 @@ const BT = BOTS;
 const turnName = c => c === 'w' ? 'White' : 'Black';
 const botOf = () => vs && BT.byId(vs.bot);
 const botTurn = () => !!vs && G.pos.turn !== vs.me;
-const myMoves = () => !vs || G.list.some(x => C.colour(x.m.p) === vs.me);   // against the computer, take back needs a move of yours to take back
+const meCol = () => NET.on ? NET.me : vs ? vs.me : '';   // your colour against the computer or online ('' on a shared device)
+const myMoves = () => !NET.on && (!vs || G.list.some(x => C.colour(x.m.p) === vs.me));   // take back: off online; against the computer, needs a move of yours
 function select(s) { sel = s; targets = s >= 0 ? C.legalMoves(G.pos).filter(m => m.from === s) : []; showMarks(); }
 const clearSel = () => select(-1);
-const mine = s => s >= 0 && state === 'play' && !botTurn() && C.colour(G.pos.b[s]) === G.pos.turn;
+const mine = s => s >= 0 && state === 'play' && !botTurn() && (!NET.on || G.pos.turn === NET.me) && C.colour(G.pos.b[s]) === G.pos.turn;
 // starts a game (g: a game to carry on, else a new one) against opp ({ bot, me }) or, with no opp, for two players
 function startGame(g, opp) {
   vs = opp || null; THINK = null;
@@ -314,6 +315,7 @@ function tryMove(want) {
   const m = n.list[n.list.length - 1].m, by = C.colour(m.p), glide = [];
   glide.push({ obj: onSq[m.from], to: [sqX(m.to), 0, sqZ(m.to)], hop: C.kind(m.p) === 'N' ? 0.03 : 0, delay: 0, dur: 0.28 });
   if (m.castle) { const h = by === 'w' ? 0 : 56, [rf, rt] = m.castle === 'K' ? [h + 7, h + 5] : [h, h + 3]; glide.push({ obj: onSq[rf], to: [sqX(rt), 0, sqZ(rt)], hop: 0.02, delay: 0.08, dur: 0.28 }); }
+  if (NET.on && NET.started && by === NET.me) netSend({ t: 'move', n: n.list.length, u: C.uci(m), fen: C.toFen(n.pos) });   // online, your move goes at once
   if (m.cap) {
     const at = m.ep ? m.to + (by === 'w' ? -8 : 8) : m.to, taken = G.list.filter(x => x.m.cap && C.colour(x.m.p) === by).length;
     glide.push({ obj: onSq[at], to: trayPos(by, taken), hop: 0.05, delay: 0.2, dur: 0.38, shrink: 0.8 });
@@ -324,14 +326,15 @@ function tryMove(want) {
 }
 function afterMove() {
   state = G.result ? 'over' : 'play';
-  if (S.turn && !vs && state === 'play') cam.base = G.pos.turn === 'w' ? 0 : PI;
+  if (S.turn && !vs && !NET.on && state === 'play') cam.base = G.pos.turn === 'w' ? 0 : PI;
   save(); hud(); showMarks();
   if (state === 'over') setTimeout(() => { if (state === 'over' && G.result) showOver(); }, reduceMotion ? 0 : 500);
   else if (botTurn()) startThink();
+  if (NET.on) { saveRejoin(); const held = NET.hold; NET.hold = []; for (const m of held) onNet(m); netProcessQueue(); }
 }
 // Take back: one move on a shared device; against the computer, back to before your last move (its reply goes too)
 function takeBack() {
-  if (!G || !G.list.length || state === 'anim' || state === 'promo' || (G.result && /resigned|agreed/.test(G.result.why)) || !myMoves()) return;
+  if (NET.on || !G || !G.list.length || state === 'anim' || state === 'promo' || (G.result && /resigned|agreed/.test(G.result.why)) || !myMoves()) return;
   let n = C.undo(G);
   if (vs) { THINK = null; while (n.list.length && n.pos.turn !== vs.me) n = C.undo(n); }
   G = n; state = 'play'; closePanels(); clearSel(); placeAll(G);
@@ -396,13 +399,17 @@ function squareAt(x, y) {
 function tap(s) {
   if (state !== 'play') return;
   const mv = targets.filter(m => m.to === s);
-  if (sel >= 0 && mv.length) { if (mv[0].promo) askPromo(sel, s); else tryMove({ from: sel, to: s }); return; }
+  if (sel >= 0 && mv.length) {
+    if (NET.on && (!NET.peer || NET.link !== 'online')) { toast(`Waiting for ${NET.peerName} to reconnect`); clearSel(); return; }   // the move would go nowhere
+    if (mv[0].promo) askPromo(sel, s); else tryMove({ from: sel, to: s });
+    return;
+  }
   if (mine(s) && s !== sel) select(s); else clearSel();
 }
 const PTR = new Map();
 let drag = null, pinch = null;
 canvas.addEventListener('pointerdown', e => {
-  if (state === 'menu') return;
+  if (state === 'menu' || state === 'lobby') return;
   canvas.setPointerCapture(e.pointerId); PTR.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (PTR.size === 2) { const [a, b] = [...PTR.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), zoom: cam.zoom }; drag = null; return; }
   const s = squareAt(e.clientX, e.clientY), own = mine(s);
@@ -431,11 +438,13 @@ function pointerEnd(e) {
 }
 canvas.addEventListener('pointerup', pointerEnd);
 canvas.addEventListener('pointercancel', pointerEnd);
-canvas.addEventListener('wheel', e => { if (state === 'menu') return; e.preventDefault(); cam.zoom = clamp(cam.zoom * Math.pow(1.1, Math.sign(e.deltaY)), 0.6, 2.2); }, { passive: false });
+canvas.addEventListener('wheel', e => { if (state === 'menu' || state === 'lobby') return; e.preventDefault(); cam.zoom = clamp(cam.zoom * Math.pow(1.1, Math.sign(e.deltaY)), 0.6, 2.2); }, { passive: false });
 addEventListener('keydown', e => {
   if (e.key === 'Escape' && state === 'menu' && screen !== 'home') { $('#mBack').click(); return; }
+  if (e.key === 'Escape' && state === 'lobby') { clearRejoin(); toMenu('online'); return; }
   if (e.key !== 'Escape' || state === 'menu') return;
-  if (!$('#promo').hidden) cancelPromo(); else if (!$('#over').hidden) $('#over').hidden = true; else togglePause();
+  if (!$('#chatPop').hidden) $('#chatPop').hidden = true;
+  else if (!$('#promo').hidden) cancelPromo(); else if (!$('#over').hidden) $('#over').hidden = true; else togglePause();
 });
 
 // ------------------------------------------------------------------ camera
@@ -473,14 +482,16 @@ function hud() {
   if (!G) return;
   const over = !!G.result, check = !over && C.inCheck(G.pos);
   $('#plW').classList.toggle('active', !over && G.pos.turn === 'w'); $('#plB').classList.toggle('active', !over && G.pos.turn === 'b');
-  const bot = botOf();
+  const bot = botOf(), me = meCol();
   for (const c of ['w', 'b']) {   // the names (and against the computer, its face)
     const pl = $(c === 'w' ? '#plW' : '#plB'), its = bot && c !== vs.me;
-    pl.querySelector('.plName').textContent = !vs ? turnName(c) : its ? `${bot.name} ${bot.rating}` : 'You';
+    pl.querySelector('.plName').textContent = !me ? turnName(c) : c === me ? 'You' : NET.on ? NET.peerName : `${bot.name} ${bot.rating}`;
     const face = pl.querySelector('.plFace'); face.textContent = ''; if (its) face.append(portrait(bot.look, 2));
   }
-  const tl = $('#turnLine');
-  tl.textContent = over ? resultText(G.result)[0] : state === 'think' ? `${bot.name} is thinking…` : vs ? `Your move${check ? ': check!' : ''}` : `${turnName(G.pos.turn)} to move${check ? ': check!' : ''}`;
+  const tl = $('#turnLine'), ch = check ? ': check!' : '';
+  tl.textContent = over ? resultText(G.result)[0] : state === 'think' ? `${bot.name} is thinking…` : !me ? `${turnName(G.pos.turn)} to move${ch}` : G.pos.turn === me ? `Your move${ch}` : `${NET.peerName} to move${ch}`;
+  $('#bChat').hidden = !NET.on; $('#bUndo').hidden = NET.on; netBadge();   // online there's no take back, as in Retro Rack
+  requestAnimationFrame(barEdge);
   tl.classList.toggle('check', check);
   const last = G.list[G.list.length - 1];
   $('#lastMove').textContent = last ? `${Math.ceil(G.list.length / 2)}.${G.list.length % 2 ? '' : '..'} ${last.san}` : '';
@@ -494,33 +505,36 @@ function hud() {
   list.scrollTop = list.scrollHeight;
   $('#bUndo').disabled = !G.list.length || (over && /resigned|agreed/.test(G.result.why)) || !myMoves();
 }
+// --bb: where the bar ends, so messages sit just below it however tall it is (the connection line makes it taller)
+function barEdge() { const r = $('#bar').getBoundingClientRect(); if (r.height) document.documentElement.style.setProperty('--bb', Math.round(r.bottom) + 'px'); }
+addEventListener('resize', () => requestAnimationFrame(barEdge));
 function resultText(r) {
-  const bot = botOf(), who = c => !vs ? turnName(c) : c === vs.me ? 'You' : bot.name;
+  const me = meCol(), who = c => !me ? turnName(c) : c === me ? 'You' : NET.on ? NET.peerName : botOf().name;
   const winner = r.score === '1-0' ? 'w' : r.score === '0-1' ? 'b' : '', loser = winner && C.other(winner);
-  const win = !winner ? 'A draw' : vs && winner === vs.me ? 'You win' : `${who(winner)} wins`;
+  const win = !winner ? 'A draw' : me && winner === me ? 'You win' : `${who(winner)} wins`;
   return {
     checkmate: ['Checkmate', win], stalemate: ['Stalemate', 'A draw: no legal move, but not in check'],
     repetition: ['Draw', 'The same position three times'], fifty: ['Draw', 'Fifty moves each with no capture or pawn move'],
     material: ['Draw', 'Not enough pieces left to checkmate'], agreed: ['Draw', vs ? 'Agreed' : 'Agreed by both players'],
-    resigned: [vs && loser === vs.me ? 'You resign' : `${who(loser)} resigns`, win],
+    resigned: [me && loser === me ? 'You resign' : `${who(loser)} resigns`, win],
   }[r.why] || ['Game over', win];
 }
 function showOver() {
   const [title, why] = resultText(G.result);
   $('#overTitle').textContent = title; $('#overWhy').textContent = why;
   $('#overMoves').textContent = `${Math.ceil(G.list.length / 2)} moves`;
-  $('#pause').hidden = true; $('#over').hidden = false;
+  $('#pause').hidden = true; $('#over').hidden = false; updateAgainBtn();
 }
-function closePanels() { for (const s of ['#pause', '#promo', '#over']) $(s).hidden = true; promoAt = null; disarm(); }
+function closePanels() { for (const s of ['#pause', '#promo', '#over', '#offer', '#chatPop']) $(s).hidden = true; promoAt = null; disarm(); }
 function togglePause(open = $('#pause').hidden) {
   if (open && state === 'over') { showOver(); return; }
   if (open && state === 'promo') cancelPromo();
   $('#pause').hidden = !open;
   if (open) {
     disarm();
-    $('#bResign').textContent = vs ? 'Resign' : `${turnName(G.pos.turn)} resigns`;
-    $('#bDraw').textContent = vs ? 'Offer a draw' : 'Agree a draw';
-    for (const e of document.querySelectorAll('.onlyLocal')) e.hidden = !!vs;   // turning the board is for a shared device
+    $('#bResign').textContent = meCol() ? 'Resign' : `${turnName(G.pos.turn)} resigns`;
+    $('#bDraw').textContent = meCol() ? 'Offer a draw' : 'Agree a draw';
+    for (const e of document.querySelectorAll('.onlyLocal')) e.hidden = !!meCol();   // turning the board is for a shared device
     for (const b of document.querySelectorAll('#sTurn .btn')) b.setAttribute('aria-pressed', String(!!+b.dataset.v === S.turn));
   }
 }
@@ -537,22 +551,25 @@ $('#bUndo').onclick = takeBack;
 $('#bFlip').onclick = () => { cam.base += PI; };
 $('#bResumeGame').onclick = () => togglePause(false);
 $('#bDraw').onclick = e => {
+  if (NET.on) { $('#pause').hidden = true; netOfferDraw(); return; }
   if (vs) { $('#pause').hidden = true; offerDraw(); return; }
   confirmTap(e.currentTarget, 'Both agree?', () => { G = C.finish(G, '1/2-1/2', 'agreed'); afterMove(); $('#pause').hidden = true; });
 };
 $('#bResign').onclick = e => confirmTap(e.currentTarget, 'Sure? Tap again', () => {
-  const loser = vs ? vs.me : G.pos.turn;
-  THINK = null; G = C.finish(G, loser === 'w' ? '0-1' : '1-0', 'resigned'); afterMove(); $('#pause').hidden = true;
+  const loser = meCol() || G.pos.turn;
+  THINK = null; G = C.finish(G, loser === 'w' ? '0-1' : '1-0', 'resigned'); $('#pause').hidden = true;
+  if (NET.on) netSend({ t: 'resign' });
+  afterMove();
 });
-$('#bQuit').onclick = () => toMenu();
+$('#bQuit').onclick = () => toMenu(NET.on ? 'online' : 'home');
 for (const b of document.querySelectorAll('#sTurn .btn')) b.onclick = () => {
   S.turn = !!+b.dataset.v; saveS(); togglePause(true);
   if (S.turn && G) cam.base = G.pos.turn === 'w' ? 0 : PI;
 };
 $('#bPromoCancel').onclick = cancelPromo;
-$('#bAgain').onclick = () => vs ? startCpu() : startLocal();
+$('#bAgain').onclick = () => NET.on ? askRematch() : vs ? startCpu() : startLocal();
 $('#bLook').onclick = () => { $('#over').hidden = true; };
-$('#bOverMenu').onclick = () => toMenu();
+$('#bOverMenu').onclick = () => toMenu(NET.on ? 'online' : 'home');
 for (const id of ['#pause', '#promo', '#over']) {   // a tap outside the panel closes it (only if the press began outside too)
   const ov = $(id); let down = false;
   ov.addEventListener('pointerdown', e => { down = e.target === ov; });
@@ -560,19 +577,23 @@ for (const id of ['#pause', '#promo', '#over']) {   // a tap outside the panel c
 }
 
 // ------------------------------------------------------------------ menus
-// The menu's screens: home and Vs computer (the bots, your colour). M holds the choices, kept between visits.
-const M = { bot: 'barney', colour: 'random' };
+// The menu's screens: home, Vs computer (the bots, your colour), Online (your name, the open rooms, join with a code)
+// and New room (your colour, listed or private). M holds the choices, kept between visits.
+const M = { bot: 'barney', colour: 'random', netColour: 'random', listed: true };
 try { Object.assign(M, JSON.parse(localStorage.getItem('retroSet.menu') || '{}')); } catch (e) {}
 M.bot = (BT.byId(M.bot) || BT.byId('barney')).id;   // a bot from before the renaming becomes the nearest new one
 const saveM = () => { try { localStorage.setItem('retroSet.menu', JSON.stringify(M)); } catch (e) {} };
 let screen = 'home';
+const BACK = { cpu: 'home', online: 'home', room: 'online' };   // where Back goes from each screen
 function menuGo(name) {
   screen = name;
   for (const sc of document.querySelectorAll('#menuPanel .mScreen')) sc.hidden = sc.id !== 'sc-' + name;
   const sc = $('#sc-' + name);
   $('#mTop').hidden = name === 'home'; $('#mTitle').textContent = sc.dataset.title || '';
   if (name === 'cpu') renderCpu();
+  if (name === 'room') renderRoom();
   if (name === 'home') refreshHome(); else arm();
+  updateLobbyWatch();
 }
 function refreshHome() {
   const saved = loadSaved(), b = $('#bResume');
@@ -580,7 +601,16 @@ function refreshHome() {
   $('#bLocal .cardTxt').textContent = saved && !saved.vs ? 'New game (replaces the saved one)' : 'One device, take turns';
   $('#bCpu .cardTxt').textContent = saved && saved.vs ? 'New game (replaces the saved one)' : `${BT.LIST.length === 10 ? 'Ten' : BT.LIST.length} opponents, ${BT.LIST[0].rating} to ${BT.LIST[BT.LIST.length - 1].rating}`;
   if (saved) { const bot = saved.vs && BT.byId(saved.vs.bot); b.textContent = `Resume: ${bot ? 'vs ' + bot.name : 'two players'}, move ${Math.ceil((saved.g.list.length + 1) / 2)}`; }
+  $('#bOnline .cardTxt').textContent = relayBase() ? 'Rooms and invite links' : 'Not set up yet';
+  updateRejoin();
 }
+function renderRoom() {
+  for (const b of document.querySelectorAll('#sNetColour .btn')) b.setAttribute('aria-pressed', String(b.dataset.v === M.netColour));
+  for (const b of document.querySelectorAll('#sListed .btn')) b.setAttribute('aria-pressed', String(!!+b.dataset.v === (M.listed !== false)));
+  $('#listedTxt').textContent = M.listed !== false ? 'Shown in Open rooms.' : 'Code or link only.';
+}
+for (const b of document.querySelectorAll('#sNetColour .btn')) b.onclick = () => { M.netColour = b.dataset.v; saveM(); renderRoom(); };
+for (const b of document.querySelectorAll('#sListed .btn')) b.onclick = () => { M.listed = !!+b.dataset.v; saveM(); renderRoom(); };
 function renderCpu() {
   const grid = $('#botGrid'); grid.textContent = '';
   for (const bot of BT.LIST) {
@@ -596,17 +626,21 @@ function renderCpu() {
   for (const b of document.querySelectorAll('#sColour .btn')) b.setAttribute('aria-pressed', String(b.dataset.v === M.colour));
 }
 for (const b of document.querySelectorAll('#sColour .btn')) b.onclick = () => { M.colour = b.dataset.v; saveM(); renderCpu(); };
-function toMenu() {
+// back to the menus, on the home screen (or, leaving an online game or room, the Online screen); leaving online on
+// purpose forgets the game for Rejoin, and tells the other player
+function toMenu(to = 'home') {
+  if (NET.on) { clearRejoin(); leaveOnline(); }
   state = 'menu'; THINK = null; closePanels(); clearSel();
   cam.mode = 'menu'; cam.a = cam.cur.yaw;
-  $('#hud').hidden = true; $('#menu').hidden = false;
-  if (armed) { armed = false; history.back(); }
-  menuGo('home'); showMarks();
+  $('#hud').hidden = true; $('#lobby').hidden = true; $('#menu').hidden = false;
+  if (to === 'home' && armed) { armed = false; history.back(); }
+  menuGo(to); showMarks();
 }
 $('#bLocal').onclick = () => startLocal();
 $('#bCpu').onclick = () => menuGo('cpu');
+$('#bOnline').onclick = () => menuGo('online');
 $('#bPlay').onclick = () => startCpu();
-$('#mBack').onclick = () => { if (armed) { armed = false; history.back(); } menuGo('home'); };
+$('#mBack').onclick = () => { const to = BACK[screen] || 'home'; if (to === 'home' && armed) { armed = false; history.back(); } menuGo(to); };
 $('#bResume').onclick = () => { const s = loadSaved(); if (s) startGame(s.g, s.vs); };
 // The phone's back gesture: while in a game one history entry is kept armed, so going back opens the menu panel
 // (or closes the one that's open) instead of leaving the page.
@@ -614,10 +648,353 @@ let armed = false;
 function arm() { if (armed) return; try { history.pushState({ rs: 1 }, ''); armed = true; } catch (e) {} }
 addEventListener('popstate', () => {
   armed = false;
-  if (state === 'menu') { if (screen !== 'home') menuGo('home'); return; }
-  if (!$('#promo').hidden) cancelPromo(); else if (!$('#over').hidden) $('#over').hidden = true; else togglePause();
+  if (state === 'menu') { if (screen !== 'home') menuGo(BACK[screen] || 'home'); return; }
+  if (state === 'lobby') { clearRejoin(); toMenu('online'); return; }   // going back cancels the waiting room
+  if (!$('#offer').hidden) $('#bOfferNo').click(); else if (!$('#promo').hidden) cancelPromo(); else if (!$('#over').hidden) $('#over').hidden = true; else togglePause();
   arm();
 });
+
+// ------------------------------------------------------------------ online play
+// Retro Rack's online play, for chess. Each browser runs the full game; only the moves travel, through a small relay
+// (relay/, a Cloudflare Worker) that passes messages between the two seats of a room and keeps the list of open rooms.
+// The receiving browser plays a move only if it's legal, and checks it reaches the same position as the sender's;
+// if not, it asks for the whole game again. Seat 0 (whoever opened the room) hosts: it picks the colours and starts
+// each game. NET.me is the colour this browser plays.
+const NET = { on: false, ws: null, code: '', cid: '', seat: 0, me: 'w', white: 0, link: '', peer: false, peerName: 'Friend', myName: 'Player',
+  started: false, games: 0, queue: [], hold: [], again: [false, false], retry: 0, timer: 0, list: false, rejoin: null, peerVer: '', verWarn: '', unlock: null, drawOffered: false };
+function relayBase() {
+  let u = '';
+  try { u = new URLSearchParams(location.search).get('relay') || ''; } catch (e) {}
+  u = String(u || window.RETRO_SET_RELAY || '').trim().replace(/\/+$/, '');
+  if (!u) return '';
+  if (u.startsWith('https://')) u = 'wss://' + u.slice(8);
+  else if (u.startsWith('http://')) u = 'ws://' + u.slice(7);
+  else if (!/^wss?:\/\//.test(u)) u = 'wss://' + u;
+  return u;
+}
+const CODE_CH = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+function newCode(n = 5) { const a = new Uint32Array(n); crypto.getRandomValues(a); return Array.from(a, v => CODE_CH[v % CODE_CH.length]).join(''); }
+const cleanCode = s => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
+const cleanName = (s, d = 'Friend') => String(s || '').replace(/[<>]/g, '').trim().slice(0, 14) || d;
+function getCid() { try { let c = sessionStorage.getItem('rs.cid'); if (!c) { c = newCode(12); sessionStorage.setItem('rs.cid', c); } return c; } catch (e) { return newCode(12); } }
+// "Duplicate tab" copies sessionStorage, player id included, and two tabs with one id fight over one seat.
+// An open page marks the id as in use until it closes, so a copy made while the original is still open
+// sees the mark and picks a fresh id. A reload clears the mark first, so it keeps its seat.
+try {
+  if (sessionStorage.getItem('rs.live') === '1') sessionStorage.removeItem('rs.cid');
+  sessionStorage.setItem('rs.live', '1');
+  const mark = v => { try { sessionStorage.setItem('rs.live', v); } catch (e) {} };
+  addEventListener('pagehide', () => mark('0'));
+  addEventListener('pageshow', e => { if (e.persisted) mark('1'); });
+  // phones may unload a background tab after freezing it, with no pagehide; coming back is then a reload, not a copy
+  document.addEventListener('freeze', () => mark('0'));
+  document.addEventListener('resume', () => mark('1'));
+} catch (e) {}
+function netSend(o) { if (NET.ws && NET.ws.readyState === 1) NET.ws.send(JSON.stringify(o)); }
+function sendHello() { netSend({ t: 'hello', name: NET.myName, started: NET.started, n: NET.started && G ? G.list.length : 0, v: BUILD }); }
+function netConnect() {
+  let ws;
+  const listQ = NET.list && !NET.started ? `&list=1&name=${encodeURIComponent(NET.myName)}&mode=${encodeURIComponent(M.netColour)}` : '';
+  try { ws = new WebSocket(`${relayBase()}/room/${NET.code}?cid=${NET.cid}${listQ}`); }
+  catch (e) { lobbyStatus("Couldn't reach the relay. Check the relay address in config.js."); return; }
+  NET.ws = ws; NET.link = 'connecting'; netBadge();
+  ws.onopen = () => { NET.retry = 0; };
+  ws.onmessage = e => { if (e.data === 'pong') return; let m; try { m = JSON.parse(e.data); } catch (err) { return; } onNet(m); };
+  ws.onclose = ev => {
+    if (NET.ws === ws) NET.ws = null;
+    if (!NET.on || ev.code === 4000 || ev.code === 4001) return;
+    NET.link = 'reconnecting'; netBadge();
+    lobbyStatus(NET.retry > 2 ? "Still can't reach the relay. Check your connection and the relay address." : 'Connecting…');
+    const d = Math.min(8000, 600 * Math.pow(2, NET.retry++));
+    clearTimeout(NET.timer); NET.timer = setTimeout(() => { if (NET.on && !NET.ws) netConnect(); }, d);
+  };
+}
+setInterval(() => { if (NET.ws && NET.ws.readyState === 1) NET.ws.send('ping'); }, 20000);
+function onNet(m) {
+  // anything that changes the game waits while a move glides into place (afterMove hands it back)
+  if (state === 'anim' && ['state', 'resign', 'drawYes'].includes(m.t)) { NET.hold.push(m); return; }
+  switch (m.t) {
+    case 'welcome':
+      NET.seat = m.seat === 1 ? 1 : 0; NET.peer = !!m.peer; NET.link = 'online'; netBadge();
+      lobbyStatus(NET.peer ? 'Connected. Starting…' : waitText());
+      if (NET.peer) sendHello();
+      if (NET.started) hud();
+      break;
+    case 'full':
+      clearRejoin(); toMenu('online'); menuNote('That room already has two players in it.'); break;
+    case 'peer':
+      NET.peer = !!m.on; netBadge();
+      if (m.on) sendHello();
+      else if (NET.started) toast(`${NET.peerName} disconnected. Waiting for them to come back`);
+      else lobbyStatus(waitText());
+      break;
+    case 'hello':
+      NET.peerName = cleanName(m.name); NET.peer = true; netBadge();
+      NET.peerVer = typeof m.v === 'string' ? m.v.slice(0, 16) : '';
+      NET.verWarn = '';
+      if (NET.peerVer !== BUILD) {
+        const why = `You and ${NET.peerName} have different versions of Retro Set.`;
+        if (!NET.started && !m.started) {   // nothing to lose yet, so don't start a game that might not match
+          lobbyStatus(`${why} Both of you reload it to get the latest (Ctrl+F5 on a computer, or close and reopen it on a phone), then come back to room ${NET.code}.`);
+          break;
+        }
+        // mid-game: carry on (each move is checked, and a mismatch fetches the whole game) but say so
+        NET.verWarn = `${why} If the games stop matching, reload it (Ctrl+F5 on a computer, or close and reopen it on a phone) and come back to room ${NET.code}.`;
+        if (NET.started) toast(NET.verWarn);
+      }
+      if (NET.started) netSendState();
+      else if (NET.seat === 0 && !m.started) hostStart();
+      else lobbyStatus(`Connected to ${NET.peerName}. Starting…`);
+      if (NET.started) hud();
+      break;
+    case 'setup': if (NET.seat === 1 && (NET.started || NET.peerVer === BUILD)) startOnlineGame(m); break;
+    case 'state': adoptState(m); break;
+    case 'resync': if (NET.started) netSendState(true); break;
+    case 'move': if (Number.isInteger(m.n) && typeof m.u === 'string') { NET.queue.push(m); NET.queue.sort((a, b) => a.n - b.n); netProcessQueue(); } break;
+    case 'again': NET.again[1 - NET.seat] = true; tryRematch(); break;
+    case 'bye': NET.peer = false; netBadge(); clearRejoin(); toast(`${NET.peerName} left the game`); break;
+    case 'chat': if (Number.isInteger(m.i) && CHAT[m.i]) toast(`${NET.peerName}: ${CHAT[m.i]}`); break;
+    case 'resign': if (NET.started && G && !G.result) { G = C.finish(G, NET.me === 'w' ? '1-0' : '0-1', 'resigned'); closePanels(); afterMove(); } break;
+    case 'drawOffer': if (NET.started && G && !G.result) { $('#offerTxt').textContent = `${NET.peerName} offers a draw.`; $('#offer').hidden = false; } break;
+    case 'drawYes': if (NET.started && G && !G.result && NET.drawOffered) { NET.drawOffered = false; G = C.finish(G, '1/2-1/2', 'agreed'); closePanels(); afterMove(); toast(`${NET.peerName} accepted the draw`); } break;
+    case 'drawNo': if (NET.drawOffered) { NET.drawOffered = false; toast(`${NET.peerName} declined the draw`); } break;
+  }
+}
+function menuNote(t) { $('#netNote').textContent = t; }
+function lobbyStatus(t) { $('#lobbyStatus').textContent = t; }
+function inviteLink() { return location.href.split('#')[0] + '#room=' + NET.code; }
+function startOnline(code, listed = false, rejoin = null) {
+  if (!relayBase()) { menuNote('Online play needs the relay address first: it goes into config.js, next to this file (the README explains how).'); return; }
+  if (!code || code.length < 4) { menuNote('Room codes are 5 letters and numbers.'); return; }
+  NET.on = true; NET.code = code; NET.cid = getCid(); NET.myName = cleanName($('#netName').value, 'Player'); NET.peerName = 'Friend';
+  try { localStorage.setItem('retroSet.name', NET.myName); } catch (e) {}
+  holdSeat();
+  Object.assign(NET, { started: false, games: 0, queue: [], hold: [], again: [false, false], retry: 0, peer: false, peerVer: '', verWarn: '', list: listed, rejoin, drawOffered: false });
+  vs = null; THINK = null; menuNote('');
+  try { history.replaceState(null, '', '#room=' + code); } catch (e) {}
+  state = 'lobby'; $('#menu').hidden = true; $('#lobby').hidden = false; arm();
+  $('#lobbyCode').textContent = code; $('#lobbyLink').value = inviteLink();
+  $('#lobbyNote').textContent = listed
+    ? 'Your room is listed under Open rooms, so friends can join from there. They can also use the link or the code.'
+    : 'This room is private. Your friend can open the link, or type the code into Join with code.';
+  lobbyStatus('Connecting…'); updateLobbyWatch(); netConnect();
+}
+function leaveOnline() {
+  if (!NET.on) return;
+  netSend({ t: 'bye' });
+  NET.on = false; NET.started = false; clearTimeout(NET.timer); freeSeat();
+  const ws = NET.ws; NET.ws = null; if (ws) { try { ws.close(1000, 'bye'); } catch (e) {} }
+  try { history.replaceState(history.state, '', location.href.split('#')[0]); } catch (e) {}
+  $('#lobby').hidden = true; $('#chatPop').hidden = true; netBadge();
+}
+function showGameUI() { arm(); $('#menu').hidden = true; $('#lobby').hidden = true; $('#over').hidden = true; $('#hud').hidden = false; }
+// the host picks the colours: the first game as chosen for the room (Random tosses a coin); each rematch swaps them
+function hostStart() {
+  NET.white = NET.games ? 1 - NET.white : M.netColour === 'white' ? 0 : M.netColour === 'black' ? 1 : Math.random() < 0.5 ? 0 : 1;
+  const setup = { t: 'setup', start: C.START, white: NET.white, games: NET.games };
+  netSend(setup); startOnlineGame(setup);
+}
+function startOnlineGame(m) {
+  let g; try { g = C.newGame(typeof m.start === 'string' ? m.start : C.START); } catch (e) { return; }
+  NET.white = m.white === 1 ? 1 : 0; NET.me = NET.seat === NET.white ? 'w' : 'b';
+  if (Number.isInteger(m.games)) NET.games = m.games;
+  Object.assign(NET, { started: true, queue: [], hold: [], again: [false, false], drawOffered: false });
+  G = g; state = 'play'; sel = -1; targets = []; closePanels(); placeAll(G);
+  Object.assign(cam, { mode: 'play', base: NET.me === 'w' ? 0 : PI, yawOff: 0, pitch: 0.95, zoom: 1 });
+  showGameUI(); hud(); showMarks();
+  toast(`You play ${NET.me === 'w' ? 'White' : 'Black'} against ${NET.peerName}`);
+  saveRejoin();
+}
+// the whole game (its start, every move, and a resignation or agreed draw): for a player coming back, or to put the
+// two games back in step after a mismatch (fix)
+function netSendState(fix) {
+  if (!NET.started || !G) return;
+  const r = G.result && /resigned|agreed/.test(G.result.why) ? G.result : null;
+  netSend({ t: 'state', fix: !!fix, start: G.start, moves: G.list.map(x => C.uci(x.m)), white: NET.white, games: NET.games, result: r });
+}
+function adoptState(m) {
+  if (typeof m.start !== 'string' || !Array.isArray(m.moves)) return;
+  const done = r => r && ['resigned', 'agreed'].includes(r.why) && ['1-0', '0-1', '1/2-1/2'].includes(r.score);
+  // only a game further on than ours (or ended where ours isn't), unless it's the fix after a mismatch
+  if (NET.started && !m.fix && !(m.moves.length > G.list.length || (done(m.result) && !G.result))) return;
+  let g; try { g = C.newGame(m.start); } catch (e) { return; }
+  for (const u of m.moves) {
+    g = C.playUci(g, String(u));
+    if (!g) { toast(`Your game and ${NET.peerName}'s don't match. Both of you reload it (Ctrl+F5 on a computer, or close and reopen it on a phone).`); return; }
+  }
+  if (done(m.result) && !g.result) g = C.finish(g, m.result.score, m.result.why);
+  const back = !NET.started;
+  NET.white = m.white === 1 ? 1 : 0; NET.me = NET.seat === NET.white ? 'w' : 'b';
+  if (Number.isInteger(m.games)) NET.games = m.games;
+  Object.assign(NET, { started: true, queue: NET.queue.filter(q => q.n > g.list.length), hold: [] });
+  G = g; state = G.result ? 'over' : 'play'; sel = -1; targets = []; closePanels(); placeAll(G);
+  if (back) Object.assign(cam, { mode: 'play', base: NET.me === 'w' ? 0 : PI, yawOff: 0, pitch: 0.95, zoom: 1 });
+  showGameUI(); hud(); showMarks();
+  toast(m.fix ? `Your game was put back in step with ${NET.peerName}'s` : `Back in the game with ${NET.peerName}`);
+  if (NET.verWarn) setTimeout(() => { if (NET.on) toast(NET.verWarn); }, 2800);
+  if (state === 'over') showOver();
+  saveRejoin(); netProcessQueue();
+}
+// the other player's moves, in order: each must be the next move, theirs to make, legal here, and reach the same
+// position as theirs; anything else asks for the whole game again
+function netProcessQueue() {
+  if (!NET.started || !G || state === 'anim' || state === 'lobby') return;
+  NET.queue = NET.queue.filter(q => q.n > G.list.length);
+  const m = NET.queue[0];
+  if (!m) return;
+  if (m.n !== G.list.length + 1) { NET.queue = []; netSend({ t: 'resync' }); return; }   // a move went missing
+  NET.queue.shift();
+  if (G.result || G.pos.turn === NET.me) return;
+  const n = C.playUci(G, m.u);
+  if (!n) { toast(`Ignored a move from ${NET.peerName} that isn't legal here`); netSend({ t: 'resync' }); return; }
+  if (typeof m.fen === 'string' && m.fen !== C.toFen(n.pos)) { toast(`That move didn't give the same position on both screens, so your game is being put back in step`); netSend({ t: 'resync' }); return; }
+  if (state === 'promo') cancelPromo();
+  tryMove({ from: C.sq(m.u.slice(0, 2)), to: C.sq(m.u.slice(2, 4)), promo: m.u[4] || '' });
+}
+function netOfferDraw() {
+  if (!NET.started || G.result) return;
+  if (!NET.peer) { toast(`Waiting for ${NET.peerName} to reconnect`); return; }
+  NET.drawOffered = true; netSend({ t: 'drawOffer' }); toast(`Draw offered. Waiting for ${NET.peerName}`);
+}
+$('#bOfferYes').onclick = () => { $('#offer').hidden = true; if (!G || G.result) return; netSend({ t: 'drawYes' }); G = C.finish(G, '1/2-1/2', 'agreed'); afterMove(); };
+$('#bOfferNo').onclick = () => { $('#offer').hidden = true; netSend({ t: 'drawNo' }); };
+function netBadge() {
+  const el = $('#net');
+  if (!NET.on) { el.textContent = ''; return; }
+  const ok = NET.link === 'online' && NET.peer;
+  el.textContent = NET.link !== 'online' ? 'Reconnecting to the relay…' : ok ? `${NET.peerName} is connected` : `${NET.peerName} is not connected`;
+  el.dataset.ok = ok ? '1' : '0';
+}
+// quick chat: preset messages only, so there's nothing to moderate in listed rooms
+const CHAT = ['Good move!', 'Unlucky', 'Good luck', 'Good game', 'Thanks!', 'Oops!', 'Wow!', 'One more?'];
+let lastChat = 0;
+function sendChat(i) {
+  if (!NET.on || performance.now() - lastChat < 1200) return;
+  lastChat = performance.now(); netSend({ t: 'chat', i }); toast(`You: ${CHAT[i]}`); $('#chatPop').hidden = true;
+}
+CHAT.forEach((txt, i) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.textContent = txt; b.dataset.i = i; b.addEventListener('click', () => sendChat(i)); $('#chatPop').appendChild(b); });
+$('#bChat').onclick = () => { $('#chatPop').hidden = !$('#chatPop').hidden; };
+// Play again: both players ask, then the host starts the next game with the colours swapped
+function updateAgainBtn() {
+  const b = $('#bAgain');
+  b.textContent = !NET.on ? 'Play again' : NET.again[NET.seat] ? `Waiting for ${NET.peerName}…` : NET.again[1 - NET.seat] ? 'Play again: accept' : 'Play again';
+}
+function askRematch() { if (NET.again[NET.seat]) return; NET.again[NET.seat] = true; netSend({ t: 'again' }); tryRematch(); }
+function tryRematch() {
+  if (!NET.on) return;
+  if (NET.again[0] && NET.again[1]) { NET.again = [false, false]; if (NET.seat === 0) { NET.games++; hostStart(); } }
+  else if (!$('#over').hidden) updateAgainBtn();
+}
+// "Rejoin": an online game left by accident (app closed, tab shut, battery died) can be picked up again for a few
+// hours. The room and this player's id are kept on the device, so the relay gives back the same seat, and the
+// opponent's game (if it's still open) sends the whole game, just as after a reload. Leaving on purpose forgets it.
+// There's one entry per player id, because two tabs on one device can each hold a seat in the same game.
+const REJOIN_MS = 3 * 60 * 60 * 1000, REJOIN_KEY = 'retroSet.rejoin';
+function rejoinList() {
+  try { const l = JSON.parse(localStorage.getItem(REJOIN_KEY) || '[]'); return Array.isArray(l) ? l.filter(r => r && r.code && r.cid && Date.now() - r.at < REJOIN_MS) : []; } catch (e) { return []; }
+}
+function putRejoin(l) { try { if (l.length) localStorage.setItem(REJOIN_KEY, JSON.stringify(l)); else localStorage.removeItem(REJOIN_KEY); } catch (e) {} }
+function saveRejoin() {
+  if (!NET.on || !NET.started) return;
+  putRejoin([{ code: NET.code, cid: NET.cid, peer: NET.peerName, at: Date.now() }, ...rejoinList().filter(r => r.cid !== NET.cid)].slice(0, 4));
+}
+function clearRejoin() { if (NET.cid) putRejoin(rejoinList().filter(r => r.cid !== NET.cid)); }
+// A page in an online room holds a lock named after its player id; the browser frees it when the page closes.
+// So another tab never offers to take over a seat that's still being played.
+const seatLock = cid => 'retroSet.seat.' + cid;
+function holdSeat() {
+  const cid = NET.cid;
+  if (!navigator.locks || NET.unlock) return;
+  navigator.locks.request(seatLock(cid), () => NET.on && NET.cid === cid && !NET.unlock ? new Promise(res => { NET.unlock = res; }) : null).catch(() => {});
+}
+function freeSeat() { if (NET.unlock) { NET.unlock(); NET.unlock = null; } }
+async function rejoinChoice() {
+  let l = relayBase() ? rejoinList() : [];
+  if (l.length && navigator.locks) {
+    try { const q = await navigator.locks.query(), busy = new Set([...q.held, ...q.pending].map(k => k.name)); l = l.filter(r => !busy.has(seatLock(r.cid))); } catch (e) {}
+  }
+  return state === 'menu' && !NET.on ? l[0] || null : null;
+}
+async function updateRejoin() {
+  const r = await rejoinChoice(), b = $('#bRejoin');
+  b.hidden = !r; if (r) b.textContent = `Rejoin your game with ${cleanName(r.peer)}`;
+}
+addEventListener('storage', e => { if (e.key === REJOIN_KEY && state === 'menu') updateRejoin(); });
+addEventListener('focus', () => { if (state === 'menu') updateRejoin(); });
+const waitText = () => NET.rejoin ? `Waiting for ${cleanName(NET.rejoin.peer)} to come back…` : 'Waiting for your friend to join…';
+$('#bRejoin').onclick = async () => {
+  const r = await rejoinChoice(); if (!r) { updateRejoin(); return; }
+  try { sessionStorage.setItem('rs.cid', r.cid); } catch (e) {}   // the same player id gets the same seat back
+  startOnline(cleanCode(r.code), false, r);
+};
+$('#bCreate').onclick = () => menuGo('room');
+$('#bStart').onclick = () => startOnline(newCode(), M.listed !== false);
+$('#bJoin').onclick = () => startOnline(cleanCode($('#netCode').value));
+$('#netCode').addEventListener('keydown', e => { if (e.key === 'Enter') $('#bJoin').click(); });
+$('#bLobbyCancel').onclick = () => { clearRejoin(); toMenu('online'); };
+$('#bCopyLink').onclick = async () => {
+  const link = inviteLink();
+  try {
+    if (navigator.share && matchMedia('(pointer: coarse)').matches) { await navigator.share({ title: 'Retro Set', text: 'Play chess with me', url: link }); return; }
+    await navigator.clipboard.writeText(link); lobbyStatus('Invite link copied. Send it to your friend.');
+  } catch (e) { const i = $('#lobbyLink'); i.focus(); i.select(); try { document.execCommand('copy'); lobbyStatus('Invite link copied.'); } catch (e2) { lobbyStatus('Copy the link below and send it to your friend.'); } }
+};
+try { $('#netName').value = localStorage.getItem('retroSet.name') || ''; } catch (e) {}
+// the open rooms list: watched live from the relay while the Online screen is showing
+const LW = { ws: null, rooms: [], off: 0, retry: 0, timer: 0, pending: 0, want: false, failed: false, loaded: false };
+const COLOUR_NAME = { white: 'They play White', black: 'They play Black', random: 'Colours at random' };
+function updateLobbyWatch() {
+  const want = state === 'menu' && !NET.on && screen === 'online' && !!relayBase() && document.visibilityState === 'visible';
+  LW.want = want;
+  // short delay, so opening an invite link (which jumps straight into a room) never starts a list connection
+  if (want && !LW.ws && !LW.pending) LW.pending = setTimeout(() => { LW.pending = 0; if (LW.want && !LW.ws) lobbyConnect(); }, 300);
+  if (!want && LW.ws) {
+    const ws = LW.ws; LW.ws = null;
+    if (ws.readyState === 0) ws.onopen = () => { try { ws.close(1000); } catch (e) {} };
+    else { try { ws.close(1000); } catch (e) {} }
+  }
+  renderRooms();
+}
+function lobbyConnect() {
+  let ws;
+  try { ws = new WebSocket(`${relayBase()}/lobby`); } catch (e) { LW.failed = true; renderRooms(); return; }
+  LW.ws = ws; renderRooms();
+  ws.onopen = () => { LW.retry = 0; LW.failed = false; renderRooms(); };
+  ws.onmessage = e => {
+    if (e.data === 'pong') return;
+    let m; try { m = JSON.parse(e.data); } catch (err) { return; }
+    if (m.t === 'rooms' && Array.isArray(m.rooms)) { LW.rooms = m.rooms; LW.off = (Number(m.now) || Date.now()) - Date.now(); LW.loaded = true; renderRooms(); }
+  };
+  ws.onclose = () => {
+    if (LW.ws === ws) LW.ws = null;
+    if (!LW.want) return;
+    LW.failed = LW.retry > 1; renderRooms();
+    clearTimeout(LW.timer); LW.timer = setTimeout(() => { if (LW.want && !LW.ws) lobbyConnect(); }, Math.min(10000, 1000 * Math.pow(2, LW.retry++)));
+  };
+}
+setInterval(() => { if (LW.ws && LW.ws.readyState === 1) LW.ws.send('ping'); }, 25000);
+setInterval(() => { if (LW.want) renderRooms(); }, 30000);
+document.addEventListener('visibilitychange', () => { updateLobbyWatch(); if (!document.hidden && state === 'menu') updateRejoin(); });
+function renderRooms() {
+  const el = $('#roomList'), live = $('#roomsLive');
+  const note = t => { el.textContent = ''; const d = document.createElement('div'); d.className = 'note'; d.textContent = t; el.appendChild(d); };
+  if (!relayBase()) { live.textContent = ''; note('Online play isn\'t set up yet: it needs the relay address in config.js (the README explains how).'); return; }
+  live.textContent = LW.ws && LW.ws.readyState === 1 ? 'Live' : LW.failed ? "Can't reach the relay" : 'Connecting…';
+  if (!LW.rooms.length) { note(LW.loaded ? 'No open rooms right now. Create a listed room and it will show up here.' : 'Looking for open rooms…'); return; }
+  el.textContent = '';
+  const now = Date.now() + LW.off;
+  for (const r of LW.rooms) {
+    const row = document.createElement('div'); row.className = 'roomItem';
+    const info = document.createElement('div');
+    const n = document.createElement('div'); n.className = 'rn'; n.textContent = `${cleanName(r.name, 'Player')}'s room`;
+    const mins = Math.max(0, Math.round((now - Number(r.at)) / 60000));
+    const d = document.createElement('div'); d.className = 'rm'; d.textContent = `${COLOUR_NAME[r.mode] || COLOUR_NAME.random}, ${mins < 1 ? 'just opened' : mins + ' min waiting'}`;
+    info.append(n, d);
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.textContent = 'Join';
+    b.addEventListener('click', () => startOnline(cleanCode(r.code)));
+    row.append(info, b); el.appendChild(row);
+  }
+}
 
 // ------------------------------------------------------------------ saving
 // The game on the board is saved after every move (the starting position, the moves as e2e4 and so on, and against the
@@ -625,6 +1002,7 @@ addEventListener('popstate', () => {
 // A finished game is forgotten.
 const SAVE = 'retroSet.game';
 function save() {
+  if (NET.on) return;   // an online game isn't kept for Resume (Rejoin brings it back), and leaves the saved one alone
   try {
     if (G && !G.result) localStorage.setItem(SAVE, JSON.stringify({ v: 1, start: G.start, moves: G.list.map(x => C.uci(x.m)), vs }));
     else localStorage.removeItem(SAVE);
@@ -668,6 +1046,10 @@ resize(); applyLook();
 { const s = loadSaved(); placeAll(s ? s.g : C.newGame()); }   // behind the menu: the game waiting to be resumed, or a fresh set
 menuGo('home');
 requestAnimationFrame(frame);
+{ // opening an invite link joins the room straight away
+  const m = /#room=([A-Za-z0-9]+)/.exec(location.hash);
+  if (m) { const code = cleanCode(m[1]); $('#netCode').value = code; if (relayBase()) startOnline(code); else { menuGo('online'); menuNote('This is an invite link, but online play needs the relay address in config.js first.'); } }
+}
 // for the browser tests: what the page is doing, without reaching into its internals
 window.__rs = {
   get state() { return state; }, get frames() { return frames; }, get triangles() { return renderer.info.render.triangles; }, S, start: C.START,
@@ -677,6 +1059,8 @@ window.__rs = {
   start2(fen) { startLocal(C.newGame(fen)); },   // a two-player game from a given position
   startCpu(bot, me, fen) { startGame(C.newGame(fen), { bot, me }); },   // a game against a bot, from a given position
   get vs() { return vs; }, set quick(v) { QUICK = !!v; },
+  get net() { return { on: NET.on, seat: NET.seat, me: NET.me, cid: NET.cid, code: NET.code, peer: NET.peer, link: NET.link, started: NET.started, peerName: NET.peerName, games: NET.games }; },
+  send(o) { netSend(o); },   // a raw message, as a modified copy of the game could send
   squareScreen(name) {   // where a square's middle is on the screen, in page pixels
     const s = C.sq(name), v = new THREE.Vector3(sqX(s), 0.004, sqZ(s)).project(camera), r = canvas.getBoundingClientRect();
     return [r.left + (v.x + 1) / 2 * r.width, r.top + (1 - v.y) / 2 * r.height];

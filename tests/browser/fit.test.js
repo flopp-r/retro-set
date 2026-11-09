@@ -1,5 +1,5 @@
-// Every screen fits without scrolling at phone, tablet and computer sizes, including a phone on its side (762x341): the home screen (with and without a game to resume), Vs computer, the game's bar and buttons, and its panels (menu, promotion, result).
-const { chromium, SITE, shot, watch, ok } = require('./lib');   // over http: the checks reload the page, and storage must carry over
+// Every screen fits without scrolling at phone, tablet and computer sizes, including a phone on its side (762x341): the home screen (with and without a game to resume), Vs computer, Online, New room, the waiting room, the game's bar and buttons, and its panels (menu, promotion, result, a draw offer, quick chat).
+const { chromium, SITE, RELAY, shot, watch, ok } = require('./lib');   // over http: the checks reload the page, and storage must carry over
 const overlap = (a, b) => a && b && a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1;
 (async () => {
   const b = await chromium.launch(); const log = [];
@@ -11,7 +11,7 @@ const overlap = (a, b) => a && b && a.left < b.right - 1 && b.left < a.right - 1
     }, sel);
     const say = (r, what) => `${w}x${h}: ${what} fits on screen without scrolling${r.on ? '' : ' (off screen)'}${r.down > 1 ? ` (needs ${r.down}px down)` : ''}${r.across > 1 ? ` (needs ${r.across}px across)` : ''}`;
     const good = r => r.down <= 1 && r.across <= 1 && r.on;
-    await p.goto(SITE.new); await p.waitForTimeout(700);
+    await p.goto(SITE.new + RELAY); await p.waitForTimeout(700);
     await p.evaluate(() => localStorage.removeItem('retroSet.game')); await p.reload(); await p.waitForTimeout(500);
     let r = await fits('#mStage'), r2 = await fits('#menuPanel');
     ok(good(r) && good(r2), say({ ...r, on: r2.on }, 'the home screen'));
@@ -27,6 +27,21 @@ const overlap = (a, b) => a && b && a.left < b.right - 1 && b.left < a.right - 1
     ok(good(r) && good(r2) && play, say({ ...r, on: r2.on && play }, 'Vs computer'));
     if (w === 762) await p.screenshot({ path: shot('fit-cpu-phone.png') });
     await p.click('#mBack'); await p.waitForTimeout(150);
+    // Online: your name, the open rooms, join with a code, create a room; then New room; then the waiting room
+    await p.click('#bOnline'); await p.waitForTimeout(250);
+    r = await fits('#mStage'); r2 = await fits('#menuPanel');
+    const create = await p.evaluate(() => { const r = document.querySelector('#bCreate').getBoundingClientRect(); return r.bottom <= innerHeight && r.right <= innerWidth; });
+    ok(good(r) && good(r2) && create, say({ ...r, on: r2.on && create }, 'Online'));
+    if (w === 762) await p.screenshot({ path: shot('fit-online-phone.png') });
+    await p.click('#bCreate'); await p.waitForTimeout(150);
+    r = await fits('#mStage'); r2 = await fits('#menuPanel');
+    ok(good(r) && good(r2), say({ ...r, on: r2.on }, 'New room'));
+    await p.click('#bStart'); await p.waitForTimeout(400);
+    r = await fits('#lobbyPanel');
+    ok(good(r) && await p.isVisible('#lobby'), say(r, 'the waiting room'));
+    if (w === 762) await p.screenshot({ path: shot('fit-waiting-phone.png') });
+    await p.click('#bLobbyCancel'); await p.waitForTimeout(200);
+    await p.evaluate(() => { while (document.querySelector('#mBack') && !document.querySelector('#mTop').hidden) document.querySelector('#mBack').click(); });
     // in a game: the bar, the moves and the buttons keep clear of each other
     await p.click('#bResume'); await p.waitForTimeout(300);
     const boxes = await p.evaluate(() => Object.fromEntries(['#plW', '#mid', '#plB', '#movesBox', '#tools'].map(s => { const e = document.querySelector(s), r = e.getBoundingClientRect(); return [s, getComputedStyle(e).display === 'none' ? null : { left: r.left, right: r.right, top: r.top, bottom: r.bottom }]; })));
@@ -35,6 +50,14 @@ const overlap = (a, b) => a && b && a.left < b.right - 1 && b.left < a.right - 1
     const inView = Object.values(boxes).every(r => !r || (r.left >= 0 && r.right <= w && r.top >= 0 && r.bottom <= h));
     ok(!bad.length && inView, `${w}x${h}: the game's bar, moves and buttons are on screen and don't overlap${bad.length ? ': ' + bad.join(', ') : ''}`);
     if (w === 762) await p.screenshot({ path: shot('fit-game-phone.png') });
+    // a draw offer and the quick chat buttons, as they appear in an online game
+    await p.evaluate(() => { document.querySelector('#offerTxt').textContent = 'Alexander offers a draw.'; document.querySelector('#offer').hidden = false; });
+    r = await fits('#offer .ovPanel'); ok(good(r), say(r, 'a draw offer'));
+    await p.evaluate(() => { document.querySelector('#offer').hidden = true; document.querySelector('#bChat').hidden = false; document.querySelector('#chatPop').hidden = false; });
+    const chat = await p.evaluate(() => { const c = document.querySelector('#chatPop').getBoundingClientRect(), t = document.querySelector('#tools').getBoundingClientRect(), b = document.querySelector('#bar').getBoundingClientRect();
+      return { on: c.top >= 0 && c.left >= 0 && c.bottom <= innerHeight && c.right <= innerWidth, clear: c.bottom <= t.top + 1 && c.top >= b.bottom - 1 }; });
+    ok(chat.on && chat.clear, `${w}x${h}: the quick chat buttons are on screen, clear of the bar and the buttons below (${JSON.stringify(chat)})`);
+    await p.evaluate(() => { document.querySelector('#chatPop').hidden = true; document.querySelector('#bChat').hidden = true; });
     await p.click('#bMenu'); await p.waitForTimeout(150);
     r = await fits('#pause .ovPanel'); ok(good(r), say(r, 'the menu panel'));
     await p.click('#bResumeGame');

@@ -2,7 +2,7 @@
 // Network first, always: when online, every file comes fresh from the site (so updates arrive straight away and,
 // once there is online play, both players get the same version); the saved copy is used only when the network fails.
 const CACHE = 'retro-set';
-const FILES = ['./', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
+const FILES = ['./', 'config.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE)

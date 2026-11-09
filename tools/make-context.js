@@ -14,6 +14,10 @@ const SOURCE = [
   ['src/bots.js', 'js', 'The computer opponents: names, faces, blurbs, ratings and settings. No DOM; also runs in Node.'],
   ['src/game.js', 'js', 'Everything in the browser: rendering, camera, menus and the installable app.'],
   ['src/shell.html', 'html', 'Page markup and CSS. The build fills in the fonts, favicon and code (__PS2P__, __VT323__, __FAVICON__, __BUNDLE__).'],
+  ['relay/src/index.js', 'js', 'The Cloudflare Worker relay: a Room Durable Object per room code, and one Lobby for the open-rooms list.'],
+  ['relay/wrangler.jsonc', 'jsonc', 'Relay settings: Worker name, Durable Object bindings and migrations.'],
+  ['relay/package.json', 'json', 'The relay\'s packages (Wrangler).'],
+  ['config.js', 'js', 'The relay address (empty until the relay is set up).'],
   ['sw.js', 'js', 'Service worker for the installable app (network first).'],
   ['manifest.webmanifest', 'json', 'App name, colours and icons.'],
   ['package.json', 'json', 'npm shortcuts for the commands.'],
@@ -78,7 +82,8 @@ function note(f, full) {
   if (DOCS.includes(f)) return 'included below';
   if (/^CONTEXT/.test(f)) return 'a context pack (this file or its partner)';
   if (f.startsWith('tests/browser/')) return 'browser test, listed in the map';
-  return { 'index.html': 'built output, left out (generated from src/)', 'CLAUDE.md': 'points Claude Code to AGENTS.md', '.nojekyll': 'stops GitHub Pages running Jekyll' }[f] || '';
+  return { 'index.html': 'built output, left out (generated from src/)', 'CLAUDE.md': 'points Claude Code to AGENTS.md', '.nojekyll': 'stops GitHub Pages running Jekyll',
+    'relay/package-lock.json': 'exact package versions for the relay, left out' }[f] || '';
 }
 function tree(full) {
   const out = ['## Files in the repository', ''], dirs = { vendor: 'three.js r159 and two pixel fonts with their licences; third-party, left out', icons: 'the app icons; images, left out' };

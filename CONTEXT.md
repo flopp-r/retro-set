@@ -58,15 +58,15 @@ This is the main guide for anyone, person or AI, who changes this project. Claud
 
 ## Start here
 
-**What it is.** Retro Set will be a 3D pixel-art chess game, a sister to the owner's pool game Retro Rack (https://github.com/flopp-r/retro-rack, live at https://flopp-r.github.io/retro-rack/). Like Retro Rack it is one self-contained web page, hosted on GitHub Pages from this repository, and installable as an app. Live (once GitHub Pages is switched on): https://flopp-r.github.io/retro-set/
+**What it is.** Retro Set is a 3D pixel-art chess game, a sister to the owner's pool game Retro Rack (https://github.com/flopp-r/retro-rack, live at https://flopp-r.github.io/retro-rack/). Like Retro Rack it is one self-contained web page, hosted on GitHub Pages from this repository, and installable as an app. Live: https://flopp-r.github.io/retro-set/
 
-**Where it's up to.** The owner chose 3D pixel art, classic piece shapes, the full rules without clocks, and all three ways of playing, built in stages (`HANDOVER.md`, section 4). Stage 1 is built: two players on one device, with the full rules, take back, resigning, agreed draws, and Resume after a reload. Stage 2 is built: ten computer opponents from 100 to 1500 (Torben to Ted), their strength measured against Stockfish and each other. Next: Stage 3, online play. Agree the details of each with the owner before building it.
+**Where it's up to.** The owner chose 3D pixel art, classic piece shapes, the full rules without clocks, and all three ways of playing, built in stages (`HANDOVER.md`, section 4). Stage 1: two players on one device, with the full rules, take back, resigning, agreed draws, and Resume after a reload. Stage 2: ten computer opponents from 100 to 1500 (Torben to Ted), their strength measured against Stockfish and each other. Stage 3: online play, as close to Retro Rack's as possible, through a relay of its own (`relay/`); it works once the owner has set up the Cloudflare Worker and put its address into `config.js` (`README.md`, steps 2 and 3). Agree any further change with the owner before building it.
 
 **Read in this order**
 1. This file: how it works, the rules, and how to test and ship a change.
 2. `HANDOVER.md`: why things are the way they are, reference numbers, the decisions still to make, and a dated list of every change shipped.
 3. `README.md`: how the owner set it up, and what players see.
-4. The code: `src/core.js` (the chess rules and the computer player's engine), `src/bots.js` (the computer opponents), then `src/game.js` (everything in the browser). Both are split into sections marked `// ------ name`; the map in `CONTEXT.md` lists them with line numbers.
+4. The code: `src/core.js` (the chess rules and the computer player's engine), `src/bots.js` (the computer opponents), `src/game.js` (everything in the browser, online play included), then `relay/src/index.js` (the relay). The JavaScript files are split into sections marked `// ------ name`; the map in `CONTEXT.md` lists them with line numbers.
 
 **Rules that must never be broken**
 1. **`index.html` is built output.** Edit `src/`, then run `node tools/build.js`, and commit both.
@@ -75,7 +75,7 @@ This is the main guide for anyone, person or AI, who changes this project. Claud
 4. **`src/core.js` and `src/bots.js` have no DOM.** The rules, the engine and the bots must also run in Node, for the tests and tools.
 5. **A bot's rating is measured, never guessed.** Changing the engine (evaluation, search) or a bot's settings changes its strength: re-run `node tools/sim-bots.js tune`, put the new values into `src/bots.js`, then `check`, and record the results in `HANDOVER.md` (section 5).
 6. **The repository is public.** Never commit personal details, passwords, tokens or keys.
-7. **Once there is online play:** both browsers must agree on every position, and both players need the same version. Ask the owner before changing online messages or behaviour, and keep old fields working where possible.
+7. **Online play needs both players on the same version,** and both browsers must agree on every position. Ask the owner before changing online messages or behaviour, keep old fields working where possible, and test with the local relay (see Commands) before merging.
 
 ## Project conventions
 
@@ -84,7 +84,7 @@ This is the main guide for anyone, person or AI, who changes this project. Claud
 - Ask before large redesigns, as well as before anything that changes online play (rule 7 above).
 - Every menu screen must fit a phone held sideways (762×341) without scrolling. A long list may scroll inside its panel; the screen itself still fits.
 - Code style: match the file you're in. Compact, mostly one statement per idea, comments only where the reason isn't obvious. No build step beyond `tools/build.js`, and no frameworks or npm packages in the game.
-- Browser storage keys start with `retroSet.` (Retro Rack's start with `retroRack.`, so the two games never read each other's saves on the same site): `retroSet.settings`, `retroSet.game` and `retroSet.menu` so far. Wrap every access in try/catch: storage can be missing or blocked.
+- Browser storage keys start with `retroSet.` (Retro Rack's start with `retroRack.`, so the two games never read each other's saves on the same site): `retroSet.settings`, `retroSet.game`, `retroSet.menu`, `retroSet.name` (the online name) and `retroSet.rejoin` so far; sessionStorage, per tab, `rs.cid` and `rs.live` (see Online play). Wrap every access in try/catch: storage can be missing or blocked.
 
 ## Reusing Retro Rack
 
@@ -102,6 +102,7 @@ Most of what this game will need beyond the chess itself already exists in Retro
 | `HANDOVER.md` | Decisions and why, reference numbers, the ideas list, and the list of changes shipped. |
 | `README.md` | Setting up the site, installing the app, and asking another AI about the project. |
 | `CONTEXT.md`, `CONTEXT-SHORT.md` | **Generated** by the build: the context packs for AI assistants (see top). Never edit by hand. |
+| `config.js` | The relay address (`window.RETRO_SET_RELAY`), empty until the owner has set up the relay. It has to be public for online play to work; leave it alone unless asked. |
 | `index.html` | **Built output.** Never edit by hand; edit `src/` and run the build. It is committed because GitHub Pages serves it. |
 | `sw.js` | The service worker for the installable app. Network first: the saved copy is only used offline. |
 | `manifest.webmanifest`, `icons/` | The app's name, colours and icons. The icons are generated by `tools/make-icons.js`. |
@@ -118,6 +119,7 @@ Most of what this game will need beyond the chess itself already exists in Retro
 | `tests/bots.test.js` | Tests of the engine and the bots: the cast, blunder chances, the renaming, the knob, the evaluation, mates, captures, real blunders, seeds, legal moves from every bot, a whole bot game. |
 | `tests/browser/` | Browser tests: real pages in headless Chromium. `run-all.js` runs them; see Testing. |
 | `package.json` | npm shortcuts for the commands below (`npm run build`, `npm test`, `npm run test:browser`). Nothing to install. |
+| `relay/` | The Cloudflare Worker (Durable Objects) for online rooms and the open-rooms list: Retro Rack's relay, without its ideas box. |
 | `.nojekyll` | Stops GitHub Pages running Jekyll over the repository. |
 
 ## Commands
@@ -130,11 +132,12 @@ No installs are needed for the game itself, only Node.
 - `node tests/browser/run-all.js [words]`: run the browser tests (all of them, or only files whose names contain the words). See Testing.
 - `node tools/make-icons.js`: redraw the app icons (pixel art, no installs). The build inlines `icons/favicon-32.png`.
 - To look at the game: open `index.html` in a browser. The installable-app parts need the page served over http, since service workers don't run from `file://`; the `app` browser test does that.
+- Relay, locally: `cd relay && npm install && npx wrangler dev --port 8797`. Then open `index.html?relay=ws://127.0.0.1:8797` in two separate browser windows to play yourself online.
 
 ## Deployment (automatic on push to `main`)
 
 - **GitHub Pages** serves the repository root (`index.html`) at https://flopp-r.github.io/retro-set/ within a minute or two, once the owner has switched it on (repository Settings, Pages, branch `main`, folder `/ (root)`; see `README.md`). Browsers cache; tell the owner to press Ctrl+F5 after an update.
-- There is no relay yet. If online play is chosen, it gets its own Cloudflare Worker (named `retro-set-relay`, in a `relay/` folder, deployed by Cloudflare Workers Builds the way Retro Rack's is), never Retro Rack's relay, so a change to one game can't break the other. Keep it on the free plan: the WebSocket Hibernation API, no polling, no per-message storage writes.
+- **Cloudflare Workers Builds** runs the relay: once the owner has connected a Worker named `retro-set-relay` to this repository with root directory `relay` (`README.md`, step 2), every push to `main` that changes `relay/` deploys it with `npx wrangler deploy`. The name must match `relay/wrangler.jsonc`. It is the relay's own Worker, never Retro Rack's, so a change to one game can't break the other. Keep it on the free plan: the WebSocket Hibernation API, no polling, no per-message storage writes. On Retro Rack, the Cloudflare check on pull requests ("Workers Builds: …") fails at once, because it's a preview build; expect the same here, and ignore it unless `relay/` changed.
 
 ## How changes are made
 
@@ -165,32 +168,43 @@ No installs are needed for the game itself, only Node.
 - **Settings:** `S` in localStorage (`retroSet.settings`), with `DEFAULTS` at the top of the file: `pixel` 1 and `levels` 256 (the sharpest picture), `dither` and `outline` on, and `turn` (on a shared device the view turns round to the player to move; switched in the game's Menu panel). There is no Settings panel yet. The menu's choices are `M` (`retroSet.menu`: the bot picked, your colour).
 - **The board** (the board section): squares of 5.7 cm with a 3 cm border on a round wooden table. Square `s` is centred at (`sqX(s)`, 0, `sqZ(s)`); White sits at +z, so from White's side a1 is at the near left. The squares and the coordinates are one small texture (`boardTex`, 16 px a square), the letters and numbers in a 3 × 5 pixel font (`GLYPH`) on all four sides, each set the right way up for the player nearest. Marks on the squares (`showMarks()`, `MARKS`): the last move, the piece picked up, a king in check (rose), and where the piece can go (a blue dot, or a ring round a piece it can take).
 - **The pieces** (the pieces section): classic Staunton shapes, low-poly: each turned on a lathe with 10 flat sides from a profile (`PROFILE`, [radius, height] in metres), plus the rook's battlements, the queen's crown points, the king's cross and the knight's head (`KNIGHT_HEAD`, a side view extruded). `PIECE_GEO` holds each kind's parts once; `makePiece()` builds one, `placeAll(game)` sets out the whole board, with the pieces taken standing beside it on the taker's side (`trayPos()`). Knights look to their owner's left, so each player sees the head side on. `pieceIcon()` draws a pixel picture of a piece from the same profiles (the promotion buttons).
-- **States:** `menu`, `play` (waiting for a move), `think` (the computer choosing), `anim` (pieces gliding), `promo` (choosing what a pawn becomes) and `over`. `G` is the game (see Core), `sel` the square picked up and `targets` its legal moves. `vs` is null for two players on one device, or `{ bot, me }` against the computer. `startGame(game, opp)` starts either; `startLocal()` and `startCpu()` (the bot and colour from `M`, Random tossing a coin each game) call it.
+- **States:** `menu`, `lobby` (the waiting room of an online game), `play` (waiting for a move), `think` (the computer choosing), `anim` (pieces gliding), `promo` (choosing what a pawn becomes) and `over`. `G` is the game (see Core), `sel` the square picked up and `targets` its legal moves. `vs` is null for two players on one device, or `{ bot, me }` against the computer; online, `NET.on` and `NET.me` (see Online play). `meCol()` is your colour in either. `startGame(game, opp)` starts a local or computer game; `startLocal()` and `startCpu()` (the bot and colour from `M`, Random tossing a coin each game) call it.
 - **The computer's turn** (`startThink()`, `thinkTick()`): `C.think()` is stepped for at most 12 ms a frame, and the move waits until the bot has thought for 0.5 to 1.2 s, so it never snaps back instantly (`QUICK` skips the wait for the tests); it holds while the Menu panel is open. Against the computer the view stays on your side (Turn still swings it), you can't pick up its pieces (`mine()`), Take back goes back to before your last move (its reply too), Agree a draw becomes Offer a draw (`offerDraw()`: the bot accepts when a quick search says it's half a pawn or more worse, or, from move 30, level; `toast()` says which), and the result names you and the bot (`resultText()`).
 - **Faces** (the faces section): the bots' portraits are Retro Rack's pixel people (`SPRITES`, `drawSprite()`, `portrait()`), on the picker and in the bar beside the bot's name.
 - **Moving:** tap a piece then a square, or drag a piece onto a square (`squareAt()` raycasts the pieces, then the board's plane; `tap()`, and the pointer handlers in the input section). `tryMove()` plays it with `C.play()`, then the pieces glide (`animate()`, `glideTick()`: a knight hops, a castling rook jumps, a taken piece flies to the side), then `placeAll()` and `afterMove()`. A pawn reaching the end opens the promotion choice first (`askPromo()`). With reduced motion nothing glides.
 - **The camera** (`cam`): behind the menu it circles slowly (with reduced motion it holds still), the picture shifted (`camera.setViewOffset`) into the space the menu panel leaves: to its right, or below it on an upright phone. In a game it looks down from the side of the player to move (`base`, turned by `afterMove()` when `S.turn` is on, or by the Turn button) plus however far the player has turned it (`yawOff`, by dragging across empty space; up and down tilts, `pitch`), far enough back for the board to fit the screen, times `zoom` (the mouse wheel or a pinch). Every value glides to its goal (`cam.goal()`, `cam.update()`).
 - **The game's screen:** the bar along the top (White, whose move it is with the last move, Black), the moves on the right (hidden on phones), and Menu, Take back and Turn at the bottom left (`hud()`). The panels: Menu (`#pause`: Turn the board, Resume, Agree a draw, Resign, Quit to menu; resigning and the draw need a second tap within 3 seconds, `confirmTap()`), the promotion choice (`#promo`) and the result (`#over`, `showOver()`, `resultText()`: Play again, See the board, Main menu). Take back works any number of times, also after a mate or a draw on the board, but not after a resignation or an agreed draw. Esc, the back gesture and a tap outside close a panel; in a game the back gesture opens the Menu panel instead of leaving the page (one history entry kept armed, `arm()`).
-- **Menus:** `menuGo(name)` shows a screen (`home` or `cpu`) with a Back bar (`#mTop`) away from home; the back gesture and Esc go back. Home has Resume (when a game is saved), Two players, Vs computer, and Online (shown but switched off until Stage 3); `refreshHome()` keeps it current, and the card for the kind of game saved says a new one replaces it. Vs computer (`renderCpu()`): the ten bots as cards five across (face, name, rating), the picked one's line, You play White / Random / Black, and Play. `toMenu()` goes back home.
-- **Saving:** the game is saved after every move (`save()`, localStorage `retroSet.game`: `{ v: 1, start, moves, vs }`, the moves written as e2e4, `vs` the bot and your colour or null), and `loadSaved()` replays it for Resume, checking every move again (it returns `{ g, vs }`). A finished game is forgotten.
+- **Menus:** `menuGo(name)` shows a screen (`home`, `cpu`, `online` or `room`) with a Back bar (`#mTop`) away from home; Back, the back gesture and Esc go to the screen in `BACK` (New room to Online, the rest home). Home has Rejoin (an online game left by accident), Resume (a game saved on this device), Two players, Vs computer and Online; `refreshHome()` keeps it current, and the card for the kind of game saved says a new one replaces it. Vs computer (`renderCpu()`): the ten bots as cards five across (face, name, rating), the picked one's line, You play White / Random / Black, and Play. Online and New room: see Online play. `toMenu(to)` goes back to the menus: home, or from an online game or waiting room, the Online screen (leaving online on purpose: it tells the other player and forgets the game for Rejoin).
+- **Saving:** a local or computer game is saved after every move (`save()`, localStorage `retroSet.game`: `{ v: 1, start, moves, vs }`, the moves written as e2e4, `vs` the bot and your colour or null), and `loadSaved()` replays it for Resume, checking every move again (it returns `{ g, vs }`). A finished game is forgotten. An online game isn't saved this way (Rejoin brings it back) and leaves the saved one alone.
 - **Installable app:** `game.js` adds the manifest link and registers `sw.js` only on http(s), so a copy opened from disk stays quiet. The version line (`#ver`) shows `BUILD`, which `tools/build.js` stamps with a fingerprint of the game code.
 - **For the tests:** `window.__rs` gives the state, the frame count, the triangles drawn each frame, the settings, the position (`fen`), the moves, the result, the piece picked up, the view, the pieces on the board and beside it, `start2(fen)` (a two-player game from any position), `startCpu(bot, me, fen)` (a game against a bot), `vs`, `quick` (set it to skip the bot's pause) and `squareScreen(name)` (where a square is on the screen, to tap it), so tests can check the page without reaching into its internals. Add to it as the game grows (Retro Rack's `window.__rr` is the model).
 
 ### Page (`src/shell.html`)
-- The markup and all the CSS. The palette (`:root`, with the two piece colours), the fonts, and the panel, button and card styles are Retro Rack's. The menu is a panel on the left (`#menu`, `#menuPanel`) holding a stack of screens (`#mStage`, `.mScreen`); the screens are `sc-home` and `sc-cpu` (`#botGrid`, `#botBlurb`, `#sColour`, `#bPlay`), under the Back bar `#mTop`. In a game: `#hud` (`#bar` with each side's `.plFace` and `.plName`, `#toast`, `#movesBox`, `#tools`) and the panels `#pause`, `#promo` and `#over` (`.overlay`, `.ovPanel`). The media query for short screens (500 px or less) is the phone-on-its-side layout; at 760 px wide or 500 px tall the moves panel hides; at 440 px wide the bar shows only the colour chips.
+- The markup and all the CSS. The palette (`:root`, with the two piece colours), the fonts, and the panel, button and card styles are Retro Rack's. The menu is a panel on the left (`#menu`, `#menuPanel`) holding a stack of screens (`#mStage`, `.mScreen`); the screens are `sc-home` (`#bRejoin`, `#bResume`, the cards), `sc-cpu` (`#botGrid`, `#botBlurb`, `#sColour`, `#bPlay`), `sc-online` (`#netName`, `#roomsLive`, `#roomList`, `#netCode`, `#bJoin`, `#bCreate`, `#netNote`) and `sc-room` (`#sNetColour`, `#sListed`, `#bStart`), under the Back bar `#mTop`. In a game: `#hud` (`#bar` with each side's `.plFace` and `.plName`, and `#net`, the connection line; `#toast`, which sits below the bar at `--bb`; `#movesBox`; `#tools`, with `#bChat` online) and the panels `#pause`, `#promo`, `#over`, `#offer` (a draw offered online) and `#lobby` (the waiting room) (`.overlay`, `.ovPanel`), and `#chatPop`. The relay address is read from `config.js` by a `<script>` at the top, after a default of "" so the page works without it. The media query for short screens (500 px or less) is the phone-on-its-side layout; at 760 px wide or 500 px tall the moves panel hides; at 440 px wide the bar shows only the colour chips.
 
-### Online play
-Not built. If the owner chooses it, follow Retro Rack's design: the browser in each seat runs the full game and a small relay only forwards messages; the receiver checks every move is legal with `core.js` before playing it, and both sides compare positions after each move; the version check before a game starts; reconnecting by a per-tab client id. Chess sends moves, not physics, so agreeing on positions is far easier than in pool, but the version check still matters, because a rules change would make the two browsers disagree.
+### Online play (the online play section of `game.js`, and `relay/`)
+Retro Rack's online play, ported as closely as chess allows; its `AGENTS.md` and `HANDOVER.md` explain the design in more depth.
+- **The relay** (`relay/src/index.js`) only forwards messages: a `Room` Durable Object per room code (two seats, given by a per-tab client id, so a reload keeps its seat; a third connection is told `full`; rooms nobody uses are deleted after 6 hours) and one `Lobby` for the open-rooms list, pushed to every Online screen watching over a WebSocket (a listed room shows while its host waits; rooms waiting 45 minutes are forgotten). It never plays chess. Migrations `v1` (Room) and `v2` (Lobby); a new Durable Object class needs a **new** tag, never an edit. The listed room's `mode` is the colour its host chose (`random`, `white`, `black`).
+- **The address:** `relayBase()` reads `?relay=` from the page's address (the tests and local play) or `window.RETRO_SET_RELAY` from `config.js`, and turns it into a `wss://` (or `ws://`) address. With none, the Online card says "Not set up yet" and the screen explains.
+- **Menus:** Online (`sc-online`): your name (`retroSet.name`), the open rooms (`updateLobbyWatch()`, `lobbyConnect()`, `renderRooms()`: watched only while the screen shows; each with Join), Join with code, and Create a room, which opens New room (`sc-room`, `renderRoom()`): You play White / Random / Black (`M.netColour`) and Listed / Private (`M.listed`), then Create room. `startOnline(code, listed, rejoin)` opens the waiting room (`#lobby`: the code, the invite link, Copy invite link, Cancel) and connects (`netConnect()`, reconnecting with a growing pause). An invite link (`#room=CODE` in the address) joins straight away.
+- **Messages between players** (`onNet()`): `hello` (name, whether a game is under way, `v` the version), `setup` (the host's start: the position, `white` the seat playing White, `games`), `move` (`n` the move's number, `u` the move as e2e4, `fen` the position after it), `state` (the whole game: the start, every move, `white`, `games`, and a resignation or agreed draw; `fix` when it answers a `resync`), `resync` (please send `state`), `chat` (a preset index only), `resign`, `drawOffer`, `drawYes`, `drawNo`, `again` and `bye`. From the relay: `welcome` (the seat), `peer` (on or off) and `full`.
+- **Who plays what:** seat 0 (whoever opened the room) hosts: `hostStart()` picks the colours (the first game as chosen for the room, Random tossing a coin; each Play again swaps them) and sends `setup`; `startOnlineGame()` starts it on both. `NET.me` is this browser's colour; `mine()` lets you pick up only your own pieces on your own move, the bar says You and the other player's name, and the view sits on your side.
+- **The check on every move:** your move goes the moment you make it (`tryMove()`). The receiver (`netProcessQueue()`) plays a move only if it's the next one, theirs to make, legal here (`C.playUci()`), and reaches the same position as the sender's (`fen`); otherwise it says so and sends `resync`, and the sender's whole game (`netSendState(true)`, `adoptState()`) replaces it, checked move by move again. Messages that change the game (`state`, `resign`, `drawYes`) wait while a move is gliding (`NET.hold`). While the other player is away (`NET.peer` false, or the relay unreachable), your move isn't played and you're told (`tap()`), since it would go nowhere. Chess sends moves, not physics, so the two games stay in step far more easily than in pool; the checks are for different versions and modified copies.
+- **Reconnecting:** each tab has a client id in sessionStorage (`rs.cid`), so a reload keeps its seat and the other player's game sends the whole game (`state` on `hello`). A duplicated tab copies sessionStorage, so each open page marks the id as in use (`rs.live`, cleared on `pagehide`); a copy that finds the mark picks a fresh id (and so joins as the second player in a waiting room, or is told the room is full).
+- **Rejoin:** whenever an online game starts, a move is played or a game is restored, the page saves the room code, its client id and the other player's name (`retroSet.rejoin`: a list, one entry per client id, kept 3 hours). The home screen's Rejoin button (`updateRejoin()`) puts the id back into sessionStorage and joins the room; if the other player's page is still open, the game comes back exactly, and if neither is, a fresh game starts in the same room (as in Retro Rack). Each page in a room holds a Web Lock named `retroSet.seat.<cid>` (`holdSeat()`), and the button skips entries whose lock is held, so a second tab never takes over a seat that's still open. Quit, Main menu on the result, Cancel in the waiting room, a full room and the other player's `bye` forget the entry.
+- **Versions:** `hello` carries `BUILD`. Before a game starts, a mismatch stops it starting and tells both players to reload; mid-game it only warns (`NET.verWarn`), since every move is checked.
+- **In a game:** the connection line under the bar (`netBadge()`), quick chat (`CHAT`, `sendChat()`: preset messages only, so there's nothing to moderate in listed rooms; at most one a second or so), Offer a draw (`netOfferDraw()`; the other player sees `#offer`, Accept or Decline), Resign (two taps; the other player is told), Play again (`askRematch()`, `tryRematch()`: both ask, the button saying who's waiting), and Quit. There is no take back online (as in Retro Rack), so its button hides.
+- **For the tests:** `window.__rs.net` (on, seat, me, cid, code, peer, link, started, peerName, games) and `__rs.send(o)` (a raw message, as a modified copy could send).
 
 ## Testing
 
 1. **Rules and engine:** `node tests/core.test.js` and `node tests/bots.test.js` must report 0 failed. The bots' strength is measured separately, with `tools/sim-bots.js` (see The bots).
    - `core.test.js` counts the positions a few moves on from five standard test positions against the published figures (perft: the starting position to 4 moves, 197,281; "Kiwipete" to 3; and three more that test en passant, promotions and castling), then checks every special move, each way a game ends, take back, notation, and that `CONTEXT.md` and `CONTEXT-SHORT.md` match the code and notes (if not, run the build).
    - `bots.test.js` checks the cast (ten bots, Torben 100 to Ted 1500), blunder chances falling but never zero, the old bots mapping to new ones, the knob, the evaluation (level at the start, the same from either side), a mate in one at every depth, taking a hanging queen, saving an attacked queen, grabbing defended pawns without following captures, real blunders (losing material, the likeliest the one that looks best at a glance; missing a mate in one counting as one; none when no move loses anything), seeds, a legal move from every bot, and a whole bot game.
-2. **Browser tests:** `node tests/browser/run-all.js` builds the game, serves a copy of it locally like GitHub Pages (under `/retro-set/`, on port 8180, so Retro Rack's tests can run at the same time), then runs every `*.test.js` in `tests/browser/` in headless Chromium and prints a summary. Each check prints `PASS` or `FAIL`, and each file also fails if anything reaches the browser console.
-   - Needs Playwright with Chromium (preinstalled in Claude Code's cloud sessions; elsewhere `npm install --no-save playwright` then `npx playwright install chromium`). Nothing is written into the repository; screenshots go to a temporary folder, printed at the end.
+2. **Browser tests:** `node tests/browser/run-all.js` builds the game, serves two copies of it locally like GitHub Pages (under `/retro-set/`: the current build on port 8180, and the current build with its version changed to `deadbeef` on 8182; Retro Rack uses other ports, so both projects' tests can run at once), starts the relay locally with Wrangler on port 8797 (fresh each run; the test sites' `config.js` points at it, never a real relay; a relay already running there is used as it is), then runs every `*.test.js` in `tests/browser/` in headless Chromium and prints a summary. Each check prints `PASS` or `FAIL`, and each file also fails if anything reaches the browser console.
+   - Needs Playwright with Chromium (preinstalled in Claude Code's cloud sessions; elsewhere `npm install --no-save playwright` then `npx playwright install chromium`) and npm, which installs the relay's packages once into a temporary folder. Nothing is written into the repository; screenshots go to a temporary folder, printed at the end.
    - Software rendering is slow, so `lib.js` starts test pages at pixel size 3× and 8 shades rather than the game's sharper defaults, unless a test sets its own settings or opens the page with `?realdefaults` (as the check of the defaults does). Keep test windows small (about 480×360) unless the size is what's being tested.
-   - The files: `file` (the page opened from disk: the version, no install bits, the board drawn, the real defaults), `fit` (every screen fits at seven sizes from an upright phone to a computer, including a phone on its side: the home screen with and without Resume, Vs computer, the game's bar and buttons apart, the Menu, promotion and result panels; over http), `play` (two players on one device, with real taps and drags: picking up and moving, an illegal move refused, turning the view, take back, castling, a capture going beside the board, promotion, the fool's mate and its result, resigning and an agreed draw with their second tap, Turn the board off, the back gesture, and Resume after a reload; over http), `cpu` (playing the computer: the ten bots on the picker, your colour, the bot replying and its pieces out of your reach, take back of both moves, a draw offer declined and accepted, resigning, mating the bot, playing Black, Resume keeping the bot and colour, a game saved against an old bot resuming against the new one, the back gesture and Esc on the picker; over http), `app` (installable app, offline start, updates arriving; over http).
+   - The files: `file` (the page opened from disk: the version, no install bits, the board drawn, the real defaults), `fit` (every screen fits at seven sizes from an upright phone to a computer, including a phone on its side: the home screen with and without Resume, Vs computer, Online, New room, the waiting room, the game's bar and buttons apart, the Menu, promotion, result and draw-offer panels, and the quick chat buttons; over http), `play` (two players on one device, with real taps and drags: picking up and moving, an illegal move refused, turning the view, take back, castling, a capture going beside the board, promotion, the fool's mate and its result, resigning and an agreed draw with their second tap, Turn the board off, the back gesture, and Resume after a reload; over http), `cpu` (playing the computer: the ten bots on the picker, your colour, the bot replying and its pieces out of your reach, take back of both moves, a draw offer declined and accepted, resigning, mating the bot, playing Black, Resume keeping the bot and colour, a game saved against an old bot resuming against the new one, the back gesture and Esc on the picker; over http), `online` (two windows playing through the local relay with real taps: the invite link, colours, positions identical after every move, a reload mid-game keeping seat, colour and game, quick chat, a draw offer declined and accepted, Play again swapping the colours, a doctored move refused and the games put back in step, no moving while the other player is away, resigning, a duplicated tab told the room is full, a duplicated waiting tab joining as the opponent, two different versions refusing to start, one player reloading onto another version mid-game and both warned, and an online game on a phone on its side), `rejoin` (closing a page mid-game and Rejoin from the home screen, the same seat and position; quitting forgetting it for both; both leaving and coming back to a fresh game; expiry after 3 hours; two tabs on one device; the home screen with Rejoin and Resume on a phone on its side), `app` (installable app, offline start, updates arriving; over http).
    - New features get a new test file, or new checks in the file that fits. A test that reloads a page or uses two pages needs storage to carry over, so it runs over http (`SITE.new`), not from disk.
 3. **By eye:** for gameplay or UI changes, open `index.html` in a browser and try the change, watching the console.
 
@@ -215,8 +229,8 @@ This file records why Retro Set is the way it is: the decisions and their reason
 ## 1. Current status
 
 - The game is live at https://flopp-r.github.io/retro-set/, served by GitHub Pages from the public repository `github.com/flopp-r/retro-set` (branch `main`, root folder).
-- Stage 1 (two players on one device, the full rules) and Stage 2 (ten computer opponents, Torben 100 to Ted 1500) are built; Stage 3 (online) is next. See section 4.
-- There is no relay and no online play yet.
+- Stage 1 (two players on one device, the full rules), Stage 2 (ten computer opponents, Torben 100 to Ted 1500) and Stage 3 (online play, as close to Retro Rack's as possible) are built. See section 4.
+- Online play needs the relay: a Cloudflare Worker named `retro-set-relay`, set up by the owner from this repository's `relay/` folder (`README.md`, step 2), with its address in `config.js` (step 3). Until then `config.js` is empty and the Online card says "Not set up yet".
 - Everything in section 9 (changes shipped) is live. The version shown at the bottom of the menu matches the `BUILD` value in the committed `index.html`.
 
 ---
@@ -233,6 +247,7 @@ Personal working preferences are kept in the owner's own Claude Code settings, n
 2. **Stage 1 (7 November 2026):** the owner chose the look, the ways of playing, the rules and the pieces (section 4), and the first stage was built: the rules engine, the 3D pieces, two players on one device.
 3. **Stage 2 (7 November 2026):** the computer opponents: an engine, eight named bots from 100 to 1500, and a tool that measures their strength against Stockfish and each other.
 4. **Ten bots with real blunders (7 November 2026):** the owner renamed the bots and asked for ten, and for real blunders as well as middling moves, most at the low levels but still present at the top. Every bot was re-tuned and re-measured.
+5. **Stage 3, online play (9 November 2026):** the owner asked for it "as close to Retro Rack as possible": its relay, screens, Rejoin and checks were ported, with the changes chess needs (section 4).
 
 ---
 
@@ -281,8 +296,16 @@ Personal working preferences are kept in the owner's own Claude Code settings, n
 - **The trade-off (told to the owner):** with blunders this frequent, the low bots' ratings come mostly from their blunders, so tuning turned their temperature down: they play fewer middling moves between the blunders than before (Torben's temperature 93, against 107 for the old 100 bot). Lower blunder chances would bring the middling moves back.
 - **Measuring took three rounds:** a tuning run (80 games a step) and then two corrections, each followed by a fresh check of 240 games a bot, ending with every bot within 30 points of its target (section 5). Each correction used the rating points per step of the knob; the second one took them from the bot's two checks, because the tuning steps were too noisy at the low levels, where blunders make strength change slowly with the knob.
 
+**Stage 3: online play (9 November 2026)**
+- **As close to Retro Rack as possible (the owner's words):** the same relay (a Room per room code, a Lobby for the open-rooms list, hibernating WebSockets on the free plan), the same screens (Online: your name, the open rooms, Join with code, Create a room; then the room's settings; the waiting room with the code and the invite link to copy), the same invite links, reconnecting by a per-tab id, duplicated tabs, Rejoin for 3 hours, the version check before a game and the warning during one, preset quick chat, Play again needing both players, and leaving on purpose forgetting the game. The code was copied and adapted rather than rewritten, so a fix in one game can be carried to the other.
+- **Its own Worker,** `retro-set-relay`, not Retro Rack's, so a change to one game can't break the other. Retro Rack's ideas box (part of its relay) was left out: it isn't online play, and could be ported on its own if wanted.
+- **What chess changes:** the room's setting is your colour (White, Random or Black) instead of the type of pool game, and Open rooms shows it; Play again swaps the colours (Retro Rack alternates the break); Retro Rack's re-rack offer becomes a draw offer, accepted or declined; conceding a frame becomes resigning. Only the moves travel, so there's no live aim preview and no "input-only check" of shot physics: instead the receiver plays a move only if it's legal and reaches the same position as the sender's, and otherwise fetches the whole game.
+- **No take back online,** as in Retro Rack (which has no undo online). A take-back request, as on chess.com, could be added (section 7).
+- **No moving while the other player is away:** the move would go nowhere, so it's held back with a message, as Retro Rack does with a shot.
+- **If both players close their apps,** a fresh game starts when they rejoin, as in Retro Rack: the game lives only in the players' open pages. Keeping it would be easy in chess (each page can save the moves) but changes how games start, so it's in the ideas list.
+- **Names in Open rooms** are cleaned by the relay (14 characters, no `<` or `>`), as in Retro Rack, and chat is presets only, so there's nothing to moderate.
+
 **Decisions still to make**
-- **Stage 3, online:** the same as Retro Rack's online play (rooms with codes, a listed rooms board, Rejoin, quick chat), on a new relay.
 - **The board and the room:** the square colours and the room are placeholders.
 - **Later extras, if wanted:** clocks, sound, puzzles (as Retro Rack has trick shots), a career against named computer players, looks to earn (boards, piece sets, rooms), a replay of the game move by move.
 
@@ -328,7 +351,8 @@ Personal working preferences are kept in the owner's own Claude Code settings, n
 
 - **Rules:** `tests/core.test.js` (28 tests): perft counts for five standard positions, castling, en passant, promotion, pins, checkmate, stalemate, each draw, resigning, take back, notation and saving, and that the context packs are up to date.
 - **Engine and bots:** `tests/bots.test.js` (18 tests): the cast, blunder chances, the renaming, the knob, the evaluation, mates, captures, what happens without following captures, real blunders, seeds, legal moves, a whole bot game. Their strength: `tools/sim-bots.js` (section 5).
-- **The browser:** headless Chromium (Playwright) with software WebGL (SwiftShader). The page exposes `window.__rs` (state, position, moves, where each square is on the screen and so on) to make scripting easy; the `play` and `cpu` tests play with real mouse taps and drags at those positions. `node tests/browser/run-all.js` runs them all (see `AGENTS.md`, Testing): `file`, `fit`, `play`, `cpu` and `app`.
+- **The browser:** headless Chromium (Playwright) with software WebGL (SwiftShader). The page exposes `window.__rs` (state, position, moves, where each square is on the screen and so on) to make scripting easy; the `play` and `cpu` tests play with real mouse taps and drags at those positions. `node tests/browser/run-all.js` runs them all (see `AGENTS.md`, Testing): `file`, `fit`, `play`, `cpu`, `online`, `rejoin` and `app`.
+- **Online:** the real Cloudflare runtime runs locally (`npx wrangler dev`, on port 8797), and the game is opened with `?relay=ws://127.0.0.1:8797` in **separate browser contexts**, so each gets its own client id. After every move both windows' positions and moves must match. Covered: the invite link, colours, a reload, chat, draw offers, Play again, a doctored move, an absent opponent, resigning, duplicated tabs, different versions before and during a game (a copy of the site with its version changed), Rejoin in every case Retro Rack covers.
 - **Software WebGL is slow,** so keep test windows small (about 480×360) unless the size is what's being tested.
 
 ---
@@ -337,12 +361,13 @@ Personal working preferences are kept in the owner's own Claude Code settings, n
 
 - **Two players on one device, with the full rules:** built (Stage 1).
 - **The computer opponents:** built (Stage 2).
-- **Online play (Stage 3):** next.
+- **Online play (Stage 3):** built, once the owner has set up the relay.
+- **Possible for online play later:** keeping the game when both players close their apps (each page could save the moves, and Rejoin bring them back; it changes how games start, so both players need the new version); a take-back request; clocks; Retro Rack's ideas box.
 - **Nell's thinking** comes in steps of up to about a tenth of a second (one candidate move searched 3 moves deep at a time), so on a slow phone the picture may stutter while she thinks; the search could pause more often if that shows.
 - **Possible for the bots later:** more of them (above 1500, or in between); a hint button; the bots saying something now and then (as chess.com's do); tuning the weakest bots to human mistake figures as well, if the owner finds them unlike real beginners.
 - **Small things noticed in Stage 1:** the piece could follow the finger while dragged; sound (a wooden "tock" on a move); a bigger move list on phones.
 - **Still open** are listed in section 4, "Decisions still to make".
-- **From Retro Rack, ready to port when wanted:** the menu screens with sliding panels and Play again, Settings with tabs, the phone layout, sound and volume, vibration, fullscreen and the sideways hint, the computer player's search spread across frames, online rooms with Rejoin and the version check, the players' ideas box, the career, and the locker of looks.
+- **From Retro Rack, ready to port when wanted:** the menu screens with sliding panels, Settings with tabs, the phone layout, sound and volume, vibration, fullscreen and the sideways hint, the players' ideas box, the career, and the locker of looks.
 
 ---
 
@@ -351,7 +376,7 @@ Personal working preferences are kept in the owner's own Claude Code settings, n
 - Work happens in Claude Code, which pushes to GitHub through its GitHub connector.
 - **Node.js** is needed for `node tools/build.js` and `node tests/core.test.js`. If it's missing, install the LTS version from nodejs.org.
 - **The routine** (details in `AGENTS.md`, "How changes are made"): describe a change; Claude Code explains the options and builds the one chosen on a branch, rebuilds `index.html`, runs the tests and opens a pull request. When the owner says "merge it", it is squash-merged into `main`, and the live site updates a minute or two later (Ctrl+F5 to see it).
-- **Keep it to one change at a time.**
+- **Keep it to one change at a time.** Test online changes with the local relay before merging, since both players need the same version.
 - **To undo a change,** revert it and push the revert, so the site goes back to how it was.
 
 **Suggested first message in a new session:**
@@ -370,6 +395,7 @@ Every change merged into `main`, newest last. The version is the fingerprint sho
 | 7 Nov 2026 | (first commit, no pull request) | 2cc43742 | The working setup from Retro Rack: guides, one-file build, context packs, tests, installable app; a placeholder board. |
 | 7 Nov 2026 | #1 | 4e335390 | Stage 1: two players on one device with the full rules; low-poly classic pieces; tap or drag to move; take back, resign, agree a draw; the view turning to the player to move; Resume after a reload. |
 | 7 Nov 2026 | #2 | 4be88115 | Stage 2: eight computer opponents from 100 to 1500 (Pip to Nell), measured against Stockfish and each other; the Vs computer screen, your colour, take back of both moves, draw offers, Resume against the computer. |
+| 7 Nov 2026 | #3 | 35265639 | Ten bots named by the owner (Torben 100 to Ted 1500) that make real blunders as well as middling moves, re-tuned and re-measured: every bot within 30 points of its target. |
 
 ---
 
@@ -377,7 +403,7 @@ Every change merged into `main`, newest last. The version is the fingerprint sho
 
 # Retro Set
 
-3D pixel-art chess, a sister to Retro Rack. Play a friend on one device, or ten computer opponents from 100 to 1500, with the full rules. Online play is coming next.
+3D pixel-art chess, a sister to Retro Rack. Play a friend on one device or online, or ten computer opponents from 100 to 1500, with the full rules.
 
 Play it at https://flopp-r.github.io/retro-set/
 
@@ -386,24 +412,55 @@ Play it at https://flopp-r.github.io/retro-set/
 | File | What it is |
 |---|---|
 | `index.html` | The game. It works on its own, even opened straight from your computer. |
+| `config.js` | One setting: your relay address, so online play knows where to connect. |
+| `relay/` | A tiny Cloudflare Worker that passes messages between the two players of an online game. |
 | `sw.js`, `manifest.webmanifest`, `icons/` | Let people install the game as an app and play it offline. |
 | `src/`, `vendor/`, `tools/`, `tests/` | The source code, the 3D engine and fonts, the build tool and the tests. `index.html` is built from these. |
 | `AGENTS.md`, `CLAUDE.md`, `HANDOVER.md` | Notes for AI assistants and developers: how the project fits together and how to change it (`CLAUDE.md` points Claude Code to `AGENTS.md`), and its history and decisions. |
 | `CONTEXT.md`, `CONTEXT-SHORT.md` | The whole project in one file, for an AI that can't open this repository (see "Asking another AI about the project" below). Made by the build; don't edit them. |
 
-Everything here runs on free plans. You need a GitHub account, and everything is done in your web browser.
+Everything here runs on free plans. You need a GitHub account and, for online play, a Cloudflare account; everything is done in your web browser.
 
 ---
 
-## Putting the game on GitHub Pages
+## Step 1: Put the game on GitHub Pages
 
-Do this once, after the setup has been merged into the `main` branch.
+Do this once, after the setup has been merged into the `main` branch (it's done already for Retro Set).
 
 1. Sign in to github.com and open https://github.com/flopp-r/retro-set.
 2. Go to the repository's **Settings**, then **Pages** in the left sidebar. Under **Build and deployment**, set **Source** to **Deploy from a branch**, choose the **main** branch and the **/ (root)** folder, then click **Save**.
 3. Wait a minute or two and refresh the page. It will show the site address, `https://flopp-r.github.io/retro-set/`. Open it: you should see the Retro Set title in front of a board, and the version at the bottom of the panel.
 
 GitHub occasionally renames buttons. If something doesn't match exactly, look for the closest option with the same meaning.
+
+## Step 2: Put the relay on Cloudflare
+
+Online play needs a relay: a tiny program on Cloudflare that passes the moves between the two players. Retro Set has its own, separate from Retro Rack's, so a change to one game can't break the other. You do this once, the same way as for Retro Rack.
+
+1. In the Cloudflare dashboard, open **Workers & Pages** (it may be under **Compute** in the sidebar) and click **Create**.
+2. Choose **Import a repository** and click **Get started**. If asked, give Cloudflare access to the `retro-set` repository (in GitHub's settings for the Cloudflare app, add `retro-set` to the repositories it can see).
+3. Pick the `retro-set` repository.
+4. Set the project name to exactly `retro-set-relay`. It must match the name in `relay/wrangler.jsonc`.
+5. Open the advanced or build settings and set the **Root directory** (sometimes called **Path**) to `relay`. Leave the build command empty, and leave the deploy command as `npx wrangler deploy`.
+6. Click **Save and Deploy** and wait for the build to finish, which takes a minute or two.
+7. Open the new Worker. Its address looks like `https://retro-set-relay.yourname.workers.dev`. Visit that address in your browser; it should say **Retro Set relay is running.**
+
+Cloudflare occasionally renames buttons. If something doesn't match exactly, look for the closest option with the same meaning.
+
+## Step 3: Connect the game to the relay
+
+1. On GitHub, open `config.js` in the repository and click the **pencil** icon to edit it.
+2. Paste your relay address between the quotes on the last line, so it looks like this:
+
+   ```js
+   window.RETRO_SET_RELAY = "https://retro-set-relay.yourname.workers.dev";
+   ```
+
+3. Click **Commit changes**. GitHub Pages updates within a minute or two. (Or give Claude Code the address: it's public, not a secret, and it can make the change.)
+
+From then on, every change to `relay/` merged into `main` is deployed to Cloudflare by itself.
+
+---
 
 ## How to play
 
@@ -436,6 +493,20 @@ Choose **Vs computer**, pick an opponent and your colour (White, Black or Random
 - **What the ratings mean:** they're measured, not guessed. Ted and Daws were tuned by playing hundreds of games against Stockfish at its official strength settings (1500 and 1320), and each of the others to be 150 points below the one above, which means the stronger one wins about seven games in ten. Measured over 240 games each, every bot came out within 30 points of its rating (the lower the bot, the wider the margin: about ±45 for Ted up to ±145 for Torben). They are close to, but not the same as, chess.com ratings: every site's scale is a little different, especially at the low end.
 - **Take back** undoes your last move and the computer's reply. **Menu** has **Offer a draw** (the computer accepts only if it thinks it's worse, or the game is level late on) and **Resign**.
 
+## Playing online
+
+1. Open the game, choose **Online**, and type your name.
+2. To join a friend, pick their room from **Open rooms** and click **Join**, or type their code into **Join with code**.
+3. To host, click **Create a room**, choose your colour (**White**, **Random** or **Black**) and **Listed** or **Private**, then click **Create room**. You get a five-character room code and an invite link: click **Copy invite link** and send it. Opening the link joins your room straight away.
+4. Listed rooms show under **Open rooms** for anyone; private ones are only for people with the code or the link.
+
+- **In the game:** the line under the names says whether your opponent is connected. **Chat** sends a quick message from a short list. **Menu** has **Offer a draw** (your opponent accepts or declines), **Resign** and **Quit**. There's no take back online.
+- **Play again:** when a game ends, both press **Play again** and a new game starts with the colours swapped.
+- **Lost connection or reloaded the page?** You go straight back to your seat, and the game carries on.
+- **Closed the app by accident?** For 3 hours the home screen shows **Rejoin your game with …**. If your opponent's game is still open, you're back exactly where you were; if both of you closed it, a fresh game starts in the same room.
+- **Play yourself:** open a room in one tab, then open the invite link (or duplicate the tab) for the other side.
+- **Versions:** both players need the same version. If not, the game says so: reload (Ctrl+F5 on a computer, or close and reopen the app on a phone).
+
 ## Installing it as an app
 
 - **On a computer (Edge or Chrome):** open the game's address, then click the install icon at the right-hand end of the address bar (or the browser's menu, then **Apps**, then **Install this site as an app**).
@@ -459,6 +530,11 @@ It holds the notes, a map of the code and all the source code written for the ga
 ## If something isn't working
 
 - **GitHub Pages shows a 404:** give it a few more minutes, and make sure Pages is set to the `main` branch and the `/ (root)` folder, with `index.html` at the top level of the repository.
+- **The Online card says "Not set up yet":** the relay address isn't in `config.js` yet (steps 2 and 3).
+- **Stuck on "Connecting…":** check the address in `config.js`. It should start with `https://` and end with `workers.dev`, with nothing else inside the quotes. Visit the address directly to confirm it says the relay is running.
+- **Cloudflare build fails mentioning the name:** make sure the Worker is called `retro-set-relay`, or change `"name"` in `relay/wrangler.jsonc` to match.
+- **"That room already has two players in it":** someone else is in that room. Create a new one.
+- **"…different versions of Retro Set":** both players reload (Ctrl+F5 on a computer, or close and reopen the app on a phone), then come back to the room.
 - **You still see the old version after an update:** press Ctrl+F5 on a computer, or close and reopen the app on a phone. The version is shown at the bottom of the menu, so you can compare it with the one Claude Code tells you.
 
 ---

@@ -160,6 +160,13 @@ Personal working preferences are kept in the owner's own Claude Code settings, n
 - Looking 1 move ahead without following captures measured about 760 points below the 500 bot of the first eight, so no bot does that.
 - Stockfish: stockfish.js 19.0.1, the full single-threaded engine, 60 ms a move, `UCI_LimitStrength` on.
 
+**The cosmetics' economy** (measured with `tools/sim-shop.js`, 10 November 2026; `src/looks.js` has the numbers)
+- 70 looks, 7 of them free; of the 63 to earn, 17 common, 18 rare, 13 epic, 8 legendary and 7 mythic.
+- Cases, with the chance of common / rare / epic / legendary / mythic and the shop's price: Bronze 62 / 28 / 8 / 1.6 / 0.4%, 40 coins; Silver 38 / 38 / 18 / 5 / 1%, 90; Gold 14 / 36 / 32 / 14 / 4%, 200; Diamond 0 / 20 / 42 / 28 / 10%, 420; Super Lucky Box 0 / 6 / 34 / 38 / 22%, 1,500, never a duplicate. An epic or better is certain within 6 cases. A look already owned is 0.3 times as likely as one that isn't.
+- Keys: standard 60 coins, a slot's own 110. A duplicate pays 15, 35, 80, 180 or 400 coins by rarity.
+- A win pays 60 coins plus a fifth of the bot's rating (80 for Torben, 360 for Ted) and drops a case: Bronze below 500, Silver below 950, Gold below 1250, Diamond above. The day's gift: 40, 50, 60, 70, 80, 90 then 120 coins. The starter kit: 250 coins, a Silver case and a standard key.
+- **The pace** (pretend players who log in daily, open every case they can and spend the rest on cases and keys): at 3.5 wins a day, 35 looks by day 5, 50 by day 9, 60 by day 11 and all 70 by day 13 for the middle player (days 12 to 14 for most), having opened 87 cases, 27% of them duplicates. At 2 wins a day, day 20; at 6 wins a day, day 9. The owner asked for about two weeks.
+
 **The camera in a game**
 - Tilted 0.95 rad (54°) down to start, between 0.35 and 1.45 rad when tilted by hand; zoom 0.6 to 2.2 times the distance that fits the board.
 
@@ -171,6 +178,7 @@ Personal working preferences are kept in the owner's own Claude Code settings, n
 ## 6. How things are tested
 
 - **Rules:** `tests/core.test.js` (28 tests): perft counts for five standard positions, castling, en passant, promotion, pins, checkmate, stalemate, each draw, resigning, take back, notation and saving, and that the context packs are up to date.
+- **The cosmetics' rules:** `tests/looks.test.js` (23 tests), and the pace by `tools/sim-shop.js` (section 5).
 - **Engine and bots:** `tests/bots.test.js` (18 tests): the cast, blunder chances, the renaming, the knob, the evaluation, mates, captures, what happens without following captures, real blunders, seeds, legal moves, a whole bot game. Their strength: `tools/sim-bots.js` (section 5).
 - **The browser:** headless Chromium (Playwright) with software WebGL (SwiftShader). The page exposes `window.__rs` (state, position, moves, where each square is on the screen and so on) to make scripting easy; the `play` and `cpu` tests play with real mouse taps and drags at those positions. `node tests/browser/run-all.js` runs them all (see `AGENTS.md`, Testing): `file`, `fit`, `play`, `cpu`, `online`, `rejoin`, `sets`, `settings` and `app` (390 checks in all).
 - **The live relay can't be reached from Claude Code's cloud sessions:** their network refuses `workers.dev` addresses. So the browser tests always use a local relay, and the live one is checked by the owner in a browser (its address should say "Retro Set relay is running.", and two tabs should play each other).

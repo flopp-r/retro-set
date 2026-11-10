@@ -1,4 +1,4 @@
-// Every screen fits without scrolling at phone, tablet and computer sizes, including a phone on its side (762x341): the home screen (with and without a game to resume), Vs computer, Online, New room, the waiting room, the game's bar and buttons, and its panels (menu, promotion, result, a draw offer, quick chat).
+// Every screen fits without scrolling at phone, tablet and computer sizes, including a phone on its side (762x341): the home screen (with and without a game to resume), every Settings tab, Vs computer, Online, New room, the waiting room, the game's bar and buttons, the Confirm bar, and every tab of the game's Menu panels (menu, promotion, result, a draw offer, quick chat).
 const { chromium, SITE, RELAY, shot, watch, ok } = require('./lib');   // over http: the checks reload the page, and storage must carry over
 const overlap = (a, b) => a && b && a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1;
 (async () => {
@@ -20,6 +20,15 @@ const overlap = (a, b) => a && b && a.left < b.right - 1 && b.left < a.right - 1
     r = await fits('#mStage'); r2 = await fits('#menuPanel');
     ok(good(r) && good(r2) && await p.isVisible('#bResume'), say({ ...r, on: r2.on }, 'the home screen with Resume'));
     if (w === 762) await p.screenshot({ path: shot('fit-home-phone.png') });
+    // Settings: each of its tabs, in the menu
+    await p.click('.hTab[data-go="settings"]'); await p.waitForTimeout(150);
+    for (const t of ['game', 'board', 'display', 'device']) {
+      await p.click(`.sTab[data-tab="${t}"]`); await p.waitForTimeout(60);
+      r = await fits('#mStage'); r2 = await fits('#menuPanel');
+      ok(good(r) && good(r2), say({ ...r, on: r2.on }, `Settings, ${t}`));
+    }
+    if (w === 762) await p.screenshot({ path: shot('fit-settings-phone.png') });
+    await p.click('.hTab[data-go="home"]'); await p.waitForTimeout(150);
     // Vs computer: the eight bots, the line about the one picked, your colour and Play
     await p.click('#bCpu'); await p.waitForTimeout(200);
     r = await fits('#mStage'); r2 = await fits('#menuPanel');
@@ -58,9 +67,19 @@ const overlap = (a, b) => a && b && a.left < b.right - 1 && b.left < a.right - 1
       return { on: c.top >= 0 && c.left >= 0 && c.bottom <= innerHeight && c.right <= innerWidth, clear: c.bottom <= t.top + 1 && c.top >= b.bottom - 1 }; });
     ok(chat.on && chat.clear, `${w}x${h}: the quick chat buttons are on screen, clear of the bar and the buttons below (${JSON.stringify(chat)})`);
     await p.evaluate(() => { document.querySelector('#chatPop').hidden = true; document.querySelector('#bChat').hidden = true; });
+    // a move waiting for Confirm: its bar is on screen, clear of the bar above and the buttons below
+    await p.evaluate(() => { document.querySelector('#confirmTxt').textContent = 'Play Qxh7#?'; document.querySelector('#confirm').hidden = false; });
+    const conf = await p.evaluate(() => { const c = document.querySelector('#confirm').getBoundingClientRect(), t = document.querySelector('#tools').getBoundingClientRect(), b = document.querySelector('#bar').getBoundingClientRect();
+      return { on: c.top >= 0 && c.left >= 0 && c.bottom <= innerHeight && c.right <= innerWidth, clear: c.bottom <= t.top + 1 && c.top >= b.bottom - 1 }; });
+    ok(conf.on && conf.clear, `${w}x${h}: the Confirm bar is on screen, clear of the bar and the buttons below (${JSON.stringify(conf)})`);
+    await p.evaluate(() => { document.querySelector('#confirm').hidden = true; });
     await p.click('#bMenu'); await p.waitForTimeout(150);
-    r = await fits('#pause .ovPanel'); ok(good(r), say(r, 'the menu panel'));
-    await p.click('#bResumeGame');
+    for (const t of ['match', 'game', 'board', 'display', 'device']) {
+      await p.click(`.sTab[data-tab="${t}"]`); await p.waitForTimeout(60);
+      r = await fits('#pause .ovPanel'); ok(good(r), say(r, `the menu panel, ${t}`));
+    }
+    if (w === 762) await p.screenshot({ path: shot('fit-menu-phone.png') });
+    await p.click('.sTab[data-tab="match"]'); await p.click('#bResumeGame');
     await p.evaluate(() => window.__rs.start2('8/4P3/8/8/8/8/k7/4K3 w - - 0 1')); await p.waitForTimeout(200);
     for (const n of ['e7', 'e8']) { const [x, y] = await p.evaluate(n => window.__rs.squareScreen(n), n); await p.mouse.click(x, y); await p.waitForTimeout(150); }
     r = await fits('#promo .ovPanel'); ok(good(r) && await p.isVisible('#promo'), say(r, 'the promotion choice'));

@@ -14,11 +14,17 @@ const reduceMotion = window.matchMedia && matchMedia('(prefers-reduced-motion: r
 // ------------------------------------------------------------------ settings
 // pixel: game pixels are this many screen pixels across (0 is Max: one per real screen pixel); levels: shades per
 // colour channel (256 is full colour; fewer turns on the dithering); turn: in a game on one device, the view turns
-// round to the player whose move it is
-const DEFAULTS = { pixel: 1, levels: 256, dither: true, outline: true, turn: true, set: 'classic', finish: 'classic' };
+// round to the player whose move it is; set and finish: the pieces (sets.js); hints: dots and rings where a picked-up
+// piece can go; autoQueen: a pawn reaching the end becomes a queen without asking; confirm: a move waits for a tap on
+// Confirm; flat: in a game, look straight down at flat pictures of the pieces; coords: the letters and numbers round
+// the board; lastMove: the last move's squares tinted; volume: 0 to 1 (0.75 the loudness the sounds were made at);
+// vibrate: a buzz for a capture and for check, on phones that can
+const DEFAULTS = { pixel: 1, levels: 256, dither: true, outline: true, turn: true, set: 'classic', finish: 'classic',
+  hints: true, autoQueen: false, confirm: false, flat: false, coords: true, lastMove: true, volume: 0.75, vibrate: true };
 const S = { ...DEFAULTS };
 try { Object.assign(S, JSON.parse(localStorage.getItem('retroSet.settings') || '{}')); } catch (e) {}
 S.set = SETS.byId(S.set).id; S.finish = SETS.finish(S.finish).id;
+if (!(S.volume >= 0 && S.volume <= 1)) S.volume = DEFAULTS.volume;
 const saveS = () => { try { localStorage.setItem('retroSet.settings', JSON.stringify(S)); } catch (e) {} };
 
 // ------------------------------------------------------------------ renderer + post
@@ -91,6 +97,7 @@ function resize() {
   rt.depthTexture = new THREE.DepthTexture(VW, VH); rt.depthTexture.type = THREE.UnsignedIntType;
   postMat.uniforms.tColor.value = rt.texture; postMat.uniforms.tDepth.value = rt.depthTexture;
   postMat.uniforms.uRes.value.set(VW, VH);
+  if (FLAT && SHOWN && !GLIDE) { placeAll(SHOWN); showMarks(); }   // flat pictures are drawn to suit the size
 }
 function applyLook() {
   postMat.uniforms.uLevels.value = S.levels;
@@ -136,9 +143,10 @@ const GLYPH = {
   1: ['.#.', '##.', '.#.', '.#.', '###'], 2: ['##.', '..#', '.#.', '#..', '###'], 3: ['##.', '..#', '.#.', '..#', '##.'], 4: ['#.#', '#.#', '###', '..#', '..#'],
   5: ['###', '#..', '##.', '..#', '##.'], 6: ['.##', '#..', '###', '#.#', '###'], 7: ['###', '..#', '.#.', '.#.', '.#.'], 8: ['###', '#.#', '###', '#.#', '###'],
 };
-const boardTex = canvasTex(144, 144, (g) => {   // 16 px a square, 8 px of border
+const drawBoard = coords => canvasTex(144, 144, (g) => {   // 16 px a square, 8 px of border
   g.fillStyle = FRAME; g.fillRect(0, 0, 144, 144);
   for (let r = 0; r < 8; r++) for (let f = 0; f < 8; f++) { g.fillStyle = (f + r) & 1 ? LIGHT_SQ : DARK_SQ; g.fillRect(8 + f * 16, 8 + (7 - r) * 16, 16, 16); }
+  if (!coords) return;
   g.fillStyle = '#c9b48f';
   const glyph = (ch, x, y, flip) => GLYPH[ch].forEach((row, j) => [...row].forEach((p, i) => { if (p === '#') g.fillRect(flip ? x + 2 - i : x + i, flip ? y + 4 - j : y + j, 1, 1); }));
   for (let i = 0; i < 8; i++) {
@@ -146,6 +154,9 @@ const boardTex = canvasTex(144, 144, (g) => {   // 16 px a square, 8 px of borde
     glyph(String(i + 1), 3, 8 + (7 - i) * 16 + 6, false); glyph(String(i + 1), 138, 8 + (7 - i) * 16 + 5, true);
   }
 });
+const BOARD_TEX = {};   // with the coordinates and without
+let boardTop = null;
+function applyBoard() { const k = S.coords ? 'on' : 'off'; boardTop.material.map = BOARD_TEX[k] || (BOARD_TEX[k] = drawBoard(!!S.coords)); }
 const woodMat = new THREE.MeshLambertMaterial({ color: 0x6b3a22 });
 {
   const table = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.04, 24), woodMat);
@@ -154,31 +165,47 @@ const woodMat = new THREE.MeshLambertMaterial({ color: 0x6b3a22 });
   leg.position.y = (TABLE_Y - 0.04 + FLOOR_Y) / 2; scene.add(leg);
   const frame = new THREE.Mesh(new THREE.BoxGeometry(B, -TABLE_Y, B), new THREE.MeshLambertMaterial({ color: FRAME }));
   frame.position.y = TABLE_Y / 2; scene.add(frame);
-  const top = new THREE.Mesh(new THREE.PlaneGeometry(B, B), new THREE.MeshLambertMaterial({ map: boardTex }));
-  top.rotation.x = -PI / 2; top.position.y = 0.0005; scene.add(top);
+  boardTop = new THREE.Mesh(new THREE.PlaneGeometry(B, B), new THREE.MeshLambertMaterial({ map: BOARD_TEX.on = drawBoard(true) }));
+  boardTop.rotation.x = -PI / 2; boardTop.position.y = 0.0005; scene.add(boardTop); applyBoard();
 }
-// marks on the squares: the last move, the piece picked up, a king in check, and where the picked-up piece can go
-// (a dot on an empty square, a ring round a piece it can take)
+// marks on the squares: the last move (S.lastMove), the piece picked up, a king in check, where the picked-up piece
+// can go (S.hints: a dot on an empty square, a ring round a piece it can take), and a move waiting to be confirmed
 const markMat = (color, opacity) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false });
 const MARKS = new THREE.Group(); scene.add(MARKS);
 const squareGeo = new THREE.PlaneGeometry(SQ, SQ), dotGeo = new THREE.CircleGeometry(SQ * 0.17, 8), ringGeo = new THREE.RingGeometry(SQ * 0.37, SQ * 0.47, 12);
-const MM = { last: markMat('#ffc56b', 0.3), sel: markMat('#ffc56b', 0.6), check: markMat('#ff6f8f', 0.65), go: markMat('#6cb8ff', 0.8) };
+const MM = { last: markMat('#ffc56b', 0.3), sel: markMat('#ffc56b', 0.6), check: markMat('#ff6f8f', 0.65), go: markMat('#6cb8ff', 0.8), to: markMat('#6cb8ff', 0.55) };
 function mark(geo, mat, s, y) { const m = new THREE.Mesh(geo, mat); m.rotation.x = -PI / 2; m.position.set(sqX(s), y, sqZ(s)); MARKS.add(m); }
 function showMarks() {
   MARKS.clear();
   if (!G || state === 'menu') return;
   const last = G.list[G.list.length - 1];
-  if (last) { mark(squareGeo, MM.last, last.m.from, 0.0008); mark(squareGeo, MM.last, last.m.to, 0.0008); }
+  if (last && S.lastMove) { mark(squareGeo, MM.last, last.m.from, 0.0008); mark(squareGeo, MM.last, last.m.to, 0.0008); }
   if (C.inCheck(G.pos)) mark(squareGeo, MM.check, G.pos.b.indexOf(G.pos.turn === 'w' ? 'K' : 'k'), 0.001);
   if (sel >= 0) mark(squareGeo, MM.sel, sel, 0.0012);
-  for (const s of new Set(targets.map(m => m.to))) mark(G.pos.b[s] || targets.some(m => m.to === s && m.ep) ? ringGeo : dotGeo, MM.go, s, 0.0014);
+  if (pending) { mark(squareGeo, MM.sel, pending.from, 0.0012); mark(squareGeo, MM.to, pending.to, 0.0012); }
+  if (S.hints) for (const s of new Set(targets.map(m => m.to))) mark(G.pos.b[s] || targets.some(m => m.to === s && m.ep) ? ringGeo : dotGeo, MM.go, s, 0.0014);
 }
 
 // ------------------------------------------------------------------ pieces
 // The shapes and what they're made of come from sets.js: S.set is the piece set in use and S.finish its finish. Each
 // piece is one mesh with a material for the body, the trim and the glow. Every piece faces the other side; knights
 // look to their owner's left and a little forwards, so each player sees the head side on, as in a diagram.
+// In the flat view (S.flat, in a game only: FLAT) each piece is instead its picture lying on the square, drawn by
+// pieceIcon() and kept the right way up for the viewer as the view turns (the main loop). The picture is drawn about
+// as many pixels tall as a square is on the screen (flatH, between 12 and 64), so big game pixels don't mangle it.
+let FLAT = false, flatH = 48;
+const FLAT_MAT = {}, flatGeo = new THREE.PlaneGeometry(SQ * 0.76, SQ * 0.95).translate(0, 0, 0.003);
+function flatMat(ch) {
+  const key = `${S.set} ${S.finish} ${ch} ${flatH}`;
+  if (!FLAT_MAT[key]) {
+    const t = new THREE.CanvasTexture(pieceIcon(C.kind(ch), C.colour(ch), Math.round(flatH * 0.8), flatH, 0.6)); t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
+    FLAT_MAT[key] = new THREE.MeshBasicMaterial({ map: t, alphaTest: 0.5 });
+  }
+  return FLAT_MAT[key];
+}
+const wantFlat = () => S.flat && state !== 'menu' && state !== 'lobby';
 function makePiece(ch) {
+  if (FLAT) { const f = new THREE.Mesh(flatGeo, flatMat(ch)); f.rotation.set(-PI / 2, 0, cam.cur.yaw); f.userData.ch = ch; return f; }
   const k = C.kind(ch), c = C.colour(ch), g = new THREE.Mesh(SETS.geo(S.set, k), SETS.mats(S.finish, c));
   g.rotation.y = k === 'N' ? (c === 'w' ? 5 * PI / 6 : -PI / 6) : c === 'w' ? 0 : PI;
   g.userData.ch = ch;
@@ -190,7 +217,9 @@ const PIECES = new THREE.Group(); scene.add(PIECES);
 let onSq = new Array(64).fill(null);   // the piece standing on each square
 let SHOWN = null;   // the game whose pieces are on the table (also the one behind the menu)
 function placeAll(g) {
-  SHOWN = g; PIECES.clear(); onSq = new Array(64).fill(null);
+  SHOWN = g; FLAT = wantFlat(); pending = null; $('#confirm').hidden = true;
+  if (FLAT) flatH = clamp(Math.round(0.95 * SQ * VH / (2 * Math.tan(camera.fov * PI / 360) * cam.playDist()) / 2) * 2, 12, 64);
+  PIECES.clear(); onSq = new Array(64).fill(null);
   for (let s = 0; s < 64; s++) if (g.pos.b[s]) { const m = makePiece(g.pos.b[s]); m.position.set(sqX(s), 0, sqZ(s)); m.userData.sq = s; PIECES.add(m); onSq[s] = m; }
   const n = { w: 0, b: 0 };
   for (const { m } of g.list) if (m.cap) { const by = C.colour(m.p), t = makePiece(m.cap); t.scale.setScalar(0.8); t.position.set(...trayPos(by, n[by]++)); PIECES.add(t); }
@@ -200,12 +229,15 @@ function setLook(set, fin) {
   S.set = SETS.byId(set).id; S.finish = SETS.finish(fin).id; saveS();
   if (SHOWN && !GLIDE) placeAll(SHOWN);
 }
+// the flat view switched, or a game begun or left: set the table again if the pieces are the wrong sort
+function refit() { $('#bView').textContent = S.flat ? '3D' : '2D'; if (SHOWN && !GLIDE && FLAT !== wantFlat()) { placeAll(SHOWN); showMarks(); } }
 // a little picture of a piece (the promotion buttons), drawn pixel by pixel from the set's own shape seen from the
-// front, in the finish's colours, every kind at the same scale (the king fills the height) unless fit is set
+// front, in the finish's colours. fit 0: every kind at the same scale (the king fills the height); 1: this kind
+// fills the height; between, the sizes are drawn closer together
 function pieceIcon(k, c, W = 24, H = 30, fit = false) {
   const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
   const g = cv.getContext('2d'), geo = SETS.geo(S.set, k), pos = geo.attributes.position.array, fin = SETS.finish(S.finish)[c];
-  const sc = (H - 2) / SETS.geo(S.set, fit ? k : 'K').boundingBox.max.y, flip = k === 'N' ? -1 : 1;   // fit: this kind fills the height
+  const tall = x => SETS.geo(S.set, x).boundingBox.max.y, sc = (H - 2) / lerp(tall('K'), tall(k), +fit), flip = k === 'N' ? -1 : 1;
   const slot = new Int8Array(W * H).fill(-1), depth = new Float32Array(W * H).fill(Infinity);
   for (const gr of geo.groups) for (let i = gr.start * 3; i < (gr.start + gr.count) * 3; i += 9) {
     const X = [0, 3, 6].map(j => W / 2 + flip * pos[i + j] * sc), Y = [0, 3, 6].map(j => H - 1 - pos[i + j + 1] * sc), Z = (pos[i + 2] + pos[i + 5] + pos[i + 8]) / 3;
@@ -253,11 +285,88 @@ function portrait(look, scale) {
   return img;
 }
 
+// ------------------------------------------------------------------ audio
+// Retro Rack's little synthesiser: every sound is made from a few tones (blip) and bursts of filtered noise (hiss), so
+// there are no sound files. Browsers only allow sound after a tap or a key, so the first one starts it (ensureAudio).
+const AU = { ctx: null, noise: null, master: null }, SFX_LOG = [];   // SFX_LOG: the last sounds asked for, for the tests
+let sfxCount = 0;
+function ensureAudio() {
+  if (!S.volume) return;
+  if (!AU.ctx) {
+    try {
+      AU.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const len = Math.floor(AU.ctx.sampleRate * 0.4), buf = AU.ctx.createBuffer(1, len, AU.ctx.sampleRate), d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      AU.noise = buf; AU.master = AU.ctx.createGain(); AU.master.connect(AU.ctx.destination);
+    } catch (e) { AU.ctx = null; }
+  }
+  if (AU.master) AU.master.gain.value = 0.7 * S.volume / 0.75;
+  if (AU.ctx && AU.ctx.state === 'suspended') AU.ctx.resume().catch(() => {});
+}
+function blip(f, dur, vol, type = 'sine', f2 = 0, delay = 0) {
+  const c = AU.ctx, t = c.currentTime + delay, o = c.createOscillator(), g = c.createGain();
+  o.type = type; o.frequency.setValueAtTime(f, t); if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + dur);
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g); g.connect(AU.master); o.start(t); o.stop(t + dur + 0.02);
+}
+function hiss(dur, vol, fc, q, type = 'bandpass', delay = 0) {
+  const c = AU.ctx, t = c.currentTime + delay, src = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();
+  src.buffer = AU.noise; f.type = type; f.frequency.value = fc; f.Q.value = q;
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  src.connect(f); f.connect(g); g.connect(AU.master); src.start(t, Math.random() * 0.2); src.stop(t + dur + 0.02);
+}
+// move: a piece set down on wood; capture: a heavier knock and a second piece; castle: two pieces; promo, check, win,
+// lose, draw and ui: square-wave notes, as on an old games machine
+function sfx(kind) {
+  if (!S.volume) return;
+  SFX_LOG.push(kind); sfxCount++; if (SFX_LOG.length > 40) SFX_LOG.shift();
+  if (!AU.ctx) return;
+  const tock = (d = 0, f = 210) => { blip(f, 0.07, 0.34, 'sine', f * 0.57, d); hiss(0.03, 0.2, 1900, 1.2, 'bandpass', d); };
+  try {
+    if (kind === 'move') tock();
+    else if (kind === 'capture') { blip(150, 0.11, 0.42, 'sine', 70); hiss(0.05, 0.3, 1300, 1); blip(260, 0.05, 0.16, 'triangle', 150, 0.07); }
+    else if (kind === 'castle') { tock(); tock(0.12, 180); }
+    else if (kind === 'promo') { tock(); [392, 523, 659].forEach((f, i) => blip(f, 0.09, 0.05, 'square', 0, 0.05 + i * 0.07)); }
+    else if (kind === 'check') { blip(880, 0.07, 0.05, 'square', 0, 0.1); blip(660, 0.1, 0.05, 'square', 0, 0.18); }
+    else if (kind === 'ui') blip(660, 0.05, 0.045, 'square');
+    else if (kind === 'win') [523, 659, 784, 1046].forEach((f, i) => blip(f, 0.14, 0.07, 'square', 0, 0.4 + i * 0.1));
+    else if (kind === 'lose') [392, 330, 262, 196].forEach((f, i) => blip(f, 0.18, 0.06, 'square', 0, 0.4 + i * 0.13));
+    else if (kind === 'draw') [440, 440].forEach((f, i) => blip(f, 0.16, 0.06, 'square', 0, 0.4 + i * 0.2));
+  } catch (e) {}
+}
+addEventListener('pointerdown', ensureAudio, true); addEventListener('keydown', ensureAudio, true);
+addEventListener('click', e => { if (e.target.closest && e.target.closest('.btn, .card, .botCard, .hTab, .sTab')) sfx('ui'); }, true);
+
+// ------------------------------------------------------------------ phone and screen comforts
+// Vibration: only Android lets web pages vibrate, so its setting only shows on touch screens that offer it.
+const canVibrate = 'vibrate' in navigator && matchMedia('(pointer: coarse)').matches;
+function buzz(pattern) {
+  if (!canVibrate || !S.vibrate) return;
+  if (navigator.userActivation && !navigator.userActivation.hasBeenActive) return;   // refused (with a console warning) before the first tap
+  try { navigator.vibrate(pattern); } catch (e) {}
+}
+// Fullscreen: iPhones don't allow it for web pages, so its row only shows where the browser does
+const canFull = !!(document.fullscreenEnabled && document.documentElement.requestFullscreen);
+for (const b of document.querySelectorAll('#sFull .btn')) b.onclick = () => {
+  if (!!+b.dataset.v === !!document.fullscreenElement) return;
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); else document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
+};
+document.addEventListener('fullscreenchange', () => renderSettings());
+// "Turn your phone sideways": only on a phone held upright; it goes when the phone is turned, and OK hides it for good
+const portraitPhone = matchMedia('(pointer: coarse) and (orientation: portrait) and (max-width: 600px)');
+let rotateOff = false;
+try { rotateOff = localStorage.getItem('retroSet.rotateHint') === 'off'; } catch (e) {}
+function updateRotateHint() { $('#rotate').hidden = rotateOff || !portraitPhone.matches; }
+portraitPhone.addEventListener('change', updateRotateHint);
+$('#bRotateOk').onclick = () => { rotateOff = true; try { localStorage.setItem('retroSet.rotateHint', 'off'); } catch (e) {} updateRotateHint(); };
+updateRotateHint();
+
 // ------------------------------------------------------------------ game state
 // state: 'menu', 'play' (waiting for a move), 'think' (the computer choosing its move), 'anim' (a move gliding into
 // place), 'promo' (choosing what a pawn becomes) or 'over'. G is the game (see core.js); sel is the square of the piece
 // picked up, targets its legal moves. vs: null for two players on one device, or { bot (its id), me ('w' or 'b') }.
 let state = 'menu', G = null, sel = -1, targets = [], promoAt = null, vs = null, botRnd = null;
+let pending = null;   // a move chosen but waiting for Confirm (S.confirm): { from, to, promo }
 const BT = BOTS;
 const turnName = c => c === 'w' ? 'White' : 'Black';
 const botOf = () => vs && BT.byId(vs.bot);
@@ -314,13 +423,38 @@ function tryMove(want) {
     glide.push({ obj: onSq[at], to: trayPos(by, taken), hop: 0.05, delay: 0.2, dur: 0.38, shrink: 0.8 });
   }
   sel = -1; targets = []; state = 'anim'; showMarks();
-  animate(glide, () => { G = n; placeAll(G); afterMove(); });
+  animate(glide, () => { G = n; placeAll(G); landed(m); afterMove(); });
   return true;
 }
+// a move arriving: its sound, and on a phone a buzz for a capture and for check
+function landed(m) {
+  const check = !G.result && C.inCheck(G.pos);
+  sfx(m.cap ? 'capture' : m.castle ? 'castle' : m.promo ? 'promo' : 'move');
+  if (check) sfx('check');
+  if (check) buzz([30, 50, 30]); else if (m.cap) buzz(25);
+}
+// With Confirm moves on, a move chosen waits (pending, its squares marked) for the Confirm button; a tap anywhere
+// else drops it. Only your own moves: the computer's and the other player's go straight to tryMove().
+function choose(want) {
+  if (!S.confirm) { tryMove(want); return; }
+  const n = C.play(G, want); if (!n) return;
+  pending = want; sel = -1; targets = [];
+  $('#confirmTxt').textContent = `Play ${n.list[n.list.length - 1].san}?`; $('#confirm').hidden = false; showMarks();
+}
+function dropPending() { if (!pending) return; pending = null; $('#confirm').hidden = true; showMarks(); }
+$('#bConfirm').onclick = () => {
+  const p = pending; if (!p) return;
+  dropPending();
+  if (state !== 'play' || !mine(p.from)) return;
+  if (NET.on && (!NET.peer || NET.link !== 'online')) { toast(`Waiting for ${NET.peerName} to reconnect`); return; }
+  tryMove(p);
+};
+$('#bCancelMove').onclick = dropPending;
 function afterMove() {
   state = G.result ? 'over' : 'play';
   if (S.turn && !vs && !NET.on && state === 'play') cam.base = G.pos.turn === 'w' ? 0 : PI;
   save(); hud(); showMarks();
+  if (G.result) { const me = meCol(), won = G.result.score === '1-0' ? 'w' : G.result.score === '0-1' ? 'b' : ''; sfx(!won ? 'draw' : me && won !== me ? 'lose' : 'win'); }
   if (state === 'over') setTimeout(() => { if (state === 'over' && G.result) showOver(); }, reduceMotion ? 0 : 500);
   else if (botTurn()) startThink();
   if (NET.on) { saveRejoin(); const held = NET.hold; NET.hold = []; for (const m of held) onNet(m); netProcessQueue(); }
@@ -350,7 +484,7 @@ function askPromo(from, to) {
   for (const [k, name] of [['q', 'Queen'], ['r', 'Rook'], ['b', 'Bishop'], ['n', 'Knight']]) {
     const b = document.createElement('button'); b.className = 'btn'; b.type = 'button'; b.dataset.p = k;
     b.append(pieceIcon(k.toUpperCase(), G.pos.turn), name);
-    b.onclick = () => { const p = promoAt; $('#promo').hidden = true; state = 'play'; promoAt = null; tryMove({ ...p, promo: k }); };
+    b.onclick = () => { const p = promoAt; $('#promo').hidden = true; state = 'play'; promoAt = null; choose({ ...p, promo: k }); };
     box.append(b);
   }
   $('#promo').hidden = false;
@@ -369,7 +503,7 @@ function glideTick(dt) {
   GLIDE.t += dt;
   for (const it of GLIDE.items) {
     const k = clamp((GLIDE.t - it.delay) / it.dur, 0, 1), e = ease(k);
-    it.obj.position.set(lerp(it.from.x, it.to[0], e), lerp(it.from.y, it.to[1], e) + Math.sin(PI * k) * it.hop, lerp(it.from.z, it.to[2], e));
+    it.obj.position.set(lerp(it.from.x, it.to[0], e), lerp(it.from.y, it.to[1], e) + (FLAT ? 0 : Math.sin(PI * k) * it.hop), lerp(it.from.z, it.to[2], e));
     if (it.shrink) it.obj.scale.setScalar(lerp(1, it.shrink, e));
   }
   if (GLIDE.t >= GLIDE.end) { const then = GLIDE.then; GLIDE = null; then(); }
@@ -391,10 +525,11 @@ function squareAt(x, y) {
 }
 function tap(s) {
   if (state !== 'play') return;
+  dropPending();
   const mv = targets.filter(m => m.to === s);
   if (sel >= 0 && mv.length) {
     if (NET.on && (!NET.peer || NET.link !== 'online')) { toast(`Waiting for ${NET.peerName} to reconnect`); clearSel(); return; }   // the move would go nowhere
-    if (mv[0].promo) askPromo(sel, s); else tryMove({ from: sel, to: s });
+    if (mv[0].promo && !S.autoQueen) askPromo(sel, s); else choose({ from: sel, to: s, promo: mv[0].promo ? 'q' : undefined });
     return;
   }
   if (mine(s) && s !== sel) select(s); else clearSel();
@@ -406,6 +541,7 @@ canvas.addEventListener('pointerdown', e => {
   canvas.setPointerCapture(e.pointerId); PTR.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (PTR.size === 2) { const [a, b] = [...PTR.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), zoom: cam.zoom }; drag = null; return; }
   const s = squareAt(e.clientX, e.clientY), own = mine(s);
+  if (own) dropPending();
   drag = { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, moved: false, s, own, was: sel === s };
   if (own && !drag.was) select(s);
 });
@@ -436,7 +572,8 @@ addEventListener('keydown', e => {
   if (e.key === 'Escape' && state === 'menu' && screen !== 'home') { $('#mBack').click(); return; }
   if (e.key === 'Escape' && state === 'lobby') { clearRejoin(); toMenu('online'); return; }
   if (e.key !== 'Escape' || state === 'menu') return;
-  if (!$('#chatPop').hidden) $('#chatPop').hidden = true;
+  if (pending) dropPending();
+  else if (!$('#chatPop').hidden) $('#chatPop').hidden = true;
   else if (!$('#promo').hidden) cancelPromo(); else if (!$('#over').hidden) $('#over').hidden = true; else togglePause();
 });
 
@@ -454,9 +591,12 @@ const cam = {
   },
   goal() {
     if (this.mode === 'menu') { const [offX, offY] = this.shift(); return { yaw: this.a, pitch: 0.53, dist: 1.22 * Math.max(1, 0.9 / camera.aspect), offX, offY, ty: -0.02 }; }
-    const v = Math.tan(camera.fov * PI / 360), h = v * camera.aspect;
     const short = innerHeight < 500;   // a phone on its side: more room for the bar along the top and the buttons
-    return { yaw: this.base + this.yawOff, pitch: this.pitch, dist: Math.max(0.34 / h, (short ? 0.37 : 0.3) / v) * this.zoom, offX: 0, offY: short ? 0.03 : 0.02, ty: 0.01 };
+    return { yaw: this.base + this.yawOff, pitch: FLAT ? 1.54 : this.pitch, dist: this.playDist(), offX: 0, offY: short ? 0.03 : 0.02, ty: 0.01 };
+  },
+  playDist() {   // how far back the view sits in a game: far enough for the board to fit, times the zoom
+    const v = Math.tan(camera.fov * PI / 360), h = v * camera.aspect;
+    return Math.max(0.34 / h, (innerHeight < 500 ? 0.37 : 0.3) / v) * this.zoom;
   },
   update(dt) {
     if (this.mode === 'menu' && !reduceMotion) this.a += dt * 0.08;
@@ -527,18 +667,63 @@ function togglePause(open = $('#pause').hidden) {
     disarm();
     $('#bResign').textContent = meCol() ? 'Resign' : `${turnName(G.pos.turn)} resigns`;
     $('#bDraw').textContent = meCol() ? 'Offer a draw' : 'Agree a draw';
-    for (const e of document.querySelectorAll('.onlyLocal')) e.hidden = !!meCol();   // turning the board is for a shared device
-    for (const b of document.querySelectorAll('#sTurn .btn')) b.setAttribute('aria-pressed', String(!!+b.dataset.v === S.turn));
-    renderLook();
+    showSettings($('#setGame'), true);
   }
 }
-// The Menu panel's choice of piece set and finish, stepped through with < and >. (A stand-in until the shop: every
+// The Match tab's choice of piece set and finish, stepped through with < and >. (A stand-in until the locker: every
 // set and finish is free to use.)
 const FINS = SETS.FINISHES;
 function renderLook() { $('#setName').textContent = 'Set: ' + SETS.byId(S.set).name; $('#finName').textContent = 'Finish: ' + SETS.finish(S.finish).name; }
 const stepIn = (list, id, d) => list[(Math.max(0, list.findIndex(x => x.id === id)) + d + list.length) % list.length].id;
 for (const b of document.querySelectorAll('#pkSet .btn')) b.onclick = () => { setLook(stepIn(SETS.LIST, S.set, +b.dataset.d), S.finish); renderLook(); };
 for (const b of document.querySelectorAll('#pkFin .btn')) b.onclick = () => { setLook(S.set, stepIn(FINS, S.finish, +b.dataset.d)); renderLook(); };
+
+// ------------------------------------------------------------------ settings panel
+// One box of tabs and pages (#setBox) serves both the menu's Settings tab and the game's Menu panel, where a Match tab
+// comes first; showSettings() moves it into whichever is open. Each setting is a row of buttons (.seg[data-key], a
+// button's data-v the value it sets), so a new setting is a row in shell.html, a default, and a line in applySetting().
+const SET = { tab: 'game', inGame: false };
+function settingsTab(name) {
+  if (name === 'match' && !SET.inGame) name = 'game';
+  SET.tab = name;
+  for (const t of document.querySelectorAll('.sTab')) { const on = t.dataset.tab === name; t.setAttribute('aria-selected', String(on)); t.tabIndex = on ? 0 : -1; }
+  for (const pg of document.querySelectorAll('.sPage')) pg.classList.toggle('off', pg.dataset.tab !== name);
+}
+function showSettings(host, inGame) {
+  const box = $('#setBox'); host.append(box); box.hidden = false; box.classList.toggle('inGame', inGame); SET.inGame = inGame;
+  settingsTab(inGame ? 'match' : SET.tab); renderSettings();
+}
+function renderSettings() {
+  for (const seg of document.querySelectorAll('#setBox .seg[data-key]')) for (const b of seg.children) b.setAttribute('aria-pressed', String(Number(b.dataset.v) === Number(S[seg.dataset.key])));
+  for (const e of document.querySelectorAll('#setBox .onlyLocal')) e.hidden = SET.inGame && !!meCol();   // turning the board is for a shared device
+  $('#rowVibrate').hidden = !canVibrate; $('#rowFull').hidden = !canFull;
+  for (const b of document.querySelectorAll('#sFull .btn')) b.setAttribute('aria-pressed', String(!!+b.dataset.v === !!document.fullscreenElement));
+  renderLook();
+}
+function applySetting(k) {
+  if (k === 'pixel') resize();
+  else if (k === 'levels' || k === 'dither' || k === 'outline') applyLook();
+  else if (k === 'coords') applyBoard();
+  else if (k === 'flat') refit();
+  else if (k === 'turn') { if (S.turn && G && !vs && !NET.on && state !== 'menu') cam.base = G.pos.turn === 'w' ? 0 : PI; }
+  else if (k === 'volume') { ensureAudio(); sfx('move'); }
+  else if (k === 'confirm' && !S.confirm) dropPending();
+  showMarks();
+}
+for (const seg of document.querySelectorAll('#setBox .seg[data-key]')) for (const b of seg.children) b.onclick = () => {
+  const k = seg.dataset.key, v = Number(b.dataset.v);
+  S[k] = typeof DEFAULTS[k] === 'boolean' ? !!v : v; saveS(); applySetting(k); renderSettings();
+};
+for (const t of document.querySelectorAll('.sTab')) t.onclick = () => settingsTab(t.dataset.tab);
+// left and right step through the settings' tabs while they show
+addEventListener('keydown', e => {
+  if ((e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') || /^(INPUT|TEXTAREA)$/.test(e.target.tagName) || !$('#setBox').offsetParent) return;
+  const tabs = [...document.querySelectorAll('.sTab')].filter(t => t.offsetParent), i = tabs.findIndex(t => t.dataset.tab === SET.tab);
+  settingsTab(tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length].dataset.tab);
+});
+$('#bView').onclick = () => { S.flat = !S.flat; saveS(); refit(); };
+
+// ------------------------------------------------------------------ HUD: the panels' buttons
 // a button that needs a second tap within 3 seconds, for the ones that end the game
 const ARMED = new Map();
 function confirmTap(btn, sure, act) {
@@ -563,10 +748,6 @@ $('#bResign').onclick = e => confirmTap(e.currentTarget, 'Sure? Tap again', () =
   afterMove();
 });
 $('#bQuit').onclick = () => toMenu(NET.on ? 'online' : 'home');
-for (const b of document.querySelectorAll('#sTurn .btn')) b.onclick = () => {
-  S.turn = !!+b.dataset.v; saveS(); togglePause(true);
-  if (S.turn && G) cam.base = G.pos.turn === 'w' ? 0 : PI;
-};
 $('#bPromoCancel').onclick = cancelPromo;
 $('#bAgain').onclick = () => NET.on ? askRematch() : vs ? startCpu() : startLocal();
 $('#bLook').onclick = () => { $('#over').hidden = true; };
@@ -585,12 +766,15 @@ try { Object.assign(M, JSON.parse(localStorage.getItem('retroSet.menu') || '{}')
 M.bot = (BT.byId(M.bot) || BT.byId('barney')).id;   // a bot from before the renaming becomes the nearest new one
 const saveM = () => { try { localStorage.setItem('retroSet.menu', JSON.stringify(M)); } catch (e) {} };
 let screen = 'home';
-const BACK = { cpu: 'home', online: 'home', room: 'online' };   // where Back goes from each screen
+const BACK = { cpu: 'home', online: 'home', room: 'online', settings: 'home' };   // where Back goes from each screen
 function menuGo(name) {
   screen = name;
   for (const sc of document.querySelectorAll('#menuPanel .mScreen')) sc.hidden = sc.id !== 'sc-' + name;
   const sc = $('#sc-' + name);
-  $('#mTop').hidden = name === 'home'; $('#mTitle').textContent = sc.dataset.title || '';
+  const top = name === 'home' || name === 'settings';   // the two tabs along the top; the other screens have a Back bar
+  $('#hTabs').hidden = !top; $('#mTop').hidden = top; $('#mTitle').textContent = sc.dataset.title || '';
+  for (const t of document.querySelectorAll('.hTab')) t.setAttribute('aria-selected', String(t.dataset.go === name));
+  if (name === 'settings') showSettings($('#setHome'), false);
   if (name === 'cpu') renderCpu();
   if (name === 'room') renderRoom();
   if (name === 'home') refreshHome(); else arm();
@@ -633,10 +817,15 @@ function toMenu(to = 'home') {
   if (NET.on) { clearRejoin(); leaveOnline(); }
   state = 'menu'; THINK = null; closePanels(); clearSel();
   cam.mode = 'menu'; cam.a = cam.cur.yaw;
-  $('#hud').hidden = true; $('#lobby').hidden = true; $('#menu').hidden = false;
+  $('#hud').hidden = true; $('#lobby').hidden = true; $('#menu').hidden = false; refit();
   if (to === 'home' && armed) { armed = false; history.back(); }
   menuGo(to); showMarks();
 }
+for (const t of document.querySelectorAll('.hTab')) t.onclick = () => {
+  if (t.dataset.go === screen) return;
+  if (t.dataset.go === 'home' && armed) { armed = false; history.back(); }
+  menuGo(t.dataset.go);
+};
 $('#bLocal').onclick = () => startLocal();
 $('#bCpu').onclick = () => menuGo('cpu');
 $('#bOnline').onclick = () => menuGo('online');
@@ -773,7 +962,7 @@ function startOnline(code, listed = false, rejoin = null) {
   Object.assign(NET, { started: false, games: 0, queue: [], hold: [], again: [false, false], retry: 0, peer: false, peerVer: '', verWarn: '', list: listed, rejoin, drawOffered: false });
   vs = null; THINK = null; menuNote('');
   try { history.replaceState(null, '', '#room=' + code); } catch (e) {}
-  state = 'lobby'; $('#menu').hidden = true; $('#lobby').hidden = false; arm();
+  state = 'lobby'; $('#menu').hidden = true; $('#lobby').hidden = false; arm(); refit();
   $('#lobbyCode').textContent = code; $('#lobbyLink').value = inviteLink();
   $('#lobbyNote').textContent = listed
     ? 'Your room is listed under Open rooms, so friends can join from there. They can also use the link or the code.'
@@ -1037,13 +1226,14 @@ function frame(now) {
   const dt = Math.min(0.05, (now - lastT) / 1000); lastT = now;
   glideTick(dt); thinkTick(now);
   cam.update(dt);
+  if (FLAT) for (const m of PIECES.children) m.rotation.z = cam.cur.yaw;   // flat pictures stay the right way up for the viewer
   renderer.info.reset();
   renderer.setRenderTarget(rt); renderer.render(scene, camera);
   renderer.setRenderTarget(null); renderer.render(postScene, postCam);
   frames++;
 }
 addEventListener('resize', resize);
-resize(); applyLook();
+resize(); applyLook(); refit();
 { const s = loadSaved(); placeAll(s ? s.g : C.newGame()); }   // behind the menu: the game waiting to be resumed, or a fresh set
 menuGo('home');
 requestAnimationFrame(frame);
@@ -1060,8 +1250,10 @@ window.__rs = {
   start2(fen) { startLocal(C.newGame(fen)); },   // a two-player game from a given position
   startCpu(bot, me, fen) { startGame(C.newGame(fen), { bot, me }); },   // a game against a bot, from a given position
   get vs() { return vs; }, set quick(v) { QUICK = !!v; },
-  look(set, fin) { setLook(set, fin); }, sets: SETS.LIST.map(x => x.id), finishes: SETS.FINISHES.map(x => x.id), get tris() { return PIECES.children.reduce((n, m) => n + m.geometry.attributes.position.count / 3, 0); }, icon: (k, c, w, h) => pieceIcon(k, c, w, h).toDataURL(),
+  look(set, fin) { setLook(set, fin); }, sets: SETS.LIST.map(x => x.id), finishes: SETS.FINISHES.map(x => x.id), get tris() { return PIECES.children.reduce((n, m) => n + (m.geometry.index || m.geometry.attributes.position).count / 3, 0); }, icon: (k, c, w, h) => pieceIcon(k, c, w, h).toDataURL(),
   camSet(o) { Object.assign(cam, o); },   // the view in a game: pitch, zoom, yawOff
+  get pending() { return pending ? C.sqName(pending.from) + C.sqName(pending.to) + (pending.promo || '') : ''; }, get flat() { return FLAT; },
+  get soundCount() { return sfxCount; }, soundsFrom(n) { return SFX_LOG.slice(Math.max(0, SFX_LOG.length - (sfxCount - n))); }, get coords() { return boardTop.material.map === BOARD_TEX.on; }, get tab() { return SET.tab; }, get pitch() { return cam.cur.pitch; }, get marks() { return MARKS.children.length; },
   shape(k) { const b = SETS.geo(S.set, k).boundingBox; return { h: b.max.y, w: Math.max(b.max.x - b.min.x, b.max.z - b.min.z), low: b.min.y }; },   // a kind's size in the set in use, in metres
   mask(k) { const c = pieceIcon(k, 'w', 48, 60, true), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let m = ''; for (let i = 3; i < d.length; i += 4) m += d[i] ? 1 : 0; return m; },   // its outline from the front, filling the height, as filled or empty pixels
   get net() { return { on: NET.on, seat: NET.seat, me: NET.me, cid: NET.cid, code: NET.code, peer: NET.peer, link: NET.link, started: NET.started, peerName: NET.peerName, games: NET.games }; },

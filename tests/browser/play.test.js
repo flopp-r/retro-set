@@ -84,10 +84,10 @@ const { chromium, SITE, shot, watch, ok } = require('./lib');
 
   // the view stays put with "Turn the board" off; the back gesture opens and closes the menu panel
   await fresh(START);
-  await p.click('#bMenu'); await p.click('#sTurn [data-v="0"]'); await p.click('#bResumeGame');
+  await p.click('#bMenu'); await p.click('.sTab[data-tab="game"]'); await p.click('#sTurn [data-v="0"]'); await p.click('.sTab[data-tab="match"]'); await p.click('#bResumeGame');
   await move('d2', 'd4');
   ok(await rs(() => window.__rs.S.turn === false && window.__rs.view.base === 0), 'with Turn the board off, the view stays on White\'s side');
-  await p.click('#bMenu'); await p.click('#sTurn [data-v="1"]'); await p.click('#bResumeGame');
+  await p.click('#bMenu'); await p.click('.sTab[data-tab="game"]'); await p.click('#sTurn [data-v="1"]'); await p.click('.sTab[data-tab="match"]'); await p.click('#bResumeGame');
   await p.goBack(); await p.waitForTimeout(200);
   ok(await rs(() => !document.querySelector('#pause').hidden && location.href.startsWith('http')), 'the back gesture opens the menu panel instead of leaving');
   await p.goBack(); await p.waitForTimeout(200);

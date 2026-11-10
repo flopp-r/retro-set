@@ -9,7 +9,8 @@ This file records why Retro Set is the way it is: the decisions and their reason
 - The game is live at https://flopp-r.github.io/retro-set/, served by GitHub Pages from the public repository `github.com/flopp-r/retro-set` (branch `main`, root folder).
 - Stage 1 (two players on one device, the full rules), Stage 2 (ten computer opponents, Torben 100 to Ted 1500) and Stage 3 (online play, as close to Retro Rack's as possible) are built. See section 4.
 - The relay is live: the Cloudflare Worker `retro-set-relay` (on the owner's account, built by Cloudflare Workers Builds from `relay/` on every push to `main`), its address in `config.js`. Its build command is left empty: Cloudflare filled in `npm run build` at first, and the build failed, because the relay has nothing to build.
-- Everything in section 9 (changes shipped) is live. The version shown at the bottom of the menu matches the `BUILD` value in the committed `index.html`.
+- Everything in section 9 (changes shipped) is live, and the owner has tried it and confirmed that it all works, online play included (10 November 2026). The version shown at the bottom of the menu matches the `BUILD` value in the committed `index.html`: 5c35529f.
+- Nothing is waiting to be built. The open decisions are in section 4 and the ideas in section 7.
 
 ---
 
@@ -26,6 +27,7 @@ Personal working preferences are kept in the owner's own Claude Code settings, n
 3. **Stage 2 (7 November 2026):** the computer opponents: an engine, eight named bots from 100 to 1500, and a tool that measures their strength against Stockfish and each other.
 4. **Ten bots with real blunders (7 November 2026):** the owner renamed the bots and asked for ten, and for real blunders as well as middling moves, most at the low levels but still present at the top. Every bot was re-tuned and re-measured.
 5. **Stage 3, online play (9 November 2026):** the owner asked for it "as close to Retro Rack as possible": its relay, screens, Rejoin and checks were ported, with the changes chess needs (section 4).
+6. **The relay goes live (10 November 2026):** the owner made the Cloudflare Worker `retro-set-relay` from the repository's `relay/` folder (Workers & Pages, **Create application**, Import a repository). Its first build failed because Cloudflare had filled in `npm run build` as the build command and the relay has nothing to build; with the build command cleared it built, and its address answered "Retro Set relay is running." The address went into `config.js` (#5), and the owner played online in two tabs and confirmed everything worked.
 
 ---
 
@@ -57,6 +59,7 @@ Personal working preferences are kept in the owner's own Claude Code settings, n
 - **A game in progress is saved after every move** and offered as Resume on the home screen, so a closed tab or a phone call doesn't lose it. Starting a new game replaces it, and the Two players card says so.
 
 **Stage 2: the computer opponents (7 November 2026)**
+- *These were the first eight bots, Pip (100) to Nell (1500). They were renamed and became ten later ("Bots: ten opponents and real blunders", below): Nell's place at 1500 is now Ted's, and Tariq's at 1300 Daws's.*
 - **What the owner asked for:** opponents from 100 to 1500, "very accurate, like chess.com bots". Chosen from the options put to the owner: **eight named bots** at 100, 300, 500, 700, 900, 1100, 1300 and 1500, each with a pixel face and a line about how it plays (15 bots, one every 100 points, was the alternative: twice the faces, and 100 points is hard to feel); **you pick your colour**, Random to start with.
 - **How accurate a rating can be (said to the owner before building):** a rating only means something against a pool of players. Chess.com's, lichess's and FIDE's scales differ, by hundreds of points at the low end, and chess.com's own bots are widely felt not to play like people of their stated rating. Nothing here can match chess.com's numbers without playing chess.com's players. Three ways to anchor the numbers were offered: tune each bot's mistakes to published figures for human players at each rating (most like people, most work), anchor to Stockfish's calibrated strength setting and measure the gaps between bots, or measure the gaps only. **The owner chose Stockfish plus measured gaps.**
 - **The anchor:** Stockfish 19 (stockfish.js, the full single-threaded engine, installed by the tool into a temporary folder, never part of the game, so its GPL licence doesn't touch the game) has a strength setting, `UCI_Elo`, from 1320 up, calibrated by its makers against an engine rating list (CCRL) rather than people. Nell (1500) is tuned to score 50% against it at 1500, and Tariq (1300) 47% against it at 1320 (20 points above him). Below 1320 there's nothing to anchor to, so each lower bot is tuned to score 24% against the bot above (a 200-point gap). The errors add up down the chain, so the lowest bots are the least certain; the margins are in section 5.
@@ -130,6 +133,7 @@ Personal working preferences are kept in the owner's own Claude Code settings, n
 - **Rules:** `tests/core.test.js` (28 tests): perft counts for five standard positions, castling, en passant, promotion, pins, checkmate, stalemate, each draw, resigning, take back, notation and saving, and that the context packs are up to date.
 - **Engine and bots:** `tests/bots.test.js` (18 tests): the cast, blunder chances, the renaming, the knob, the evaluation, mates, captures, what happens without following captures, real blunders, seeds, legal moves, a whole bot game. Their strength: `tools/sim-bots.js` (section 5).
 - **The browser:** headless Chromium (Playwright) with software WebGL (SwiftShader). The page exposes `window.__rs` (state, position, moves, where each square is on the screen and so on) to make scripting easy; the `play` and `cpu` tests play with real mouse taps and drags at those positions. `node tests/browser/run-all.js` runs them all (see `AGENTS.md`, Testing): `file`, `fit`, `play`, `cpu`, `online`, `rejoin` and `app`.
+- **The live relay can't be reached from Claude Code's cloud sessions:** their network refuses `workers.dev` addresses. So the browser tests always use a local relay, and the live one is checked by the owner in a browser (its address should say "Retro Set relay is running.", and two tabs should play each other).
 - **Online:** the real Cloudflare runtime runs locally (`npx wrangler dev`, on port 8797), and the game is opened with `?relay=ws://127.0.0.1:8797` in **separate browser contexts**, so each gets its own client id. After every move both windows' positions and moves must match. Covered: the invite link, colours, a reload, chat, draw offers, Play again, a doctored move, an absent opponent, resigning, duplicated tabs, different versions before and during a game (a copy of the site with its version changed), Rejoin in every case Retro Rack covers.
 - **Software WebGL is slow,** so keep test windows small (about 480×360) unless the size is what's being tested.
 
@@ -141,7 +145,7 @@ Personal working preferences are kept in the owner's own Claude Code settings, n
 - **The computer opponents:** built (Stage 2).
 - **Online play (Stage 3):** built, and live since the relay was set up (10 November 2026).
 - **Possible for online play later:** keeping the game when both players close their apps (each page could save the moves, and Rejoin bring them back; it changes how games start, so both players need the new version); a take-back request; clocks; Retro Rack's ideas box.
-- **Nell's thinking** comes in steps of up to about a tenth of a second (one candidate move searched 3 moves deep at a time), so on a slow phone the picture may stutter while she thinks; the search could pause more often if that shows.
+- **Ted's thinking** comes in steps of up to about a tenth of a second (one candidate move searched 3 moves deep at a time), so on a slow phone the picture may stutter while she thinks; the search could pause more often if that shows.
 - **Possible for the bots later:** more of them (above 1500, or in between); a hint button; the bots saying something now and then (as chess.com's do); tuning the weakest bots to human mistake figures as well, if the owner finds them unlike real beginners.
 - **Small things noticed in Stage 1:** the piece could follow the finger while dragged; sound (a wooden "tock" on a move); a bigger move list on phones.
 - **Still open** are listed in section 4, "Decisions still to make".
@@ -155,6 +159,8 @@ Personal working preferences are kept in the owner's own Claude Code settings, n
 - **Node.js** is needed for `node tools/build.js` and `node tests/core.test.js`. If it's missing, install the LTS version from nodejs.org.
 - **The routine** (details in `AGENTS.md`, "How changes are made"): describe a change; Claude Code explains the options and builds the one chosen on a branch, rebuilds `index.html`, runs the tests and opens a pull request. When the owner says "merge it", it is squash-merged into `main`, and the live site updates a minute or two later (Ctrl+F5 to see it).
 - **Keep it to one change at a time.** Test online changes with the local relay before merging, since both players need the same version.
+- **After a squash-merge,** Claude Code brings its working branch level with `main` by merging `main` into it (the files end up the same) rather than overwriting the branch: force pushes are refused in its cloud sessions.
+- **The relay deploys itself:** Cloudflare Workers Builds rebuilds `retro-set-relay` on each push to `main`. If a relay build fails, its log is under the Worker's Deployments tab in Cloudflare (Copy build log).
 - **To undo a change,** revert it and push the revert, so the site goes back to how it was.
 
 **Suggested first message in a new session:**
@@ -175,3 +181,4 @@ Every change merged into `main`, newest last. The version is the fingerprint sho
 | 7 Nov 2026 | #2 | 4be88115 | Stage 2: eight computer opponents from 100 to 1500 (Pip to Nell), measured against Stockfish and each other; the Vs computer screen, your colour, take back of both moves, draw offers, Resume against the computer. |
 | 7 Nov 2026 | #3 | 35265639 | Ten bots named by the owner (Torben 100 to Ted 1500) that make real blunders as well as middling moves, re-tuned and re-measured: every bot within 30 points of its target. |
 | 9 Nov 2026 | #4 | 5c35529f | Stage 3: online play, as close to Retro Rack's as possible: its relay as a Worker of its own, the Online and New room screens, the waiting room and invite links, every move checked on both screens, reconnecting, Rejoin, the version check, quick chat, draw offers, Play again with the colours swapped. The relay was set up afterwards, its address added in the next change. |
+| 10 Nov 2026 | #5 | 5c35529f (game unchanged) | Online play switched on: the live relay's address (`retro-set-relay` on Cloudflare) in `config.js`. The owner played online and confirmed it all works. |

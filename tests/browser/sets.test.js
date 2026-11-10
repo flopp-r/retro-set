@@ -54,7 +54,7 @@ const { chromium, SITE, shot, watch, ok } = require('./lib');
   ok(c[0] === 'Set: Sci-fi' && c[2] === 'scifi' && c[3] !== 'wood' && c[4] === 3 && c[5] === 1, `> steps to the next set and finish, and the pieces on the table change at once (${c.join(', ')})`);
   for (let k = 0; k < 12; k++) await p.click('#pkFin .btn[data-d="1"]');
   const seen = new Set(); for (let k = 0; k < 12; k++) { await p.click('#pkFin .btn[data-d="-1"]'); seen.add(await rs(() => window.__rs.S.finish)); }
-  ok(seen.size >= 5 && ![...seen].some(f => /^opt/.test(f)), `< and > go round every finish (${[...seen].join(', ')})`);
+  ok(seen.size === i.fins.length, `< and > go round every finish (${[...seen].join(', ')})`);
   await p.click('#pkSet .btn[data-d="-1"]'); await p.click('#pkSet .btn[data-d="-1"]'); await p.click('#pkSet .btn[data-d="-1"]');
   ok(await rs(() => window.__rs.S.set) === 'minimal', '< steps back through the sets');
   await p.screenshot({ path: shot('sets-chooser.png') });

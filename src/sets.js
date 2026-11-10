@@ -285,10 +285,7 @@ function geo(set, kind) {
 // never goes flat black. lit and trimLit: how much of the glow's and the trim's colour shines by itself (0 to 1);
 // shine: a polished surface that catches the lamp (none for matt), gloss how tight its highlights are, spec their colour.
 const FINISHES = [
-  { id: 'classic', name: 'Classic', w: { body: '#efe1c3', trim: '#efe1c3', glow: '#ffc56b' }, b: { body: '#2c2140', trim: '#2c2140', glow: '#6cb8ff', dark: '#0d0816' } },
-  { id: 'optA', name: 'A', trial: true, w: { body: '#efe1c3', trim: '#efe1c3', glow: '#ffc56b' }, b: { body: '#5b5384', trim: '#5b5384', glow: '#6cb8ff', dark: '#0e0b1a' } },
-  { id: 'optB', name: 'B', trial: true, w: { body: '#efe1c3', trim: '#b98a4e', glow: '#ffc56b' }, b: { body: '#2c2140', trim: '#d9b877', glow: '#6cb8ff', dark: '#0d0816' } },
-  { id: 'optC', name: 'C', trial: true, w: { body: '#efe1c3', trim: '#b98a4e', glow: '#ffc56b' }, b: { body: '#4b446e', trim: '#d9b877', glow: '#6cb8ff', dark: '#0c0a18' } },
+  { id: 'classic', name: 'Classic', w: { body: '#efe1c3', trim: '#b98a4e', glow: '#ffc56b' }, b: { body: '#4b446e', trim: '#d9b877', glow: '#6cb8ff', dark: '#0c0a18' } },
   { id: 'wood', name: 'Wood', w: { body: '#edd6a6', trim: '#a8743c', glow: '#ffe9a8' }, b: { body: '#6a3c22', trim: '#2e1a10', glow: '#ff9a4a', dark: '#120905' } },
   { id: 'marble', name: 'Marble', shine: 0.22, w: { body: '#eceae4', trim: '#9aa3ad', glow: '#bfe6ff' }, b: { body: '#3f5550', trim: '#cfae6a', glow: '#8ff0c8', dark: '#07100e' } },
   { id: 'metal', name: 'Metal', shine: 0.6, w: { body: '#c4cbd6', trim: '#eef2f8', glow: '#8fd8ff', gloss: 24 }, b: { body: '#7a5230', trim: '#d9a94a', glow: '#ffb060', gloss: 24, spec: '#ffd9a0', dark: '#140c05' } },

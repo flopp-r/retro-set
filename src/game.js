@@ -533,8 +533,8 @@ function togglePause(open = $('#pause').hidden) {
   }
 }
 // The Menu panel's choice of piece set and finish, stepped through with < and >. (A stand-in until the shop: every
-// set and finish is free to use.) Finishes marked trial are left out.
-const FINS = SETS.FINISHES.filter(f => !f.trial);
+// set and finish is free to use.)
+const FINS = SETS.FINISHES;
 function renderLook() { $('#setName').textContent = 'Set: ' + SETS.byId(S.set).name; $('#finName').textContent = 'Finish: ' + SETS.finish(S.finish).name; }
 const stepIn = (list, id, d) => list[(Math.max(0, list.findIndex(x => x.id === id)) + d + list.length) % list.length].id;
 for (const b of document.querySelectorAll('#pkSet .btn')) b.onclick = () => { setLook(stepIn(SETS.LIST, S.set, +b.dataset.d), S.finish); renderLook(); };

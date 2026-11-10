@@ -37,6 +37,19 @@ button:focus-visible{outline:3px dashed var(--chalk);outline-offset:2px}
 #menu{position:fixed;inset:0;display:flex;align-items:center;justify-content:flex-start;padding:3vh 4vw;pointer-events:none;overflow:hidden}
 #menuPanel{pointer-events:auto;width:min(560px,94vw);max-height:94vh;display:flex;flex-direction:column;overflow:hidden;padding:0}
 #mStage{display:grid;overflow:auto;min-height:0;padding:16px 20px 14px}
+/* tabs: Play and Settings along the top of the menu (#hTabs), and the settings' own tabs (#sTabs), in the menu and in a game */
+#hTabs,#sTabs{display:flex;flex:none;border-bottom:3px solid var(--plum2)}
+#hTabs{padding:0 12px}
+.hTab,.sTab{font-family:'Press Start 2P',monospace;line-height:1;color:var(--paper);opacity:.6;background:none;border:0;border-bottom:4px solid transparent;border-radius:0;margin-bottom:-3px;cursor:pointer;white-space:nowrap}
+.hTab{font-size:12px;padding:15px 14px 11px}.sTab{font-size:9px;padding:10px 10px 8px}
+.hTab:hover,.sTab:hover{opacity:.9}
+.hTab[aria-selected="true"],.sTab[aria-selected="true"]{color:var(--lamp);opacity:1;border-bottom-color:var(--lamp)}
+.hTab:focus-visible,.sTab:focus-visible{outline:3px dashed var(--chalk);outline-offset:-5px}
+#sPages{display:grid;padding-top:12px}
+.sPage{grid-area:1 / 1;min-width:0}.sPage.off{visibility:hidden}
+#setBox:not(.inGame) .sTab[data-tab="match"],#setBox:not(.inGame) .sPage[data-tab="match"]{display:none}
+#setBox .row{grid-template-columns:136px 1fr;gap:2px 12px;margin:0 0 9px}#setBox .note{grid-column:2;font-size:18px;margin:0;max-width:none}#setBox .lbl{padding-top:4px}
+#setBox .seg .btn{padding:7px 9px}
 .mTop{display:flex;align-items:center;gap:14px;padding:14px 20px 0;flex:none}
 #mTitle{font-family:'Press Start 2P',monospace;font-weight:400;font-size:12px;line-height:1.4;color:var(--lamp);margin:0}
 /* Vs computer: the bots, the one picked, your colour */
@@ -117,6 +130,11 @@ input:focus{border-color:var(--chalk)}
 /* panels over the game: Menu (pause), the promotion choice and the result */
 .overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(13,10,28,.45);padding:4vh 4vw;z-index:5}
 .ovPanel{width:min(460px,92vw);max-height:92vh;overflow:auto;padding:20px 22px 18px}
+#pausePanel{width:min(560px,94vw);padding:6px 20px 16px}
+#confirm{position:fixed;left:50%;bottom:52px;transform:translateX(-50%);display:flex;align-items:center;gap:10px;padding:8px 12px;font-size:22px;white-space:nowrap;pointer-events:auto}
+#bConfirm{background:var(--rose);color:var(--ink)}
+#rotate{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(300px,86vw);padding:14px 16px 16px;text-align:center;z-index:8}
+#rotate p{margin:0 0 12px;font-size:22px}
 .ovPanel h2{font-family:'Press Start 2P',monospace;font-weight:400;font-size:16px;color:var(--lamp);margin:0 0 14px}
 .ovPanel .actions{margin-top:14px}
 #pickRow{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 12px}
@@ -153,6 +171,9 @@ input:focus{border-color:var(--chalk)}
   #lobbyPanel{padding:12px 16px}#lobbyCode{font-size:22px;margin:2px 0 6px}#lobbyStatus{font-size:18px;margin-bottom:6px}#lobbyPanel .note{margin-top:6px;font-size:16px}#lobbyPanel .actions{margin-top:8px}
   #chatPop{bottom:44px}
   .ovPanel{padding:12px 16px 12px}.ovPanel h2{font-size:12px;margin-bottom:8px}.ovPanel .row{margin-bottom:6px}#pickRow{margin-bottom:8px}.pickName{font-size:18px}.pick .btn{padding:5px 7px}
+  #pausePanel{padding:2px 14px 10px}.hTab{font-size:10px;padding:10px 12px 7px}.sTab{font-size:8px;padding:8px 9px 6px}#sPages{padding-top:7px}
+  #setBox .row{grid-template-columns:118px 1fr;margin-bottom:5px}#setBox .lbl{font-size:19px;padding-top:2px}#setBox .note{font-size:16px}#setBox .seg .btn{font-size:8px;padding:5px 7px}
+  #confirm{bottom:44px;font-size:19px;padding:5px 9px}
   #overTitle{font-size:16px!important}#overWhy{font-size:20px}
   #promoBtns canvas{width:36px;height:45px}#promoBtns .btn{padding:6px 4px;gap:4px}
 }
@@ -165,6 +186,7 @@ input:focus{border-color:var(--chalk)}
 @media (max-width:440px){
   .pl .plName{display:none}#mid{min-width:0}   /* upright phones: the colour chips say who's who */
   .row{grid-template-columns:1fr}
+  #setBox .row{grid-template-columns:1fr}#setBox .note{grid-column:1}.sTab{padding:10px 7px 8px}#pausePanel{padding:6px 12px 14px}
 }
 @media (prefers-reduced-motion:reduce){.card{transition:none}.card:hover:not(:disabled){transform:none}}
 </style>
@@ -173,6 +195,7 @@ input:focus{border-color:var(--chalk)}
 <canvas id="view" aria-label="3D chess board"></canvas>
 <div id="menu">
   <div id="menuPanel" class="panel">
+    <div id="hTabs" role="tablist" aria-label="Main menu"><button class="hTab" type="button" role="tab" data-go="home" aria-selected="true">Play</button><button class="hTab" type="button" role="tab" data-go="settings" aria-selected="false">Settings</button></div>
     <div class="mTop" id="mTop" hidden><button class="btn" id="mBack" type="button" aria-label="Back">&lt; Back</button><h2 id="mTitle"></h2></div>
     <div id="mStage">
       <section class="mScreen" id="sc-home">
@@ -185,6 +208,7 @@ input:focus{border-color:var(--chalk)}
         </div>
         <p id="ver"></p>
       </section>
+      <section class="mScreen" id="sc-settings" hidden><div id="setHome"></div></section>
       <section class="mScreen" id="sc-online" data-title="Online" hidden>
         <div class="onl">
           <label class="field">Your name <input id="netName" maxlength="14" placeholder="Player" autocomplete="nickname"></label>
@@ -214,28 +238,55 @@ input:focus{border-color:var(--chalk)}
     <div class="pl" id="plB"><span class="chip"></span><span class="plFace"></span><span class="plName">Black</span></div>
   </div>
   <div id="toast" hidden></div>
+  <div id="confirm" class="panel" hidden><span id="confirmTxt"></span><button class="btn" id="bConfirm" type="button">Confirm</button><button class="btn" id="bCancelMove" type="button">Cancel</button></div>
   <div id="movesBox"><h3>Moves</h3><div id="moveList"></div></div>
   <div id="tools">
     <button class="btn" id="bMenu" type="button">Menu</button>
     <button class="btn" id="bUndo" type="button">Take back</button>
     <button class="btn" id="bFlip" type="button" title="Turn the board round">Turn</button>
+    <button class="btn" id="bView" type="button" title="Flat view, like a diagram">2D</button>
     <button class="btn" id="bChat" type="button" title="Quick chat" hidden>Chat</button>
   </div>
 </div>
 <div id="pause" class="overlay" hidden>
-  <div class="panel ovPanel" role="dialog" aria-labelledby="pauseTitle">
-    <h2 id="pauseTitle">Menu</h2>
-    <div class="row onlyLocal"><span class="lbl">Turn the board</span><div class="seg" id="sTurn"><button class="btn" type="button" data-v="1">On</button><button class="btn" type="button" data-v="0">Off</button></div></div>
-    <p class="note onlyLocal">On: after each move the view turns round to the player whose move it is.</p>
-    <div id="pickRow">
-      <div class="pick" id="pkSet"><button class="btn" type="button" data-d="-1" aria-label="Previous piece set">&lt;</button><span class="pickName" id="setName"></span><button class="btn" type="button" data-d="1" aria-label="Next piece set">&gt;</button></div>
-      <div class="pick" id="pkFin"><button class="btn" type="button" data-d="-1" aria-label="Previous finish">&lt;</button><span class="pickName" id="finName"></span><button class="btn" type="button" data-d="1" aria-label="Next finish">&gt;</button></div>
+  <div class="panel ovPanel" id="pausePanel" role="dialog" aria-label="Menu"><div id="setGame"></div></div>
+</div>
+<div id="setBox" hidden>
+  <div id="sTabs" role="tablist" aria-label="Settings"><button class="sTab" type="button" role="tab" data-tab="match" aria-selected="false">Match</button><button class="sTab" type="button" role="tab" data-tab="game" aria-selected="false">Game</button><button class="sTab" type="button" role="tab" data-tab="board" aria-selected="false">Board</button><button class="sTab" type="button" role="tab" data-tab="display" aria-selected="false">Display</button><button class="sTab" type="button" role="tab" data-tab="device" aria-selected="false">Device</button></div>
+  <div id="sPages">
+    <div class="sPage" data-tab="match">
+      <div id="pickRow">
+        <div class="pick" id="pkSet"><button class="btn" type="button" data-d="-1" aria-label="Previous piece set">&lt;</button><span class="pickName" id="setName"></span><button class="btn" type="button" data-d="1" aria-label="Next piece set">&gt;</button></div>
+        <div class="pick" id="pkFin"><button class="btn" type="button" data-d="-1" aria-label="Previous finish">&lt;</button><span class="pickName" id="finName"></span><button class="btn" type="button" data-d="1" aria-label="Next finish">&gt;</button></div>
+      </div>
+      <div id="pauseBtns">
+        <button class="btn" id="bResumeGame" type="button">Resume</button>
+        <button class="btn" id="bDraw" type="button">Agree a draw</button>
+        <button class="btn" id="bResign" type="button">Resign</button>
+        <button class="btn" id="bQuit" type="button">Quit to menu</button>
+      </div>
     </div>
-    <div id="pauseBtns">
-      <button class="btn" id="bResumeGame" type="button">Resume</button>
-      <button class="btn" id="bDraw" type="button">Agree a draw</button>
-      <button class="btn" id="bResign" type="button">Resign</button>
-      <button class="btn" id="bQuit" type="button">Quit to menu</button>
+    <div class="sPage" data-tab="game">
+        <div class="row onlyLocal"><span class="lbl">Turn the board</span><div class="seg" data-key="turn" id="sTurn"><button class="btn" type="button" data-v="1">On</button><button class="btn" type="button" data-v="0">Off</button></div><p class="note">The view turns to whoever moves next.</p></div>
+        <div class="row"><span class="lbl">Move hints</span><div class="seg" data-key="hints"><button class="btn" type="button" data-v="1">On</button><button class="btn" type="button" data-v="0">Off</button></div><p class="note">Dots and rings show where a piece can go.</p></div>
+        <div class="row"><span class="lbl">Always queen</span><div class="seg" data-key="autoQueen"><button class="btn" type="button" data-v="1">On</button><button class="btn" type="button" data-v="0">Off</button></div><p class="note">A pawn reaching the end becomes a queen at once.</p></div>
+        <div class="row"><span class="lbl">Confirm moves</span><div class="seg" data-key="confirm"><button class="btn" type="button" data-v="1">On</button><button class="btn" type="button" data-v="0">Off</button></div><p class="note">Each move waits for a tap on Confirm.</p></div>
+    </div>
+    <div class="sPage" data-tab="board">
+        <div class="row"><span class="lbl">Flat view</span><div class="seg" data-key="flat"><button class="btn" type="button" data-v="1">On</button><button class="btn" type="button" data-v="0">Off</button></div><p class="note">Straight down at flat pictures, like a diagram.</p></div>
+        <div class="row"><span class="lbl">Coordinates</span><div class="seg" data-key="coords"><button class="btn" type="button" data-v="1">On</button><button class="btn" type="button" data-v="0">Off</button></div><p class="note">The letters and numbers round the board.</p></div>
+        <div class="row"><span class="lbl">Last move</span><div class="seg" data-key="lastMove"><button class="btn" type="button" data-v="1">On</button><button class="btn" type="button" data-v="0">Off</button></div><p class="note">The last move's two squares are tinted.</p></div>
+    </div>
+    <div class="sPage" data-tab="display">
+        <div class="row"><span class="lbl">Pixel size</span><div class="seg" data-key="pixel"><button class="btn" type="button" data-v="0">Max</button><button class="btn" type="button" data-v="1">1x</button><button class="btn" type="button" data-v="2">2x</button><button class="btn" type="button" data-v="3">3x</button><button class="btn" type="button" data-v="4">4x</button></div><p class="note">Bigger pixels look chunkier. Max is sharpest.</p></div>
+        <div class="row"><span class="lbl">Colours</span><div class="seg" data-key="levels"><button class="btn" type="button" data-v="256">Full</button><button class="btn" type="button" data-v="32">32</button><button class="btn" type="button" data-v="16">16</button><button class="btn" type="button" data-v="8">8</button></div><p class="note">Shades of each colour. Fewer looks older.</p></div>
+        <div class="row"><span class="lbl">Dithering</span><div class="seg" data-key="dither"><button class="btn" type="button" data-v="1">On</button><button class="btn" type="button" data-v="0">Off</button></div><p class="note">A dot pattern that smooths between few colours.</p></div>
+        <div class="row"><span class="lbl">Outlines</span><div class="seg" data-key="outline"><button class="btn" type="button" data-v="1">On</button><button class="btn" type="button" data-v="0">Off</button></div><p class="note">A dark line round the pieces and the board.</p></div>
+    </div>
+    <div class="sPage" data-tab="device">
+        <div class="row"><span class="lbl">Sound</span><div class="seg" data-key="volume"><button class="btn" type="button" data-v="0">Off</button><button class="btn" type="button" data-v="0.25">25%</button><button class="btn" type="button" data-v="0.5">50%</button><button class="btn" type="button" data-v="0.75">75%</button><button class="btn" type="button" data-v="1">100%</button></div><p class="note">Moves, captures, check and the end of a game.</p></div>
+        <div class="row" id="rowVibrate"><span class="lbl">Vibration</span><div class="seg" data-key="vibrate"><button class="btn" type="button" data-v="1">On</button><button class="btn" type="button" data-v="0">Off</button></div><p class="note">A short buzz for a capture and for check.</p></div>
+        <div class="row" id="rowFull"><span class="lbl">Fullscreen</span><div class="seg" id="sFull"><button class="btn" type="button" data-v="1">On</button><button class="btn" type="button" data-v="0">Off</button></div><p class="note">Hides the browser's bars.</p></div>
     </div>
   </div>
 </div>
@@ -272,6 +323,7 @@ input:focus{border-color:var(--chalk)}
     <div class="actions"><button class="btn" id="bAgain" type="button">Play again</button><button class="btn" id="bLook" type="button">See the board</button><button class="btn" id="bOverMenu" type="button">Main menu</button></div>
   </div>
 </div>
+<div id="rotate" class="panel" role="status" hidden><p>Turn your phone sideways for a bigger board.</p><button class="btn" id="bRotateOk" type="button">OK</button></div>
 <script type="module">__BUNDLE__</script>
 </body>
 </html>

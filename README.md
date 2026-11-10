@@ -32,6 +32,8 @@ GitHub occasionally renames buttons. If something doesn't match exactly, look fo
 
 ## Step 2: Put the relay on Cloudflare
 
+(Done for Retro Set: the relay is live at `https://retro-set-relay.floppr.workers.dev`. These steps are for setting up a copy of your own.)
+
 Online play needs a relay: a tiny program on Cloudflare that passes the moves between the two players. Retro Set has its own, separate from Retro Rack's, so a change to one game can't break the other. You do this once, the same way as for Retro Rack.
 
 1. In the Cloudflare dashboard, open **Workers & Pages** (it may be under **Compute** in the sidebar) and click **Create application** (once just **Create**).
@@ -45,6 +47,8 @@ Online play needs a relay: a tiny program on Cloudflare that passes the moves be
 Cloudflare occasionally renames buttons. If something doesn't match exactly, look for the closest option with the same meaning.
 
 ## Step 3: Connect the game to the relay
+
+(Done for Retro Set: `config.js` holds the address.)
 
 1. On GitHub, open `config.js` in the repository and click the **pencil** icon to edit it.
 2. Paste your relay address between the quotes on the last line, so it looks like this:

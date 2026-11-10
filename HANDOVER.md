@@ -10,7 +10,7 @@ This file records why Retro Set is the way it is: the decisions and their reason
 - Stage 1 (two players on one device, the full rules), Stage 2 (ten computer opponents, Torben 100 to Ted 1500) and Stage 3 (online play, as close to Retro Rack's as possible) are built. See section 4.
 - The relay is live: the Cloudflare Worker `retro-set-relay` (on the owner's account, built by Cloudflare Workers Builds from `relay/` on every push to `main`), its address in `config.js`. Its build command is left empty: Cloudflare filled in `npm run build` at first, and the build failed, because the relay has nothing to build.
 - Everything in section 9 (changes shipped) is live, and the owner has tried it and confirmed that it all works, online play included (10 November 2026). The version shown at the bottom of the menu matches the `BUILD` value in the committed `index.html`: 5c35529f.
-- Nothing is waiting to be built. The open decisions are in section 4 and the ideas in section 7.
+- A second round was agreed on 10 November 2026 (section 4, "The second round"): the pieces and piece sets, then tabbed menus and settings, then a cosmetics shop, then a story mode. Part 1 (the pieces) is built and in a pull request, waiting for the owner to say merge; the rest waits for its questions. Other open decisions are in section 4 and the ideas in section 7.
 
 ---
 
@@ -86,6 +86,19 @@ Personal working preferences are kept in the owner's own Claude Code settings, n
 - **If both players close their apps,** a fresh game starts when they rejoin, as in Retro Rack: the game lives only in the players' open pages. Keeping it would be easy in chess (each page can save the moves) but changes how games start, so it's in the ideas list.
 - **Names in Open rooms** are cleaned by the relay (14 characters, no `<` or `>`), as in Retro Rack, and chat is presets only, so there's nothing to moderate.
 
+**The second round (agreed 10 November 2026)**
+- **What the owner asked for:** the pieces thoroughly improved, because some kinds looked alike, the bishop and the pawn above all and worst on black; other piece shapes, for cosmetics later (an ornate one, a minimalist one and others); a cosmetics shop with five rarities, as in Retro Rack; streamlined menus with tabs instead of long scrolling screens; more settings (gameplay, visuals, comforts); then a single-player story mode against the bots, like Retro Rack's championships. And to be asked as many questions as each part needs before it's built.
+- **The order (the owner's choice):** 1) the pieces and piece sets, 2) tabbed menus and settings, 3) the shop, 4) the story mode; each its own pull request, tried on the live site before the next. The owner had listed the shop before the menus; it was moved after them because the shop is a menu screen and would otherwise be built twice.
+- **Why the bishop and pawn looked alike (found by looking):** both were a ball on a collar on a stem, differing only in height, and the usual view looks down at 54 degrees, which squashes height; the black pieces were so dark that no shading showed, leaving only the outline to read; the bishop had no cut in its head, and the king's cross was about 1 cm wide.
+- **The fix in the shapes:** every kind has one thing no other has (the pawn a plain ball, the bishop a tall pointed head with the cut, the rook battlements, the queen a ring of points, the king a big cross, the knight a horse's head), and this is measured, not judged by eye alone: with outlines drawn at the same height, the pawn and bishop differ in 44% of their outline in the Classic set, and the closest pair in any set (tall pieces on the same kind of stem, such as bishop and king) in 14% or more.
+- **The fix in the light:** two low lights from opposite corners, one warm and one cool, so a piece's upright faces differ from one another; before, every light was overhead and all the side faces were lit alike. The sun was turned down to match, so the board's colours are as they were.
+- **Seven sets (the owner chose all four extras offered):** Classic, Ornate, Minimal, Blocks, Figures (medieval), Sci-fi and Carved (squat).
+- **Shape and finish are separate (the owner's choice):** any set in any finish, so the shop can have dozens of piece looks across five rarities rather than seven. Classic, Wood, Marble, Metal and Neon exist so far, in plain colours; grain and veining could be painted in when the shop is built.
+- **The black pieces' colours (the owner's choice, from pictures of three options):** somewhat lighter, with trim. Black is a mid purple (`#4b446e`, from `#2c2140`) with pale gold trim (`#d9b877`) on the collars, crowns, crosses and the bishop's tip, the parts that tell the kinds apart; white keeps its ivory and gets brown trim (`#b98a4e`) to match. The options not taken: lighter with no trim (cleanest, white unchanged), and staying near-black with the trim (the body was still hard to read).
+- **Until the shop exists** every set and finish is free, chosen in the game's Menu panel with < and >. The shop will take that over and lock what hasn't been earned; the owner knows.
+- **Nothing is sent online:** each player sees their own set on both sides. Showing the other player's set would change the online messages, so it's a question for the shop.
+- **Flagged for later parts:** five piece sets alone can't fill five rarities (Retro Rack has 60 looks), so the shop needs finishes, boards and probably rooms too; a story mode that needs opponents other than the ten bots needs each one measured (about 1½ hours of machine time), never guessed.
+
 **Decisions still to make**
 - **The board and the room:** the square colours and the room are placeholders.
 - **Later extras, if wanted:** clocks, sound, puzzles (as Retro Rack has trick shots), a career against named computer players, looks to earn (boards, piece sets, rooms), a replay of the game move by move.
@@ -96,8 +109,11 @@ Personal working preferences are kept in the owner's own Claude Code settings, n
 
 **The board and pieces** (sizes not checked against the FIDE equipment standards; check those if the set is redesigned)
 - Squares 5.7 cm, a 3 cm border, so the board is 51.6 cm across. A light square at each player's right (h1 and a8).
-- Light squares `#c4a67c`, dark squares `#5a3b78`, the frame `#3a2452`. White pieces `#efe1c3`, black pieces `#2c2140`. The light squares were darkened from `#d8c3a0` because under the lamp they washed out next to the white pieces.
-- Piece heights: king 8.7 cm, queen 7.7, bishop 6.8, knight 6.3, rook 5.3, pawn 4.3. Bases 2.9 cm (pawn) to 3.8 cm (king) across. Pieces taken stand at 80% size.
+- Light squares `#c4a67c`, dark squares `#5a3b78`, the frame `#3a2452`. White pieces `#efe1c3` with trim `#b98a4e`, black pieces `#4b446e` with trim `#d9b877` (the Classic finish; black was `#2c2140` before the redesign). The light squares were darkened from `#d8c3a0` because under the lamp they washed out next to the white pieces.
+- Piece heights in the Classic set: king 9.3 cm, queen 7.8, bishop 7.4, knight 6.7, rook 5.0, pawn 4.3. Bases 2.8 cm (pawn) to 3.8 cm (king) across. Pieces taken stand at 80% size. (Before the redesign: king 8.7, queen 7.7, bishop 6.8, knight 6.3, rook 5.3, pawn 4.3.)
+- The other sets, king / queen / bishop / knight / rook / pawn in cm: Ornate 10.1 / 8.6 / 8.1 / 6.9 / 5.3 / 4.6; Minimal 8.5 / 7.1 / 6.8 / 5.6 / 4.4 / 3.4; Blocks 9.2 / 7.5 / 7.0 / 4.8 / 4.2 / 3.5; Figures 8.8 / 7.5 / 7.2 / 5.9 / 6.4 (with its flag) / 4.6; Sci-fi 9.5 / 7.4 / 7.1 / 5.4 / 4.5 / 3.4; Carved 7.1 / 6.3 / 6.1 / 4.9 / 4.0 / 3.4. The widest piece is the Figures knight, 4.6 cm in a 5.7 cm square.
+- Triangles for all 32 pieces: Classic 11,200, Ornate 22,100, Minimal 5,700, Blocks 3,100, Figures 8,600, Sci-fi 5,600, Carved 5,600.
+- Lights: sky 0.32π, sun 0.17π (0.3π before the corner lights), lamp 0.75π, and the two corner lights 0.16π each from about 23 degrees up.
 
 **The computer opponents** (measured with `tools/sim-bots.js`, 7 November 2026)
 
@@ -132,7 +148,7 @@ Personal working preferences are kept in the owner's own Claude Code settings, n
 
 - **Rules:** `tests/core.test.js` (28 tests): perft counts for five standard positions, castling, en passant, promotion, pins, checkmate, stalemate, each draw, resigning, take back, notation and saving, and that the context packs are up to date.
 - **Engine and bots:** `tests/bots.test.js` (18 tests): the cast, blunder chances, the renaming, the knob, the evaluation, mates, captures, what happens without following captures, real blunders, seeds, legal moves, a whole bot game. Their strength: `tools/sim-bots.js` (section 5).
-- **The browser:** headless Chromium (Playwright) with software WebGL (SwiftShader). The page exposes `window.__rs` (state, position, moves, where each square is on the screen and so on) to make scripting easy; the `play` and `cpu` tests play with real mouse taps and drags at those positions. `node tests/browser/run-all.js` runs them all (see `AGENTS.md`, Testing): `file`, `fit`, `play`, `cpu`, `online`, `rejoin` and `app`.
+- **The browser:** headless Chromium (Playwright) with software WebGL (SwiftShader). The page exposes `window.__rs` (state, position, moves, where each square is on the screen and so on) to make scripting easy; the `play` and `cpu` tests play with real mouse taps and drags at those positions. `node tests/browser/run-all.js` runs them all (see `AGENTS.md`, Testing): `file`, `fit`, `play`, `cpu`, `online`, `rejoin`, `sets` and `app` (278 checks in all).
 - **The live relay can't be reached from Claude Code's cloud sessions:** their network refuses `workers.dev` addresses. So the browser tests always use a local relay, and the live one is checked by the owner in a browser (its address should say "Retro Set relay is running.", and two tabs should play each other).
 - **Online:** the real Cloudflare runtime runs locally (`npx wrangler dev`, on port 8797), and the game is opened with `?relay=ws://127.0.0.1:8797` in **separate browser contexts**, so each gets its own client id. After every move both windows' positions and moves must match. Covered: the invite link, colours, a reload, chat, draw offers, Play again, a doctored move, an absent opponent, resigning, duplicated tabs, different versions before and during a game (a copy of the site with its version changed), Rejoin in every case Retro Rack covers.
 - **Software WebGL is slow,** so keep test windows small (about 480×360) unless the size is what's being tested.
@@ -148,6 +164,8 @@ Personal working preferences are kept in the owner's own Claude Code settings, n
 - **Ted's thinking** comes in steps of up to about a tenth of a second (one candidate move searched 3 moves deep at a time), so on a slow phone the picture may stutter while she thinks; the search could pause more often if that shows.
 - **Possible for the bots later:** more of them (above 1500, or in between); a hint button; the bots saying something now and then (as chess.com's do); tuning the weakest bots to human mistake figures as well, if the owner finds them unlike real beginners.
 - **Small things noticed in Stage 1:** the piece could follow the finger while dragged; sound (a wooden "tock" on a move); a bigger move list on phones.
+- **The second round** (section 4): the pieces and seven sets are built; tabbed menus and settings, the shop and the story mode follow, in that order.
+- **Possible for the pieces later:** grain painted into the Wood finish and veins into Marble; more finishes with the shop; showing the other player's set online; the Figures' faces.
 - **Still open** are listed in section 4, "Decisions still to make".
 - **From Retro Rack, ready to port when wanted:** the menu screens with sliding panels, Settings with tabs, the phone layout, sound and volume, vibration, fullscreen and the sideways hint, the players' ideas box, the career, and the locker of looks.
 

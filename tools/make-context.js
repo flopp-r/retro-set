@@ -12,6 +12,7 @@ const DOCS = ['AGENTS.md', 'HANDOVER.md', 'README.md'];
 const SOURCE = [
   ['src/core.js', 'js', 'The chess rules and the computer player\'s engine. No DOM; also runs in Node for the tests and tools.'],
   ['src/bots.js', 'js', 'The computer opponents: names, faces, blurbs, ratings and settings. No DOM; also runs in Node.'],
+  ['src/sets.js', 'js', 'The piece sets (the shapes of the pieces, built from simple solids) and the finishes (what they are made of). Needs three.js, so browser only.'],
   ['src/game.js', 'js', 'Everything in the browser: rendering, camera, menus and the installable app.'],
   ['src/shell.html', 'html', 'Page markup and CSS. The build fills in the fonts, favicon and code (__PS2P__, __VT323__, __FAVICON__, __BUNDLE__).'],
   ['relay/src/index.js', 'js', 'The Cloudflare Worker relay: a Room Durable Object per room code, and one Lobby for the open-rooms list.'],

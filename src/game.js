@@ -15,9 +15,10 @@ const reduceMotion = window.matchMedia && matchMedia('(prefers-reduced-motion: r
 // pixel: game pixels are this many screen pixels across (0 is Max: one per real screen pixel); levels: shades per
 // colour channel (256 is full colour; fewer turns on the dithering); turn: in a game on one device, the view turns
 // round to the player whose move it is
-const DEFAULTS = { pixel: 1, levels: 256, dither: true, outline: true, turn: true };
+const DEFAULTS = { pixel: 1, levels: 256, dither: true, outline: true, turn: true, set: 'classic', finish: 'classic' };
 const S = { ...DEFAULTS };
 try { Object.assign(S, JSON.parse(localStorage.getItem('retroSet.settings') || '{}')); } catch (e) {}
+S.set = SETS.byId(S.set).id; S.finish = SETS.finish(S.finish).id;
 const saveS = () => { try { localStorage.setItem('retroSet.settings', JSON.stringify(S)); } catch (e) {} };
 
 // ------------------------------------------------------------------ renderer + post
@@ -110,7 +111,10 @@ function canvasTex(w, h, draw) {
 // physically based light units (three.js r155+), as in Retro Rack
 const PI = Math.PI;
 scene.add(new THREE.HemisphereLight(0xb7c0ff, 0x2a1a3a, 0.32 * PI));
-const sun = new THREE.DirectionalLight(0xfff0d8, 0.3 * PI); sun.position.set(0.6, 3, 1.2); scene.add(sun);
+const sun = new THREE.DirectionalLight(0xfff0d8, 0.17 * PI); sun.position.set(0.6, 3, 1.2); scene.add(sun);
+// two low lights from opposite corners, warm and cool, so the upright faces of the pieces differ from one another and
+// their shapes show from either side of the board (the lamp and sun are overhead, and light every side face alike)
+for (const [x, z, col] of [[1, 0.8, 0xffe2c0], [-1, -0.8, 0xc8d4ff]]) { const f = new THREE.DirectionalLight(col, 0.16 * PI); f.position.set(x, 0.55, z); scene.add(f); }
 const lamp = new THREE.PointLight(0xffdca4, 0.75 * PI, 5, 0.43); lamp.position.set(0, 0.7, 0); scene.add(lamp);
 const FLOOR_Y = -0.75;   // the floor reaches past the fog, so its edge never shows
 {
@@ -171,39 +175,12 @@ function showMarks() {
 }
 
 // ------------------------------------------------------------------ pieces
-// Classic (Staunton) shapes, low-poly: each turned on a lathe with 10 flat sides from a profile of [radius, height]
-// pairs in metres, plus a few extra parts (the rook's battlements, the queen's crown points, the king's cross, the
-// knight's head). Heights: king 8.7 cm, queen 7.7, bishop 6.8, knight 6.3, rook 5.3, pawn 4.3.
-const base = rb => [[0, 0], [rb, 0], [rb, 0.004], [rb * 0.86, 0.0065], [rb * 0.86, 0.009], [rb * 0.66, 0.012]];
-const PROFILE = {
-  P: [...base(0.0145), [0.0058, 0.022], [0.0088, 0.0238], [0.0088, 0.0258], [0.0052, 0.0272], [0.0068, 0.0292], [0.0086, 0.0335], [0.0072, 0.0382], [0.0042, 0.0418], [0, 0.0428]],
-  R: [...base(0.016), [0.0098, 0.016], [0.0092, 0.035], [0.0118, 0.0375], [0.0118, 0.04], [0.0124, 0.041], [0.0124, 0.047], [0, 0.047]],
-  B: [...base(0.016), [0.0086, 0.0165], [0.0056, 0.0365], [0.0098, 0.0385], [0.0098, 0.0408], [0.0058, 0.042], [0.0078, 0.0455], [0.0088, 0.0505], [0.0078, 0.0555], [0.0046, 0.0605], [0.0016, 0.0628], [0.0026, 0.0636], [0.0029, 0.0652], [0.0019, 0.067], [0, 0.0676]],
-  Q: [...base(0.018), [0.0098, 0.0175], [0.0062, 0.0425], [0.0108, 0.0452], [0.0108, 0.0478], [0.007, 0.0492], [0.0066, 0.0525], [0.0106, 0.0665], [0.0094, 0.068], [0.0058, 0.0675], [0.004, 0.07], [0.0038, 0.0712], [0.0042, 0.0738], [0.0026, 0.0764], [0, 0.0772]],
-  K: [...base(0.019), [0.0106, 0.0185], [0.0066, 0.0485], [0.0112, 0.0512], [0.0112, 0.0538], [0.0076, 0.0552], [0.007, 0.0582], [0.0096, 0.0705], [0.0086, 0.0718], [0.004, 0.0728], [0, 0.0728]],
-  N: [...base(0.016), [0.0098, 0.0165], [0.0098, 0.0185], [0, 0.0185]],
-};
-// the knight's head seen from the side, facing +x (forwards), from the top of its plinth
-const KNIGHT_HEAD = [[-0.0095, 0], [-0.0105, 0.012], [-0.0088, 0.026], [-0.0058, 0.0335], [-0.0022, 0.0395], [0.0002, 0.0435], [0.0022, 0.0388], [0.0062, 0.0368], [0.0128, 0.0298], [0.0158, 0.0248], [0.0148, 0.0208], [0.0092, 0.0198], [0.0042, 0.0222], [0.0062, 0.0118], [0.0098, 0]];
-const PIECE_GEO = {};   // each kind's parts: [geometry, x, y, z, turn about the upright]
-{
-  for (const k of 'PRBQKN') PIECE_GEO[k] = [[new THREE.LatheGeometry(PROFILE[k].map(([r, y]) => new THREE.Vector2(r, y)), 10), 0, 0, 0, 0]];
-  const merlon = new THREE.BoxGeometry(0.0075, 0.0055, 0.0048);
-  for (let i = 0; i < 4; i++) { const a = PI / 4 + i * PI / 2; PIECE_GEO.R.push([merlon, Math.sin(a) * 0.0098, 0.04975, Math.cos(a) * 0.0098, a]); }
-  const point = new THREE.OctahedronGeometry(0.0019);
-  for (let i = 0; i < 8; i++) { const a = i * PI / 4; PIECE_GEO.Q.push([point, Math.sin(a) * 0.0098, 0.0688, Math.cos(a) * 0.0098, 0]); }
-  PIECE_GEO.K.push([new THREE.BoxGeometry(0.0032, 0.0135, 0.0032), 0, 0.0795, 0, 0], [new THREE.BoxGeometry(0.0098, 0.0032, 0.0032), 0, 0.0813, 0, 0]);
-  const shape = new THREE.Shape(KNIGHT_HEAD.map(([x, y]) => new THREE.Vector2(x, y)));
-  const head = new THREE.ExtrudeGeometry(shape, { depth: 0.011, bevelEnabled: true, bevelThickness: 0.0012, bevelSize: 0.001, bevelSegments: 1, curveSegments: 1 });
-  head.translate(0, 0.0185, -0.0055);
-  PIECE_GEO.N.push([head, 0, 0, 0, 0]);
-}
-const PMAT = { w: new THREE.MeshLambertMaterial({ color: '#efe1c3', flatShading: true }), b: new THREE.MeshLambertMaterial({ color: '#2c2140', emissive: '#0d0816', flatShading: true }) };
+// The shapes and what they're made of come from sets.js: S.set is the piece set in use and S.finish its finish. Each
+// piece is one mesh with a material for the body, the trim and the glow. Every piece faces the other side; knights
+// look to their owner's left and a little forwards, so each player sees the head side on, as in a diagram.
 function makePiece(ch) {
-  const k = C.kind(ch), c = C.colour(ch), g = new THREE.Group();
-  for (const [geo, x, y, z, ry] of PIECE_GEO[k]) { const m = new THREE.Mesh(geo, PMAT[c]); m.position.set(x, y, z); m.rotation.y = ry; g.add(m); }
-  // knights look to their owner's left and a little forwards, so each player sees the head side on, as in a diagram
-  if (k === 'N') g.rotation.y = c === 'w' ? 5 * PI / 6 : -PI / 6;
+  const k = C.kind(ch), c = C.colour(ch), g = new THREE.Mesh(SETS.geo(S.set, k), SETS.mats(S.finish, c));
+  g.rotation.y = k === 'N' ? (c === 'w' ? 5 * PI / 6 : -PI / 6) : c === 'w' ? 0 : PI;
   g.userData.ch = ch;
   return g;
 }
@@ -211,28 +188,44 @@ function makePiece(ch) {
 const trayPos = (by, i) => { const sg = by === 'w' ? 1 : -1; return [sg * (B / 2 + 0.03 + (i >> 3) * 0.032), TABLE_Y, sg * (0.2 - (i & 7) * 0.034)]; };
 const PIECES = new THREE.Group(); scene.add(PIECES);
 let onSq = new Array(64).fill(null);   // the piece standing on each square
+let SHOWN = null;   // the game whose pieces are on the table (also the one behind the menu)
 function placeAll(g) {
-  PIECES.clear(); onSq = new Array(64).fill(null);
+  SHOWN = g; PIECES.clear(); onSq = new Array(64).fill(null);
   for (let s = 0; s < 64; s++) if (g.pos.b[s]) { const m = makePiece(g.pos.b[s]); m.position.set(sqX(s), 0, sqZ(s)); m.userData.sq = s; PIECES.add(m); onSq[s] = m; }
   const n = { w: 0, b: 0 };
   for (const { m } of g.list) if (m.cap) { const by = C.colour(m.p), t = makePiece(m.cap); t.scale.setScalar(0.8); t.position.set(...trayPos(by, n[by]++)); PIECES.add(t); }
 }
-// a little picture of a piece (for the promotion buttons), drawn pixel by pixel from the same profiles
-function pieceIcon(k, c) {
-  const W = 24, H = 30, sc = 330, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
-  const g = cv.getContext('2d'), fill = Array.from({ length: H }, () => new Array(W).fill(false));
-  const inPoly = (x, y, pts) => { let a = false; for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) { const [xi, yi] = pts[i], [xj, yj] = pts[j]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) a = !a; } return a; };
-  const prof = PROFILE[k], body = [...prof.map(([r, y]) => [r, y]), ...prof.slice().reverse().map(([r, y]) => [-r, y])];
-  const parts = [body];
-  if (k === 'N') parts.push(KNIGHT_HEAD.map(([x, y]) => [-x, y + 0.0185]));   // facing left
-  if (k === 'K') parts.push([[-0.0016, 0.072], [0.0016, 0.072], [0.0016, 0.0862], [-0.0016, 0.0862]], [[-0.0049, 0.0797], [0.0049, 0.0797], [0.0049, 0.0829], [-0.0049, 0.0829]]);
-  if (k === 'R') for (const x of [-0.0098, 0, 0.0098]) parts.push([[x - 0.0024, 0.047], [x + 0.0024, 0.047], [x + 0.0024, 0.0525], [x - 0.0024, 0.0525]]);
-  if (k === 'Q') for (const x of [-0.0098, -0.0049, 0, 0.0049, 0.0098]) parts.push([[x - 0.0016, 0.0665], [x + 0.0016, 0.0665], [x, 0.0712]]);
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const px = (x + 0.5 - W / 2) / sc, py = (H - 1 - y + 0.5) / sc; fill[y][x] = parts.some(p => inPoly(px, py, p)); }
+// changes the piece set and finish (ids from sets.js; anything unknown becomes Classic) and sets the table again
+function setLook(set, fin) {
+  S.set = SETS.byId(set).id; S.finish = SETS.finish(fin).id; saveS();
+  if (SHOWN && !GLIDE) placeAll(SHOWN);
+}
+// a little picture of a piece (the promotion buttons), drawn pixel by pixel from the set's own shape seen from the
+// front, in the finish's colours, every kind at the same scale (the king fills the height) unless fit is set
+function pieceIcon(k, c, W = 24, H = 30, fit = false) {
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const g = cv.getContext('2d'), geo = SETS.geo(S.set, k), pos = geo.attributes.position.array, fin = SETS.finish(S.finish)[c];
+  const sc = (H - 2) / SETS.geo(S.set, fit ? k : 'K').boundingBox.max.y, flip = k === 'N' ? -1 : 1;   // fit: this kind fills the height
+  const slot = new Int8Array(W * H).fill(-1), depth = new Float32Array(W * H).fill(Infinity);
+  for (const gr of geo.groups) for (let i = gr.start * 3; i < (gr.start + gr.count) * 3; i += 9) {
+    const X = [0, 3, 6].map(j => W / 2 + flip * pos[i + j] * sc), Y = [0, 3, 6].map(j => H - 1 - pos[i + j + 1] * sc), Z = (pos[i + 2] + pos[i + 5] + pos[i + 8]) / 3;
+    const area = (X[1] - X[0]) * (Y[2] - Y[0]) - (X[2] - X[0]) * (Y[1] - Y[0]);
+    if (Math.abs(area) < 1e-6) continue;
+    for (let y = Math.max(0, Math.floor(Math.min(...Y))); y <= Math.min(H - 1, Math.ceil(Math.max(...Y))); y++) for (let x = Math.max(0, Math.floor(Math.min(...X))); x <= Math.min(W - 1, Math.ceil(Math.max(...X))); x++) {
+      const px = x + 0.5, py = y + 0.5;
+      const u = ((X[1] - px) * (Y[2] - py) - (X[2] - px) * (Y[1] - py)) / area, v = ((X[2] - px) * (Y[0] - py) - (X[0] - px) * (Y[2] - py)) / area;
+      if (u < 0 || v < 0 || u + v > 1 || Z >= depth[y * W + x]) continue;
+      depth[y * W + x] = Z; slot[y * W + x] = gr.materialIndex;
+    }
+  }
+  const cols = [fin.body, fin.trim, fin.glow].map(h => new THREE.Color(h)), at = (x, y) => x < 0 || y < 0 || x >= W || y >= H ? -1 : slot[y * W + x];
+  const pale = cols[0].r * 0.3 + cols[0].g * 0.6 + cols[0].b * 0.1 > 0.4, white = new THREE.Color('#ffffff');
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    const near = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => (fill[y + dy] || [])[x + dx]);
-    if (fill[y][x]) { g.fillStyle = c === 'w' ? (x < W / 2 ? '#fff4dd' : '#efe1c3') : (x < W / 2 ? '#4a3a66' : '#2c2140'); g.fillRect(x, y, 1, 1); }
-    else if (near) { g.fillStyle = c === 'w' ? '#0d0a1c' : '#c9b48f'; g.fillRect(x, y, 1, 1); }
+    const s = at(x, y);
+    if (s >= 0) g.fillStyle = '#' + (x < W / 2 ? cols[s].clone().lerp(white, pale ? 0.35 : 0.14) : cols[s]).getHexString();
+    else if (at(x + 1, y) >= 0 || at(x - 1, y) >= 0 || at(x, y + 1) >= 0 || at(x, y - 1) >= 0) g.fillStyle = pale ? '#0d0a1c' : '#c9b48f';
+    else continue;
+    g.fillRect(x, y, 1, 1);
   }
   return cv;
 }
@@ -536,8 +529,16 @@ function togglePause(open = $('#pause').hidden) {
     $('#bDraw').textContent = meCol() ? 'Offer a draw' : 'Agree a draw';
     for (const e of document.querySelectorAll('.onlyLocal')) e.hidden = !!meCol();   // turning the board is for a shared device
     for (const b of document.querySelectorAll('#sTurn .btn')) b.setAttribute('aria-pressed', String(!!+b.dataset.v === S.turn));
+    renderLook();
   }
 }
+// The Menu panel's choice of piece set and finish, stepped through with < and >. (A stand-in until the shop: every
+// set and finish is free to use.) Finishes marked trial are left out.
+const FINS = SETS.FINISHES.filter(f => !f.trial);
+function renderLook() { $('#setName').textContent = 'Set: ' + SETS.byId(S.set).name; $('#finName').textContent = 'Finish: ' + SETS.finish(S.finish).name; }
+const stepIn = (list, id, d) => list[(Math.max(0, list.findIndex(x => x.id === id)) + d + list.length) % list.length].id;
+for (const b of document.querySelectorAll('#pkSet .btn')) b.onclick = () => { setLook(stepIn(SETS.LIST, S.set, +b.dataset.d), S.finish); renderLook(); };
+for (const b of document.querySelectorAll('#pkFin .btn')) b.onclick = () => { setLook(S.set, stepIn(FINS, S.finish, +b.dataset.d)); renderLook(); };
 // a button that needs a second tap within 3 seconds, for the ones that end the game
 const ARMED = new Map();
 function confirmTap(btn, sure, act) {
@@ -1059,6 +1060,10 @@ window.__rs = {
   start2(fen) { startLocal(C.newGame(fen)); },   // a two-player game from a given position
   startCpu(bot, me, fen) { startGame(C.newGame(fen), { bot, me }); },   // a game against a bot, from a given position
   get vs() { return vs; }, set quick(v) { QUICK = !!v; },
+  look(set, fin) { setLook(set, fin); }, sets: SETS.LIST.map(x => x.id), finishes: SETS.FINISHES.map(x => x.id), get tris() { return PIECES.children.reduce((n, m) => n + m.geometry.attributes.position.count / 3, 0); }, icon: (k, c, w, h) => pieceIcon(k, c, w, h).toDataURL(),
+  camSet(o) { Object.assign(cam, o); },   // the view in a game: pitch, zoom, yawOff
+  shape(k) { const b = SETS.geo(S.set, k).boundingBox; return { h: b.max.y, w: Math.max(b.max.x - b.min.x, b.max.z - b.min.z), low: b.min.y }; },   // a kind's size in the set in use, in metres
+  mask(k) { const c = pieceIcon(k, 'w', 48, 60, true), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let m = ''; for (let i = 3; i < d.length; i += 4) m += d[i] ? 1 : 0; return m; },   // its outline from the front, filling the height, as filled or empty pixels
   get net() { return { on: NET.on, seat: NET.seat, me: NET.me, cid: NET.cid, code: NET.code, peer: NET.peer, link: NET.link, started: NET.started, peerName: NET.peerName, games: NET.games }; },
   send(o) { netSend(o); },   // a raw message, as a modified copy of the game could send
   squareScreen(name) {   // where a square's middle is on the screen, in page pixels

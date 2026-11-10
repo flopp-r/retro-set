@@ -119,6 +119,10 @@ input:focus{border-color:var(--chalk)}
 .ovPanel{width:min(460px,92vw);max-height:92vh;overflow:auto;padding:20px 22px 18px}
 .ovPanel h2{font-family:'Press Start 2P',monospace;font-weight:400;font-size:16px;color:var(--lamp);margin:0 0 14px}
 .ovPanel .actions{margin-top:14px}
+#pickRow{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 12px}
+.pick{display:flex;align-items:center;gap:4px;min-width:0}.pick .btn{padding:7px 8px;font-size:9px}
+.pickName{flex:1;text-align:center;font-size:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media (max-width:520px){#pickRow{grid-template-columns:1fr}}
 #pauseBtns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 #pauseBtns .btn{padding:11px 8px}
 #promo{background:rgba(13,10,28,.25)}
@@ -148,7 +152,7 @@ input:focus{border-color:var(--chalk)}
   #menu .seg .btn{font-size:8px;padding:6px 7px}
   #lobbyPanel{padding:12px 16px}#lobbyCode{font-size:22px;margin:2px 0 6px}#lobbyStatus{font-size:18px;margin-bottom:6px}#lobbyPanel .note{margin-top:6px;font-size:16px}#lobbyPanel .actions{margin-top:8px}
   #chatPop{bottom:44px}
-  .ovPanel{padding:12px 16px 12px}.ovPanel h2{font-size:12px;margin-bottom:8px}.ovPanel .row{margin-bottom:6px}
+  .ovPanel{padding:12px 16px 12px}.ovPanel h2{font-size:12px;margin-bottom:8px}.ovPanel .row{margin-bottom:6px}#pickRow{margin-bottom:8px}.pickName{font-size:18px}.pick .btn{padding:5px 7px}
   #overTitle{font-size:16px!important}#overWhy{font-size:20px}
   #promoBtns canvas{width:36px;height:45px}#promoBtns .btn{padding:6px 4px;gap:4px}
 }
@@ -223,6 +227,10 @@ input:focus{border-color:var(--chalk)}
     <h2 id="pauseTitle">Menu</h2>
     <div class="row onlyLocal"><span class="lbl">Turn the board</span><div class="seg" id="sTurn"><button class="btn" type="button" data-v="1">On</button><button class="btn" type="button" data-v="0">Off</button></div></div>
     <p class="note onlyLocal">On: after each move the view turns round to the player whose move it is.</p>
+    <div id="pickRow">
+      <div class="pick" id="pkSet"><button class="btn" type="button" data-d="-1" aria-label="Previous piece set">&lt;</button><span class="pickName" id="setName"></span><button class="btn" type="button" data-d="1" aria-label="Next piece set">&gt;</button></div>
+      <div class="pick" id="pkFin"><button class="btn" type="button" data-d="-1" aria-label="Previous finish">&lt;</button><span class="pickName" id="finName"></span><button class="btn" type="button" data-d="1" aria-label="Next finish">&gt;</button></div>
+    </div>
     <div id="pauseBtns">
       <button class="btn" id="bResumeGame" type="button">Resume</button>
       <button class="btn" id="bDraw" type="button">Agree a draw</button>

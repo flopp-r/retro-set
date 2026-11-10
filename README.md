@@ -34,11 +34,11 @@ GitHub occasionally renames buttons. If something doesn't match exactly, look fo
 
 Online play needs a relay: a tiny program on Cloudflare that passes the moves between the two players. Retro Set has its own, separate from Retro Rack's, so a change to one game can't break the other. You do this once, the same way as for Retro Rack.
 
-1. In the Cloudflare dashboard, open **Workers & Pages** (it may be under **Compute** in the sidebar) and click **Create**.
+1. In the Cloudflare dashboard, open **Workers & Pages** (it may be under **Compute** in the sidebar) and click **Create application** (once just **Create**).
 2. Choose **Import a repository** and click **Get started**. If asked, give Cloudflare access to the `retro-set` repository (in GitHub's settings for the Cloudflare app, add `retro-set` to the repositories it can see).
 3. Pick the `retro-set` repository.
 4. Set the project name to exactly `retro-set-relay`. It must match the name in `relay/wrangler.jsonc`.
-5. Open the advanced or build settings and set the **Root directory** (sometimes called **Path**) to `relay`. Leave the build command empty, and leave the deploy command as `npx wrangler deploy`.
+5. Open the advanced or build settings and set the **Root directory** (sometimes called **Path**) to `relay`. Leave the build command empty (Cloudflare may fill in `npm run build`: delete it, or the build fails, because the relay has nothing to build), and leave the deploy command as `npx wrangler deploy`.
 6. Click **Save and Deploy** and wait for the build to finish, which takes a minute or two.
 7. Open the new Worker. Its address looks like `https://retro-set-relay.yourname.workers.dev`. Visit that address in your browser; it should say **Retro Set relay is running.**
 

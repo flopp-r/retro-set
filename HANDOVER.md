@@ -8,7 +8,7 @@ This file records why Retro Set is the way it is: the decisions and their reason
 
 - The game is live at https://flopp-r.github.io/retro-set/, served by GitHub Pages from the public repository `github.com/flopp-r/retro-set` (branch `main`, root folder).
 - Stage 1 (two players on one device, the full rules), Stage 2 (ten computer opponents, Torben 100 to Ted 1500) and Stage 3 (online play, as close to Retro Rack's as possible) are built. See section 4.
-- Online play needs the relay: a Cloudflare Worker named `retro-set-relay`, set up by the owner from this repository's `relay/` folder (`README.md`, step 2), with its address in `config.js` (step 3). Until then `config.js` is empty and the Online card says "Not set up yet".
+- The relay is live: the Cloudflare Worker `retro-set-relay` (on the owner's account, built by Cloudflare Workers Builds from `relay/` on every push to `main`), its address in `config.js`. Its build command is left empty: Cloudflare filled in `npm run build` at first, and the build failed, because the relay has nothing to build.
 - Everything in section 9 (changes shipped) is live. The version shown at the bottom of the menu matches the `BUILD` value in the committed `index.html`.
 
 ---
@@ -139,7 +139,7 @@ Personal working preferences are kept in the owner's own Claude Code settings, n
 
 - **Two players on one device, with the full rules:** built (Stage 1).
 - **The computer opponents:** built (Stage 2).
-- **Online play (Stage 3):** built, once the owner has set up the relay.
+- **Online play (Stage 3):** built, and live since the relay was set up (10 November 2026).
 - **Possible for online play later:** keeping the game when both players close their apps (each page could save the moves, and Rejoin bring them back; it changes how games start, so both players need the new version); a take-back request; clocks; Retro Rack's ideas box.
 - **Nell's thinking** comes in steps of up to about a tenth of a second (one candidate move searched 3 moves deep at a time), so on a slow phone the picture may stutter while she thinks; the search could pause more often if that shows.
 - **Possible for the bots later:** more of them (above 1500, or in between); a hint button; the bots saying something now and then (as chess.com's do); tuning the weakest bots to human mistake figures as well, if the owner finds them unlike real beginners.
@@ -174,3 +174,4 @@ Every change merged into `main`, newest last. The version is the fingerprint sho
 | 7 Nov 2026 | #1 | 4e335390 | Stage 1: two players on one device with the full rules; low-poly classic pieces; tap or drag to move; take back, resign, agree a draw; the view turning to the player to move; Resume after a reload. |
 | 7 Nov 2026 | #2 | 4be88115 | Stage 2: eight computer opponents from 100 to 1500 (Pip to Nell), measured against Stockfish and each other; the Vs computer screen, your colour, take back of both moves, draw offers, Resume against the computer. |
 | 7 Nov 2026 | #3 | 35265639 | Ten bots named by the owner (Torben 100 to Ted 1500) that make real blunders as well as middling moves, re-tuned and re-measured: every bot within 30 points of its target. |
+| 9 Nov 2026 | #4 | 5c35529f | Stage 3: online play, as close to Retro Rack's as possible: its relay as a Worker of its own, the Online and New room screens, the waiting room and invite links, every move checked on both screens, reconnecting, Rejoin, the version check, quick chat, draw offers, Play again with the colours swapped. The relay was set up afterwards, its address added in the next change. |

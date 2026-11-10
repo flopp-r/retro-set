@@ -283,13 +283,25 @@ function geo(set, kind) {
 
 // Finishes. For each side (w, b): the body, trim and glow colours, and dark, a little light of its own so a dark piece
 // never goes flat black. lit and trimLit: how much of the glow's and the trim's colour shines by itself (0 to 1);
-// shine: a polished surface that catches the lamp (none for matt), gloss how tight its highlights are, spec their colour.
+// shine: a polished surface that catches the lamp (none for matt), gloss how tight its highlights are, spec their colour;
+// anim: a finish that moves (tick()). The ids and names match the Finish slot in looks.js.
 const FINISHES = [
   { id: 'classic', name: 'Classic', w: { body: '#efe1c3', trim: '#b98a4e', glow: '#ffc56b' }, b: { body: '#4b446e', trim: '#d9b877', glow: '#6cb8ff', dark: '#0c0a18' } },
   { id: 'wood', name: 'Wood', w: { body: '#edd6a6', trim: '#a8743c', glow: '#ffe9a8' }, b: { body: '#6a3c22', trim: '#2e1a10', glow: '#ff9a4a', dark: '#120905' } },
+  { id: 'chalk', name: 'Chalk', w: { body: '#f4f1ea', trim: '#c9c2b4', glow: '#ffffff' }, b: { body: '#474b54', trim: '#25272d', glow: '#aab4c4', dark: '#0a0b0d' } },
+  { id: 'sea', name: 'Sea', w: { body: '#e6f4f7', trim: '#7fc4d8', glow: '#bff2ff' }, b: { body: '#24597f', trim: '#8fd0e8', glow: '#6fe0ff', dark: '#061018' } },
+  { id: 'forest', name: 'Forest', w: { body: '#f1ead0', trim: '#8a9a4a', glow: '#e0f0a0' }, b: { body: '#34633a', trim: '#c9b060', glow: '#b8f08a', dark: '#07100a' } },
   { id: 'marble', name: 'Marble', shine: 0.22, w: { body: '#eceae4', trim: '#9aa3ad', glow: '#bfe6ff' }, b: { body: '#3f5550', trim: '#cfae6a', glow: '#8ff0c8', dark: '#07100e' } },
   { id: 'metal', name: 'Metal', shine: 0.6, w: { body: '#c4cbd6', trim: '#eef2f8', glow: '#8fd8ff', gloss: 24 }, b: { body: '#7a5230', trim: '#d9a94a', glow: '#ffb060', gloss: 24, spec: '#ffd9a0', dark: '#140c05' } },
+  { id: 'ember', name: 'Ember', w: { body: '#f6e6cf', trim: '#d9703a', glow: '#ffc08a' }, b: { body: '#822424', trim: '#ffb347', glow: '#ff7a3a', dark: '#160505' } },
+  { id: 'candy', name: 'Candy', w: { body: '#ffd9e6', trim: '#ffffff', glow: '#fff0a8' }, b: { body: '#2f8578', trim: '#d6fff2', glow: '#a8fff0', dark: '#081816' } },
   { id: 'neon', name: 'Neon', lit: 0.9, trimLit: 0.55, w: { body: '#cfd6e6', trim: '#35e0ff', glow: '#b8fbff' }, b: { body: '#2a2140', trim: '#ff4fb4', glow: '#ffb3e6', dark: '#0b0814' } },
+  { id: 'ice', name: 'Ice', shine: 0.5, w: { body: '#eaf7ff', trim: '#9fdcff', glow: '#ffffff', gloss: 60 }, b: { body: '#2c5490', trim: '#bfe6ff', glow: '#8fd8ff', gloss: 60, dark: '#060c18' } },
+  { id: 'obsidian', name: 'Obsidian', shine: 0.7, w: { body: '#e9dfc9', trim: '#b7a27a', glow: '#fff0c8', gloss: 50 }, b: { body: '#2f2a3c', trim: '#9288b4', glow: '#c8b8ff', gloss: 80, spec: '#cfc8ff', dark: '#0a0810' } },
+  { id: 'royal', name: 'Royal', shine: 0.25, trimLit: 0.25, w: { body: '#f7efdc', trim: '#e0b040', glow: '#fff0a0' }, b: { body: '#45246c', trim: '#f0c048', glow: '#ffd870', dark: '#0c0616' } },
+  { id: 'circuit', name: 'Circuit', lit: 0.9, trimLit: 0.5, w: { body: '#d9dfd6', trim: '#2fd27a', glow: '#8fffc0' }, b: { body: '#24322a', trim: '#39ff8a', glow: '#b8ffd6', dark: '#060a08' } },
+  { id: 'rainbow', name: 'Rainbow', anim: 'rainbow', lit: 0.8, trimLit: 0.5, w: { body: '#f6f2ff', trim: '#ff6f8f', glow: '#ffc56b' }, b: { body: '#2d2746', trim: '#6cb8ff', glow: '#7dffb0', dark: '#0b0814' } },
+  { id: 'molten', name: 'Molten', anim: 'molten', lit: 0.9, trimLit: 0.6, w: { body: '#ffe9c4', trim: '#ffb347', glow: '#fff0a0' }, b: { body: '#33191a', trim: '#ff5a1a', glow: '#ffb060', dark: '#120605' } },
 ];
 const finish = id => FINISHES.find(f => f.id === id) || FINISHES[0];
 const MATS = {};
@@ -306,5 +318,15 @@ function mats(fin, c) {
   }
   return MATS[key];
 }
-return { LIST, FINISHES, byId, finish, geo, mats };
+// The two finishes that move: Rainbow's trim and lights drift round the colours (the two sides half a turn apart), and
+// Molten's glow swells and fades. Slowly: nothing changes faster than about once every three seconds. t in seconds.
+function tick(t) {
+  for (const key in MATS) {
+    const f = finish(key.slice(0, -1)), c = key.slice(-1); if (!f.anim) continue;
+    const [, trim, glow] = MATS[key];
+    if (f.anim === 'rainbow') { const h = (t * 0.05 + (c === 'b' ? 0.5 : 0)) % 1; trim.color.setHSL(h, 0.85, 0.6); trim.emissive.setHSL(h, 0.85, 0.3); glow.color.setHSL((h + 0.15) % 1, 0.9, 0.7); glow.emissive.setHSL((h + 0.15) % 1, 0.9, 0.5); }
+    else { const p = 0.5 + 0.35 * Math.sin(t * 1.3 + (c === 'b' ? 2 : 0)); trim.emissive.set(f[c].trim).multiplyScalar(p); glow.emissive.set(f[c].glow).multiplyScalar(Math.min(1, p + 0.25)); }
+  }
+}
+return { LIST, FINISHES, byId, finish, geo, mats, tick };
 })();

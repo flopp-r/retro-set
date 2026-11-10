@@ -17,7 +17,7 @@ const SOURCE = [
   ['relay/src/index.js', 'js', 'The Cloudflare Worker relay: a Room Durable Object per room code, and one Lobby for the open-rooms list.'],
   ['relay/wrangler.jsonc', 'jsonc', 'Relay settings: Worker name, Durable Object bindings and migrations.'],
   ['relay/package.json', 'json', 'The relay\'s packages (Wrangler).'],
-  ['config.js', 'js', 'The relay address (empty until the relay is set up).'],
+  ['config.js', 'js', 'The live relay address.'],
   ['sw.js', 'js', 'Service worker for the installable app (network first).'],
   ['manifest.webmanifest', 'json', 'App name, colours and icons.'],
   ['package.json', 'json', 'npm shortcuts for the commands.'],

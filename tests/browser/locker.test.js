@@ -43,7 +43,8 @@ async function until(fn, ms = 15000) { const t = Date.now(); while (Date.now() -
   ok(!(await p.isVisible('#openBox')) && !(await p.isVisible('#reelScreen')) && (await rs(() => document.querySelectorAll('#held .chip2').length)) === 0 && /No cases or keys/.test(await txt('#held')), 'Esc closes it, and the locker says there are no cases or keys left');
 
   // --- trying a look on, and Equip
-  await rs(() => window.__rs.lockerEdit(x => { for (const k of ['board:ocean', 'board:lava', 'set:blocks', 'marks:arrow', 'fx:sparks', 'room:library']) x.owned[k] = 1; x.owned['board:ocean'] = 3; x.wear = { set: 'classic', finish: 'classic', board: 'standard', room: 'parlour', fx: 'none', avatar: 'plain', marks: 'standard' }; }));
+  await rs(() => window.__rs.lockerEdit(x => { for (const k in x.owned) if (k.startsWith('board:') && k !== 'board:standard') delete x.owned[k];   // a board the case above may have given
+    for (const k of ['board:ocean', 'board:lava', 'set:blocks', 'marks:arrow', 'fx:sparks', 'room:library']) x.owned[k] = 1; x.owned['board:ocean'] = 3; x.wear = { set: 'classic', finish: 'classic', board: 'standard', room: 'parlour', fx: 'none', avatar: 'plain', marks: 'standard' }; }));
   await p.click('.hTab[data-go="home"]'); await p.click('.hTab[data-go="cos"]');
   await p.click('#slotGrid .tile[data-slot="board"]'); await p.waitForTimeout(100);
   ok((await tiles('#itemGrid .tile')).join() === 'Standard,Ocean,Lava' && await rs(() => document.querySelector('.tile[data-item="board:ocean"] .tNum').textContent) === '×3', 'the looks owned are listed in the catalogue\'s order, a duplicate with its count');

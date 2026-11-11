@@ -14,7 +14,7 @@ const { chromium, SITE, shot, watch, ok } = require('./lib');
   await p.goto(SITE.new); await p.waitForTimeout(1200);
   // --- the menu's tabs
   let i = await rs(() => ({ tabs: [...document.querySelectorAll('.hTab')].map(t => t.textContent + (t.getAttribute('aria-selected') === 'true' ? '*' : '')), cards: document.querySelector('#bLocal').offsetParent !== null }));
-  ok(i.tabs.join() === 'Play*,Settings' && i.cards, `the menu has Play and Settings along the top, Play first (${i.tabs.join(', ')})`);
+  ok(i.tabs.join() === 'Play*,Cosmetics,Settings' && i.cards, `the menu has Play, Cosmetics and Settings along the top, Play first (${i.tabs.join(', ')})`);
   await p.click('.hTab[data-go="settings"]'); await p.waitForTimeout(150);
   ok((await shown('.sTab')).join() === 'game,board,display,device' && (await shown('.sPage')).join() === 'game', `Settings has four tabs of its own, opening on Game (${(await shown('.sTab')).join(', ')})`);
   for (const t of ['board', 'display', 'device']) { await p.click(`.sTab[data-tab="${t}"]`); ok((await shown('.sPage')).join() === t, `the ${t} tab shows its page and hides the others`); }

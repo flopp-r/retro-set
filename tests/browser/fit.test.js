@@ -1,4 +1,4 @@
-// Every screen fits without scrolling at phone, tablet and computer sizes, including a phone on its side (762x341): the home screen (with and without a game to resume), every Settings tab, Vs computer, Online, New room, the waiting room, the game's bar and buttons, the Confirm bar, and every tab of the game's Menu panels (menu, promotion, result, a draw offer, quick chat).
+// Every screen fits without scrolling at phone, tablet and computer sizes, including a phone on its side (762x341): the home screen (with and without a game to resume), every Settings tab, the Cosmetics tab (the locker, opening a case, the shop, a full slot), Vs computer, Online, New room, the waiting room, the game's bar and buttons, the Confirm bar, and every tab of the game's Menu panels (menu, promotion, result, a draw offer, quick chat).
 const { chromium, SITE, RELAY, shot, watch, ok } = require('./lib');   // over http: the checks reload the page, and storage must carry over
 const overlap = (a, b) => a && b && a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1;
 (async () => {
@@ -28,6 +28,25 @@ const overlap = (a, b) => a && b && a.left < b.right - 1 && b.left < a.right - 1
       ok(good(r) && good(r2), say({ ...r, on: r2.on }, `Settings, ${t}`));
     }
     if (w === 762) await p.screenshot({ path: shot('fit-settings-phone.png') });
+    await p.click('.hTab[data-go="home"]'); await p.waitForTimeout(150);
+    // Cosmetics: the locker, the case-opening panel and its prize, the shop, and a slot with every look in it
+    await p.click('.hTab[data-go="cos"]'); await p.waitForTimeout(150);
+    r = await fits('#mStage'); r2 = await fits('#menuPanel');
+    ok(good(r) && good(r2), say({ ...r, on: r2.on }, 'Cosmetics, the locker'));
+    if (w === 762) await p.screenshot({ path: shot('fit-locker-phone.png') });
+    await p.click('#held .chip2[data-grade="silver"]'); await p.waitForTimeout(100);
+    r = await fits('#openPanel'); ok(good(r) && await p.isVisible('#openBox'), say(r, 'opening a case'));
+    await p.click('#bOpen'); await p.waitForTimeout(150);
+    r = await fits('#openPanel'); ok(good(r) && await p.isVisible('#prize'), say(r, 'a case\'s prize'));
+    await p.click('#bOpenClose');
+    await p.click('.cTab[data-c="shop"]'); await p.waitForTimeout(100);
+    for (const buy of ['case:bronze', 'case:lucky', 'key:marks']) { await p.click(`.tile[data-buy="${buy}"]`); r = await fits('#mStage'); r2 = await fits('#menuPanel'); ok(good(r) && good(r2), say({ ...r, on: r2.on }, `the shop, ${buy}`)); }
+    if (w === 762) await p.screenshot({ path: shot('fit-shop-phone.png') });
+    await p.evaluate(() => window.__rs.lockerEdit(l => { for (const it of window.__rs.LK.ITEMS) l.owned[it.key] = 2; }));
+    await p.click('.cTab[data-c="locker"]'); await p.click('#slotGrid .tile[data-slot="finish"]'); await p.waitForTimeout(100);
+    r = await fits('#mStage'); r2 = await fits('#menuPanel');
+    ok(good(r) && good(r2) && (await p.evaluate(() => document.querySelectorAll('#itemGrid .tile').length)) === 16, say({ ...r, on: r2.on }, 'a slot with all sixteen of its looks'));
+    if (w === 762) await p.screenshot({ path: shot('fit-slot-phone.png') });
     await p.click('.hTab[data-go="home"]'); await p.waitForTimeout(150);
     // Vs computer: the eight bots, the line about the one picked, your colour and Play
     await p.click('#bCpu'); await p.waitForTimeout(200);

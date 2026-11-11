@@ -47,6 +47,39 @@ button:focus-visible{outline:3px dashed var(--chalk);outline-offset:2px}
 .hTab:focus-visible,.sTab:focus-visible{outline:3px dashed var(--chalk);outline-offset:-5px}
 #sPages{display:grid;padding-top:12px}
 .sPage{grid-area:1 / 1;min-width:0}.sPage.off{visibility:hidden}
+/* cosmetics: the locker (what's worn in each slot, the cases and keys in hand), one slot's looks, and the shop */
+#cTabs{display:flex;align-items:flex-end;border-bottom:3px solid var(--plum2)}
+#coins{margin-left:auto;padding:0 2px 6px;font-size:22px;color:var(--lamp);white-space:nowrap}#coins::before{content:'\25CF  ';color:#ffd76a}
+#cPages{padding-top:10px}
+.cHead{font-family:'Press Start 2P',monospace;font-size:8px;color:var(--lamp);opacity:.8;margin:8px 0 5px}
+#slotGrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+#itemGrid{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:6px;min-height:156px;align-content:start}
+#shopCases{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}#shopKeys{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:6px}
+.tile{position:relative;display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0;padding:5px 2px 4px;font:inherit;color:var(--paper);background:var(--plum);border:3px solid var(--ink);border-radius:0;cursor:pointer;box-shadow:inset -3px -3px 0 rgba(0,0,0,.35),inset 3px 3px 0 rgba(255,255,255,.1)}
+.tile:hover{background:var(--plum2)}.tile[aria-pressed="true"]{background:var(--plum2);outline:3px solid var(--lamp);outline-offset:-3px}
+.tile canvas,.tile img{width:48px;height:45px;image-rendering:pixelated;flex:none}
+.tile .tName{font-size:16px;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.tile .tSlot{font-family:'Press Start 2P',monospace;font-size:6px;color:var(--lamp);white-space:nowrap}
+.tile .tNum{position:absolute;top:1px;right:3px;font-size:15px;line-height:1;color:var(--lamp)}.tile .tSlot~.tNum{top:15px;text-shadow:1px 1px 0 var(--ink)}
+.tile.worn::after{content:'\2713';position:absolute;top:0;left:3px;font-size:17px;line-height:1;color:#7dffb0}
+#held{display:flex;flex-wrap:wrap;gap:5px}
+.chip2{display:flex;align-items:center;gap:4px;padding:3px 6px 3px 3px;font:inherit;font-size:18px;line-height:1;color:var(--paper);background:var(--plum);border:3px solid var(--ink);border-radius:0;cursor:pointer}
+.chip2 canvas{width:24px;height:24px;image-rendering:pixelated}.chip2:hover{background:var(--plum2)}.chip2.none{opacity:.4}
+button.chip2:disabled{cursor:default}
+.cBar{display:flex;align-items:center;gap:12px;margin:0 0 8px}#slotTitle{font-size:22px;color:var(--lamp)}
+.cFoot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px;min-height:34px}
+#itemInfo,#shopInfo{font-size:19px;line-height:1.05}
+#bEquip,#bBuy,#bOpen{background:var(--rose);color:var(--ink)}#bEquip:disabled,#bBuy:disabled,#bOpen:disabled{background:var(--plum)}
+#gift{margin:0;font-size:18px;color:#7dffb0}
+#overEarn{font-size:20px;color:#7dffb0;margin:6px 0 0}
+#openPanel{width:min(520px,94vw)}
+#openKeys .btn[aria-pressed="true"]{background:var(--lamp);color:var(--ink)}
+#reel{position:relative;height:74px;overflow:hidden;border:3px solid var(--plum2);background:var(--ink);margin:4px 0 0}
+#reelStrip{position:absolute;left:0;top:4px;display:flex;gap:4px;will-change:transform}
+.reelTile{flex:none;width:60px;height:60px;display:flex;align-items:center;justify-content:center;border:3px solid var(--ink)}.reelTile canvas{width:48px;height:45px;image-rendering:pixelated}
+#reelMark{position:absolute;left:50%;top:0;bottom:0;width:3px;margin-left:-1px;background:var(--lamp)}
+#prize{display:flex;align-items:center;gap:14px;margin:6px 0 0}#prizePic{width:96px;height:90px;image-rendering:pixelated;border:3px solid var(--ink);flex:none}
+#prizeName{font-family:'Press Start 2P',monospace;font-size:13px;line-height:1.4}#prizeNote{font-size:21px;margin-top:4px}
 #setBox:not(.inGame) .sTab[data-tab="match"],#setBox:not(.inGame) .sPage[data-tab="match"]{display:none}
 #setBox .row{grid-template-columns:136px 1fr;gap:2px 12px;margin:0 0 9px}#setBox .note{grid-column:2;font-size:18px;margin:0;max-width:none}#setBox .lbl{padding-top:4px}
 #setBox .seg .btn{padding:7px 9px}
@@ -97,7 +130,8 @@ input:focus{border-color:var(--chalk)}
 .card:disabled{opacity:.5;cursor:default}
 .cardName{font-family:'Press Start 2P',monospace;font-size:11px;line-height:1.3;color:var(--lamp);white-space:nowrap}
 .cardTxt{font-size:18px;line-height:1;opacity:.72}
-#ver{margin:12px 0 0;font-size:16px;opacity:.5}
+#homeFoot{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:0 14px;margin:12px 0 0}
+#ver{margin:0;font-size:16px;opacity:.5}
 /* in a game: the players and whose move it is along the top, the moves on the right, the buttons bottom left */
 #hud{position:fixed;inset:0;pointer-events:none}
 #bar{position:fixed;top:8px;left:50%;transform:translateX(-50%);display:flex;gap:8px;align-items:stretch}
@@ -137,10 +171,6 @@ input:focus{border-color:var(--chalk)}
 #rotate p{margin:0 0 12px;font-size:22px}
 .ovPanel h2{font-family:'Press Start 2P',monospace;font-weight:400;font-size:16px;color:var(--lamp);margin:0 0 14px}
 .ovPanel .actions{margin-top:14px}
-#pickRow{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 12px}
-.pick{display:flex;align-items:center;gap:4px;min-width:0}.pick .btn{padding:7px 8px;font-size:9px}
-.pickName{flex:1;text-align:center;font-size:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-@media (max-width:520px){#pickRow{grid-template-columns:1fr}}
 #pauseBtns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 #pauseBtns .btn{padding:11px 8px}
 #promo{background:rgba(13,10,28,.25)}
@@ -159,7 +189,7 @@ input:focus{border-color:var(--chalk)}
   .card{padding:6px 9px;gap:4px}.cardName{font-size:9px}.cardTxt{font-size:16px}
   #bResume{font-size:10px;padding:9px 12px}.quickRow>.btn{margin-bottom:8px}
   .note{font-size:18px}
-  #ver{margin-top:6px;font-size:15px}
+  #homeFoot{margin-top:6px}#ver{font-size:15px}
   .mTop{padding:8px 14px 0}
   .botGrid{gap:5px}.botCard{padding:4px 3px;gap:2px;flex-direction:row;justify-content:center}.botCard .portrait{height:22px;width:auto}.botName{font-size:7px}.botElo{font-size:15px}
   #botBlurb{font-size:16px;margin:5px 0 4px;min-height:0}
@@ -170,10 +200,14 @@ input:focus{border-color:var(--chalk)}
   #menu .seg .btn{font-size:8px;padding:6px 7px}
   #lobbyPanel{padding:12px 16px}#lobbyCode{font-size:22px;margin:2px 0 6px}#lobbyStatus{font-size:18px;margin-bottom:6px}#lobbyPanel .note{margin-top:6px;font-size:16px}#lobbyPanel .actions{margin-top:8px}
   #chatPop{bottom:44px}
-  .ovPanel{padding:12px 16px 12px}.ovPanel h2{font-size:12px;margin-bottom:8px}.ovPanel .row{margin-bottom:6px}#pickRow{margin-bottom:8px}.pickName{font-size:18px}.pick .btn{padding:5px 7px}
+  .ovPanel{padding:12px 16px 12px}.ovPanel h2{font-size:12px;margin-bottom:8px}.ovPanel .row{margin-bottom:6px}
   #pausePanel{padding:2px 14px 10px}.hTab{font-size:10px;padding:10px 12px 7px}.sTab{font-size:8px;padding:8px 9px 6px}#sPages{padding-top:7px}
   #setBox .row{grid-template-columns:118px 1fr;margin-bottom:5px}#setBox .lbl{font-size:19px;padding-top:2px}#setBox .note{font-size:16px}#setBox .seg .btn{font-size:8px;padding:5px 7px}
   #confirm{bottom:44px;font-size:19px;padding:5px 9px}
+  #cPages{padding-top:6px}.cHead{margin:5px 0 3px}.tile{padding:3px 2px 2px;gap:1px}.tile canvas,.tile img{width:40px;height:37px}.tile .tName{font-size:14px}
+  #itemGrid{min-height:126px}.chip2{font-size:16px;padding:2px 5px 2px 2px}.chip2 canvas{width:20px;height:20px}.cFoot{margin-top:5px;min-height:28px}#itemInfo,#shopInfo{font-size:16px}
+  .cBar{margin-bottom:5px}#slotTitle{font-size:18px}#gift{font-size:15px}#coins{font-size:18px;padding-bottom:4px}
+  #reel{height:62px}.reelTile{width:50px;height:50px}.reelTile canvas{width:40px;height:37px}#prizePic{width:64px;height:60px}#prizeName{font-size:10px}#prizeNote{font-size:17px}
   #overTitle{font-size:16px!important}#overWhy{font-size:20px}
   #promoBtns canvas{width:36px;height:45px}#promoBtns .btn{padding:6px 4px;gap:4px}
 }
@@ -186,6 +220,8 @@ input:focus{border-color:var(--chalk)}
 @media (max-width:440px){
   .pl .plName{display:none}#mid{min-width:0}   /* upright phones: the colour chips say who's who */
   .row{grid-template-columns:1fr}
+  #slotGrid{grid-template-columns:repeat(4,minmax(0,1fr))}#itemGrid{grid-template-columns:repeat(4,minmax(0,1fr))}#shopCases{grid-template-columns:repeat(3,minmax(0,1fr))}#shopKeys{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .hTab{font-size:10px;padding:13px 8px 10px}
   #setBox .row{grid-template-columns:1fr}#setBox .note{grid-column:1}.sTab{padding:10px 7px 8px}#pausePanel{padding:6px 12px 14px}
 }
 @media (prefers-reduced-motion:reduce){.card{transition:none}.card:hover:not(:disabled){transform:none}}
@@ -195,7 +231,7 @@ input:focus{border-color:var(--chalk)}
 <canvas id="view" aria-label="3D chess board"></canvas>
 <div id="menu">
   <div id="menuPanel" class="panel">
-    <div id="hTabs" role="tablist" aria-label="Main menu"><button class="hTab" type="button" role="tab" data-go="home" aria-selected="true">Play</button><button class="hTab" type="button" role="tab" data-go="settings" aria-selected="false">Settings</button></div>
+    <div id="hTabs" role="tablist" aria-label="Main menu"><button class="hTab" type="button" role="tab" data-go="home" aria-selected="true">Play</button><button class="hTab" type="button" role="tab" data-go="cos" aria-selected="false">Cosmetics</button><button class="hTab" type="button" role="tab" data-go="settings" aria-selected="false">Settings</button></div>
     <div class="mTop" id="mTop" hidden><button class="btn" id="mBack" type="button" aria-label="Back">&lt; Back</button><h2 id="mTitle"></h2></div>
     <div id="mStage">
       <section class="mScreen" id="sc-home">
@@ -206,7 +242,29 @@ input:focus{border-color:var(--chalk)}
           <button class="card" type="button" id="bCpu"><span class="cardName">Vs computer</span><span class="cardTxt">Ten opponents</span></button>
           <button class="card" type="button" id="bOnline"><span class="cardName">Online</span><span class="cardTxt">Rooms and invite links</span></button>
         </div>
-        <p id="ver"></p>
+        <div id="homeFoot"><p id="ver"></p><p id="gift" role="status" hidden></p></div>
+      </section>
+      <section class="mScreen" id="sc-cos" hidden>
+        <div id="cTabs"><button class="sTab cTab" type="button" data-c="locker" aria-selected="true">Locker</button><button class="sTab cTab" type="button" data-c="shop" aria-selected="false">Shop</button><span id="coins" title="Coins"></span></div>
+        <div id="cPages">
+          <div class="cPage" id="cLocker">
+            <div id="slotGrid"></div>
+            <div class="cHead">Unopened</div>
+            <div id="held"></div>
+          </div>
+          <div class="cPage" id="cSlot" hidden>
+            <div class="cBar"><button class="btn" id="bSlotBack" type="button">&lt; Locker</button><span id="slotTitle"></span></div>
+            <div id="itemGrid"></div>
+            <div class="cFoot"><span id="itemInfo"></span><button class="btn" id="bEquip" type="button">Equip</button></div>
+          </div>
+          <div class="cPage" id="cShop" hidden>
+            <div class="cHead">Cases</div>
+            <div id="shopCases"></div>
+            <div class="cHead">Keys</div>
+            <div id="shopKeys"></div>
+            <div class="cFoot"><span id="shopInfo"></span><button class="btn" id="bBuy" type="button">Buy</button></div>
+          </div>
+        </div>
       </section>
       <section class="mScreen" id="sc-settings" hidden><div id="setHome"></div></section>
       <section class="mScreen" id="sc-online" data-title="Online" hidden>
@@ -255,10 +313,6 @@ input:focus{border-color:var(--chalk)}
   <div id="sTabs" role="tablist" aria-label="Settings"><button class="sTab" type="button" role="tab" data-tab="match" aria-selected="false">Match</button><button class="sTab" type="button" role="tab" data-tab="game" aria-selected="false">Game</button><button class="sTab" type="button" role="tab" data-tab="board" aria-selected="false">Board</button><button class="sTab" type="button" role="tab" data-tab="display" aria-selected="false">Display</button><button class="sTab" type="button" role="tab" data-tab="device" aria-selected="false">Device</button></div>
   <div id="sPages">
     <div class="sPage" data-tab="match">
-      <div id="pickRow">
-        <div class="pick" id="pkSet"><button class="btn" type="button" data-d="-1" aria-label="Previous piece set">&lt;</button><span class="pickName" id="setName"></span><button class="btn" type="button" data-d="1" aria-label="Next piece set">&gt;</button></div>
-        <div class="pick" id="pkFin"><button class="btn" type="button" data-d="-1" aria-label="Previous finish">&lt;</button><span class="pickName" id="finName"></span><button class="btn" type="button" data-d="1" aria-label="Next finish">&gt;</button></div>
-      </div>
       <div id="pauseBtns">
         <button class="btn" id="bResumeGame" type="button">Resume</button>
         <button class="btn" id="bDraw" type="button">Agree a draw</button>
@@ -275,6 +329,7 @@ input:focus{border-color:var(--chalk)}
     <div class="sPage" data-tab="board">
         <div class="row"><span class="lbl">Flat view</span><div class="seg" data-key="flat"><button class="btn" type="button" data-v="1">On</button><button class="btn" type="button" data-v="0">Off</button></div><p class="note">Straight down at flat pictures, like a diagram.</p></div>
         <div class="row"><span class="lbl">Coordinates</span><div class="seg" data-key="coords"><button class="btn" type="button" data-v="1">On</button><button class="btn" type="button" data-v="0">Off</button></div><p class="note">The letters and numbers round the board.</p></div>
+        <div class="row"><span class="lbl">My set only</span><div class="seg" data-key="mySet"><button class="btn" type="button" data-v="1">On</button><button class="btn" type="button" data-v="0">Off</button></div><p class="note">Online, both sides wear your pieces, not each their own.</p></div>
         <div class="row"><span class="lbl">Last move</span><div class="seg" data-key="lastMove"><button class="btn" type="button" data-v="1">On</button><button class="btn" type="button" data-v="0">Off</button></div><p class="note">The last move's two squares are tinted.</p></div>
     </div>
     <div class="sPage" data-tab="display">
@@ -320,7 +375,17 @@ input:focus{border-color:var(--chalk)}
     <h2 id="overTitle"></h2>
     <p id="overWhy"></p>
     <p id="overMoves"></p>
+    <p id="overEarn" hidden></p>
     <div class="actions"><button class="btn" id="bAgain" type="button">Play again</button><button class="btn" id="bLook" type="button">See the board</button><button class="btn" id="bOverMenu" type="button">Main menu</button></div>
+  </div>
+</div>
+<div id="openBox" class="overlay" hidden>
+  <div class="panel ovPanel" id="openPanel" role="dialog" aria-labelledby="openTitle">
+    <h2 id="openTitle"></h2>
+    <div id="openPick"><p class="note" id="openNote"></p><div class="seg" id="openKeys"></div></div>
+    <div id="reel" hidden><div id="reelStrip"></div><div id="reelMark"></div></div>
+    <div id="prize" hidden><canvas id="prizePic" width="32" height="30"></canvas><div><div id="prizeName"></div><div id="prizeNote"></div></div></div>
+    <div class="actions"><button class="btn" id="bOpen" type="button">Open</button><button class="btn" id="bPrizeEquip" type="button" hidden>Equip</button><button class="btn" id="bOpenClose" type="button">Close</button></div>
   </div>
 </div>
 <div id="rotate" class="panel" role="status" hidden><p>Turn your phone sideways for a bigger board.</p><button class="btn" id="bRotateOk" type="button">OK</button></div>

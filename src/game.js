@@ -18,9 +18,9 @@ const reduceMotion = window.matchMedia && matchMedia('(prefers-reduced-motion: r
 // piece can go; autoQueen: a pawn reaching the end becomes a queen without asking; confirm: a move waits for a tap on
 // Confirm; flat: in a game, look straight down at flat pictures of the pieces; coords: the letters and numbers round
 // the board; lastMove: the last move's squares tinted; volume: 0 to 1 (0.75 the loudness the sounds were made at);
-// vibrate: a buzz for a capture and for check, on phones that can
+// vibrate: a buzz for a capture and for check, on phones that can; mySet: online, both sides wear your pieces
 const DEFAULTS = { pixel: 1, levels: 256, dither: true, outline: true, turn: true, set: 'classic', finish: 'classic',
-  hints: true, autoQueen: false, confirm: false, flat: false, coords: true, lastMove: true, volume: 0.75, vibrate: true };
+  hints: true, autoQueen: false, confirm: false, flat: false, coords: true, lastMove: true, volume: 0.75, vibrate: true, mySet: false };
 const S = { ...DEFAULTS };
 try { Object.assign(S, JSON.parse(localStorage.getItem('retroSet.settings') || '{}')); } catch (e) {}
 S.set = SETS.byId(S.set).id; S.finish = SETS.finish(S.finish).id;
@@ -203,8 +203,10 @@ const PROPS_OF = {
     prop(new THREE.TorusGeometry(0.42, 0.012, 4, 24), new THREE.MeshBasicMaterial({ color: '#6cb8ff' }), 0, TABLE_Y - 0.04, 0).rotation.x = PI / 2;
   },
 };
+let roomOn = '';
 function applyRoom() {
   const r = ROOMS[W.room] || ROOMS.parlour;
+  if (roomOn === W.room) return; roomOn = W.room;
   ROOM.set(r.bg); scene.fog.color.set(r.bg);
   floor.visible = r.floor !== null; if (r.floor) floorMat.color.set(r.floor);
   floorMat.map = r.tiles ? tiles(r.tiles) : null; floorMat.needsUpdate = true;
@@ -320,7 +322,7 @@ function arrow(from, to) {
 }
 function showMarks() {
   MARKS.traverse(o => { if (o.geometry && o.material === MM.edge && MK.shape === 'arrow') o.geometry.dispose(); }); MARKS.clear();
-  if (!G || state === 'menu') return;
+  if (!G || state === 'menu') { if (PRE && PRE.slot === 'marks' && state === 'menu') sampleMarks(); return; }
   const last = G.list[G.list.length - 1], tint = MK.shape === 'corners' ? cornerGeo : squareGeo, mat = MK.shape === 'corners' ? MM.edge : null;
   if (last && S.lastMove) { if (MK.shape === 'arrow') arrow(last.m.from, last.m.to); else { mark(tint, mat || MM.last, last.m.from, 0.0008); mark(tint, mat || MM.last, last.m.to, 0.0008); } }
   if (C.inCheck(G.pos)) mark(squareGeo, MM.check, G.pos.b.indexOf(G.pos.turn === 'w' ? 'K' : 'k'), 0.001);
@@ -346,10 +348,13 @@ function looksTick(t) {
 // as many pixels tall as a square is on the screen (flatH, between 12 and 64), so big game pixels don't mangle it.
 let FLAT = false, flatH = 48;
 const FLAT_MAT = {}, flatGeo = new THREE.PlaneGeometry(SQ * 0.76, SQ * 0.95).translate(0, 0, 0.003);
+// whose set and finish a side's pieces wear: yours, except online, where the other side wears the other player's
+// (unless "My set only" is on, or they sent none)
+const lookOf = c => NET.on && NET.peerLook && !S.mySet && c !== NET.me ? NET.peerLook : S;
 function flatMat(ch) {
-  const key = `${S.set} ${S.finish} ${ch} ${flatH}`;
+  const lk = lookOf(C.colour(ch)), key = `${lk.set} ${lk.finish} ${ch} ${flatH}`;
   if (!FLAT_MAT[key]) {
-    const t = new THREE.CanvasTexture(pieceIcon(C.kind(ch), C.colour(ch), Math.round(flatH * 0.8), flatH, 0.6)); t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
+    const t = new THREE.CanvasTexture(pieceIcon(C.kind(ch), C.colour(ch), Math.round(flatH * 0.8), flatH, 0.6, lk.set, lk.finish)); t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
     FLAT_MAT[key] = new THREE.MeshBasicMaterial({ map: t, alphaTest: 0.5 });
   }
   return FLAT_MAT[key];
@@ -357,7 +362,7 @@ function flatMat(ch) {
 const wantFlat = () => S.flat && state !== 'menu' && state !== 'lobby';
 function makePiece(ch) {
   if (FLAT) { const f = new THREE.Mesh(flatGeo, flatMat(ch)); f.rotation.set(-PI / 2, 0, cam.base); f.userData.ch = ch; return f; }
-  const k = C.kind(ch), c = C.colour(ch), g = new THREE.Mesh(SETS.geo(S.set, k), SETS.mats(S.finish, c));
+  const k = C.kind(ch), c = C.colour(ch), lk = lookOf(c), g = new THREE.Mesh(SETS.geo(lk.set, k), SETS.mats(lk.finish, c));
   g.rotation.y = k === 'N' ? (c === 'w' ? 5 * PI / 6 : -PI / 6) : c === 'w' ? 0 : PI;
   g.userData.ch = ch;
   return g;
@@ -385,10 +390,10 @@ function refit() { $('#bView').textContent = S.flat ? '3D' : '2D'; if (SHOWN && 
 // a little picture of a piece (the promotion buttons), drawn pixel by pixel from the set's own shape seen from the
 // front, in the finish's colours. fit 0: every kind at the same scale (the king fills the height); 1: this kind
 // fills the height; between, the sizes are drawn closer together
-function pieceIcon(k, c, W = 24, H = 30, fit = false) {
+function pieceIcon(k, c, W = 24, H = 30, fit = false, set = S.set, fin0 = S.finish) {
   const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
-  const g = cv.getContext('2d'), geo = SETS.geo(S.set, k), pos = geo.attributes.position.array, fin = SETS.finish(S.finish)[c];
-  const tall = x => SETS.geo(S.set, x).boundingBox.max.y, sc = (H - 2) / lerp(tall('K'), tall(k), +fit), flip = k === 'N' ? -1 : 1;
+  const g = cv.getContext('2d'), geo = SETS.geo(set, k), pos = geo.attributes.position.array, fin = SETS.finish(fin0)[c];
+  const tall = x => SETS.geo(set, x).boundingBox.max.y, sc = (H - 2) / lerp(tall('K'), tall(k), +fit), flip = k === 'N' ? -1 : 1;
   const slot = new Int8Array(W * H).fill(-1), depth = new Float32Array(W * H).fill(Infinity);
   for (const gr of geo.groups) for (let i = gr.start * 3; i < (gr.start + gr.count) * 3; i += 9) {
     const X = [0, 3, 6].map(j => W / 2 + flip * pos[i + j] * sc), Y = [0, 3, 6].map(j => H - 1 - pos[i + j + 1] * sc), Z = (pos[i + 2] + pos[i + 5] + pos[i + 8]) / 3;
@@ -497,6 +502,7 @@ function sfx(kind) {
     else if (kind === 'ui') blip(660, 0.05, 0.045, 'square');
     else if (kind === 'win') [523, 659, 784, 1046].forEach((f, i) => blip(f, 0.14, 0.07, 'square', 0, 0.4 + i * 0.1));
     else if (kind === 'lose') [392, 330, 262, 196].forEach((f, i) => blip(f, 0.18, 0.06, 'square', 0, 0.4 + i * 0.13));
+    else if (kind.startsWith('prize')) { const tier = +kind.slice(5) || 0; [523, 659, 784, 1046, 1318].slice(0, 2 + tier).forEach((f, i) => blip(f, 0.12 + tier * 0.02, 0.06, 'square', 0, i * 0.09)); }
     else if (kind === 'draw') [440, 440].forEach((f, i) => blip(f, 0.16, 0.06, 'square', 0, 0.4 + i * 0.2));
   } catch (e) {}
 }
@@ -544,7 +550,7 @@ const clearSel = () => select(-1);
 const mine = s => s >= 0 && state === 'play' && !botTurn() && (!NET.on || G.pos.turn === NET.me) && C.colour(G.pos.b[s]) === G.pos.turn;
 // starts a game (g: a game to carry on, else a new one) against opp ({ bot, me }) or, with no opp, for two players
 function startGame(g, opp) {
-  vs = opp || null; THINK = null;
+  vs = opp || null; THINK = null; EARN = null;
   if (vs) botRnd = C.rng(Math.floor(Math.random() * 4294967296));
   G = g || C.newGame(); state = G.result ? 'over' : 'play'; sel = -1; targets = [];
   closePanels(); placeAll(G);
@@ -622,7 +628,7 @@ $('#bCancelMove').onclick = dropPending;
 function afterMove() {
   state = G.result ? 'over' : 'play';
   if (S.turn && !vs && !NET.on && state === 'play') cam.base = G.pos.turn === 'w' ? 0 : PI;
-  save(); hud(); showMarks();
+  gamePaid(); save(); hud(); showMarks();
   if (G.result) { const me = meCol(), won = G.result.score === '1-0' ? 'w' : G.result.score === '0-1' ? 'b' : ''; sfx(!won ? 'draw' : me && won !== me ? 'lose' : 'win'); }
   if (state === 'over') setTimeout(() => { if (state === 'over' && G.result) showOver(); }, reduceMotion ? 0 : 500);
   else if (botTurn()) startThink();
@@ -794,6 +800,8 @@ canvas.addEventListener('pointerup', pointerEnd);
 canvas.addEventListener('pointercancel', pointerEnd);
 canvas.addEventListener('wheel', e => { if (state === 'menu' || state === 'lobby') return; e.preventDefault(); cam.zoom = clamp(cam.zoom * Math.pow(1.1, Math.sign(e.deltaY)), 0.6, 2.2); }, { passive: false });
 addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !$('#openBox').hidden) { if (OPENING && OPENING.stage === 'spin') showPrize(); else closeOpen(); return; }
+  if (e.key === 'Escape' && state === 'menu' && screen === 'cos' && COS.page === 'slot') { cosPage('locker'); return; }
   if (e.key === 'Escape' && state === 'menu' && screen !== 'home') { $('#mBack').click(); return; }
   if (e.key === 'Escape' && state === 'lobby') { clearRejoin(); toMenu('online'); return; }
   if (e.key !== 'Escape' || state === 'menu') return;
@@ -846,6 +854,7 @@ function hud() {
     pl.querySelector('.plName').textContent = !me ? turnName(c) : c === me ? 'You' : NET.on ? NET.peerName : `${bot.name} ${bot.rating}`;
     const face = pl.querySelector('.plFace'); face.textContent = '';
     if (its) face.append(portrait(bot.look, 2)); else if (me && c === me) face.append(portrait(AVATARS[W.avatar] || AVATARS.plain, 2));   // the computer's face, and yours
+    else if (NET.on && me && NET.peerLook) face.append(portrait(AVATARS[NET.peerLook.avatar] || AVATARS.plain, 2));   // and online, the other player's
   }
   const tl = $('#turnLine'), ch = check ? ': check!' : '';
   tl.textContent = over ? resultText(G.result)[0] : state === 'think' ? `${bot.name} is thinking…` : !me ? `${turnName(G.pos.turn)} to move${ch}` : G.pos.turn === me ? `Your move${ch}` : `${NET.peerName} to move${ch}`;
@@ -882,6 +891,7 @@ function showOver() {
   const [title, why] = resultText(G.result);
   $('#overTitle').textContent = title; $('#overWhy').textContent = why;
   $('#overMoves').textContent = `${Math.ceil(G.list.length / 2)} moves`;
+  $('#overEarn').textContent = earnText(EARN); $('#overEarn').hidden = !earnText(EARN);
   $('#pause').hidden = true; $('#over').hidden = false; updateAgainBtn();
 }
 function closePanels() { for (const s of ['#pause', '#promo', '#over', '#offer', '#chatPop']) $(s).hidden = true; promoAt = null; disarm(); }
@@ -896,14 +906,6 @@ function togglePause(open = $('#pause').hidden) {
     showSettings($('#setGame'), true);
   }
 }
-// The Match tab's choice of piece set and finish, stepped through with < and >. (A stand-in until the locker: every
-// set and finish is free to use.)
-const FINS = SETS.FINISHES;
-function renderLook() { $('#setName').textContent = 'Set: ' + SETS.byId(S.set).name; $('#finName').textContent = 'Finish: ' + SETS.finish(S.finish).name; }
-const stepIn = (list, id, d) => list[(Math.max(0, list.findIndex(x => x.id === id)) + d + list.length) % list.length].id;
-for (const b of document.querySelectorAll('#pkSet .btn')) b.onclick = () => { setLook(stepIn(SETS.LIST, S.set, +b.dataset.d), S.finish); renderLook(); };
-for (const b of document.querySelectorAll('#pkFin .btn')) b.onclick = () => { setLook(S.set, stepIn(FINS, S.finish, +b.dataset.d)); renderLook(); };
-
 // ------------------------------------------------------------------ settings panel
 // One box of tabs and pages (#setBox) serves both the menu's Settings tab and the game's Menu panel, where a Match tab
 // comes first; showSettings() moves it into whichever is open. Each setting is a row of buttons (.seg[data-key], a
@@ -924,13 +926,13 @@ function renderSettings() {
   for (const e of document.querySelectorAll('#setBox .onlyLocal')) e.hidden = SET.inGame && !!meCol();   // turning the board is for a shared device
   $('#rowVibrate').hidden = !canVibrate; $('#rowFull').hidden = !canFull;
   for (const b of document.querySelectorAll('#sFull .btn')) b.setAttribute('aria-pressed', String(!!+b.dataset.v === !!document.fullscreenElement));
-  renderLook();
 }
 function applySetting(k) {
   if (k === 'pixel') resize();
   else if (k === 'levels' || k === 'dither' || k === 'outline') applyLook();
   else if (k === 'coords') applyBoard();
   else if (k === 'flat') refit();
+  else if (k === 'mySet') { if (SHOWN && !GLIDE) placeAll(SHOWN); }
   else if (k === 'turn') { if (S.turn && G && !vs && !NET.on && state !== 'menu') cam.base = G.pos.turn === 'w' ? 0 : PI; }
   else if (k === 'volume') { ensureAudio(); sfx('move'); }
   else if (k === 'confirm' && !S.confirm) dropPending();
@@ -948,6 +950,214 @@ addEventListener('keydown', e => {
   settingsTab(tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length].dataset.tab);
 });
 $('#bView').onclick = () => { S.flat = !S.flat; saveS(); refit(); };
+
+// ------------------------------------------------------------------ locker
+// The Cosmetics tab: the locker (what's worn in each of the seven slots, and the cases and keys in hand), one slot's
+// looks (tap one to see it on the board, Equip to wear it), the shop (cases and keys for coins) and opening a case.
+// The rules are in looks.js (LK); the locker itself is LOCK, saved in localStorage (retroSet.locker). Every change goes
+// through lockerEdit(), which reads the saved copy, changes it and writes it straight back, so two open pages don't
+// undo each other's changes.
+const LK = LOOKS;
+// Dev mode, for the owner to try every look: typing the dev word as the name on the Online screen switches it on or
+// off. Only a fingerprint of the word is here (the repository is public); it is Retro Rack's, so the same word works
+// in both games. While it's on the locker is a separate test locker with everything.
+const DEVW = { print: 'f5fbd99c8a9a458d2267847deb9aab64fd2f699c0746cea014e74f8cc48e6ee5' };
+let DEV = false;
+try { DEV = localStorage.getItem('retroSet.dev') === '1'; } catch (e) {}
+const lockKey = () => DEV ? 'retroSet.lockerDev' : 'retroSet.locker';
+function readLocker() {
+  try { const raw = localStorage.getItem(lockKey()); if (raw) return LK.validate(JSON.parse(raw)); } catch (e) {}
+  return DEV ? LK.full() : LK.fresh();
+}
+let LOCK = readLocker();
+function lockerEdit(fn) { const l = readLocker(), out = fn(l); LOCK = l; try { localStorage.setItem(lockKey(), JSON.stringify(l)); } catch (e) {} return out; }
+async function isDevWord(v) {
+  if (!v || v.length > 40 || !(window.crypto && crypto.subtle)) return false;
+  try { const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('retroRack:' + v.trim().toLowerCase())); return [...new Uint8Array(h)].map(b => b.toString(16).padStart(2, '0')).join('') === DEVW.print; }
+  catch (e) { return false; }
+}
+function setDev(on) {
+  DEV = !!on; try { if (DEV) localStorage.setItem('retroSet.dev', '1'); else { localStorage.removeItem('retroSet.dev'); localStorage.removeItem('retroSet.lockerDev'); } } catch (e) {}
+  LOCK = readLocker(); PRE = null; dress(); $('#ver').textContent = `Version ${BUILD}${DEV ? ' DEV' : ''}`; if (screen === 'cos') renderCos();
+}
+$('#netName').addEventListener('input', async () => { const v = $('#netName').value; if (!(await isDevWord(v)) || $('#netName').value !== v) return; $('#netName').value = ''; setDev(!DEV); menuNote(DEV ? 'Dev mode on: a test locker with every look.' : 'Dev mode off: your own locker is back.'); });
+// PRE: a look being tried on in the locker ({ slot, id }), shown on the board but not worn. dress() puts on what the
+// locker says is worn, with the look being tried in its place.
+let PRE = null;
+function dress() {
+  const w = { ...LOCK.wear }; if (PRE) w[PRE.slot] = PRE.id;
+  Object.assign(W, { board: w.board, room: w.room, fx: w.fx, avatar: w.avatar, marks: w.marks });
+  if (S.set !== w.set || S.finish !== w.finish) setLook(w.set, w.finish);
+  applyBoard(); applyRoom(); applyMarks(); showMarks();
+}
+// the marks as they'd look in a game, for trying a Square marks look on behind the menu
+function sampleMarks() {
+  const tint = MK.shape === 'corners' ? cornerGeo : squareGeo, mat = MK.shape === 'corners' ? MM.edge : null;
+  if (MK.shape === 'arrow') arrow(12, 28); else { mark(tint, mat || MM.last, 12, 0.0008); mark(tint, mat || MM.last, 28, 0.0008); }
+  mark(squareGeo, MM.check, 60, 0.001); mark(tint, mat || MM.sel, 6, 0.0012);
+  for (const s of [21, 23]) mark(DOTS[MK.dot || 'dot'], MM.go, s, 0.0014);
+}
+// ---- pictures: every look, case and key as a small pixel picture
+const RARE_COL = r => LK.RARITY[r].colour;
+const FX_ICON = {   // 9 × 9, the letters a look's own colours
+  none: [['#6b6480'], ['.........', '..aaaaa..', '.a....aa.', '.a...a.a.', '.a..a..a.', '.a.a...a.', '.aa....a.', '..aaaaa..', '.........']],
+  dust: [['#cfc6b8', '#a89f92'], ['.........', '..aa.....', '.aaaa.bb.', '.aaaa.bbb', '..aa..bb.', '....aa...', '...aaaa..', '....aa...', '.........']],
+  sparks: [['#ffe08a', '#ffb347'], ['a...b...a', '.a..b..a.', '..a.b.a..', '.........', 'bbb.a.bbb', '.........', '..a.b.a..', '.a..b..a.', 'a...b...a']],
+  confetti: [['#ff6f8f', '#6cb8ff', '#7dffb0', '#ffc56b'], ['a...c....', '..b...d..', '.....a...', '.d.....c.', '...b.....', 'c.....a..', '..a..d...', '.....b..c', '.d.......']],
+  shockwave: [['#6cb8ff', '#ff6f8f'], ['..aaaaa..', '.a.....a.', 'a..bbb..a', 'a.b...b.a', 'a.b...b.a', 'a.b...b.a', 'a..bbb..a', '.a.....a.', '..aaaaa..']],
+  lightning: [['#cfe8ff', '#ffe08a'], ['.....aa..', '....aa...', '...aa....', '..aaaaa..', '....aa...', '...aa....', '..aa..b..', '.aa..b.b.', '.a....b..']],
+  fireworks: [['#ff6f8f', '#ffc56b', '#6cb8ff'], ['..a...c..', '.a.a.c.c.', '..a...c..', '....b....', '...b.b...', '.b.....b.', '...b.b...', '....b....', '....b....']],
+  blackhole: [['#c58cff', '#0d0a1c', '#6cb8ff'], ['..a...c..', '.a.aaa...', '..abbba.c', '.abbbbba.', '.abbbbba.', 'cabbbbba.', '..abbba..', '...aaa.a.', '.c....a..']],
+};
+const CASE_COL = { bronze: '#b5713a', silver: '#c4cbd6', gold: '#ffc56b', diamond: '#8fe6ff', lucky: '#ff6f8f' };
+const KEY_COL = { any: '#ffc56b', set: '#f7ead2', finish: '#c58cff', board: '#7dffb0', room: '#6cb8ff', fx: '#ff6f8f', avatar: '#ffb347', marks: '#b9c2cf' };
+const CASE_ROWS = ['................', '................', '..xxxxxxxxxxxx..', '.xxyyyyyyyyyyxx.', '.xyyyyyyyyyyyyx.', '.xyyyyyyyyyyyyx.', '.xxxxxxddxxxxxx.', '.xyyyyyddyyyyyx.', '.xyyyyyyyyyyyyx.', '.xyyyyyyyyyyyyx.', '.xyyyyyyyyyyyyx.', '.xxxxxxxxxxxxxx.', '................'];
+const KEY_ROWS = ['................', '..xxxx..........', '.xx..xx.........', '.x....xxxxxxxxx.', '.x....xxxxxxxxx.', '.xx..xx....x.x..', '..xxxx.....x.x..', '................'];
+function rowsPic(rows, cols, w = rows[0].length, h = rows.length) {
+  const cv = document.createElement('canvas'), g = cv.getContext('2d'); cv.width = w; cv.height = h;
+  rows.forEach((r, y) => { for (let x = 0; x < r.length; x++) if (cols[r[x]]) { g.fillStyle = cols[r[x]]; g.fillRect(x, y, 1, 1); } });
+  return cv;
+}
+const shade = (c, k) => '#' + new THREE.Color(c).multiplyScalar(k).getHexString();
+const casePic = g => rowsPic(CASE_ROWS, { x: shade(CASE_COL[g], 0.55), y: CASE_COL[g], d: g === 'lucky' ? '#fff4d0' : '#0d0a1c' });
+const keyPic = k => rowsPic(KEY_ROWS, { x: KEY_COL[k] });
+function lookPic(it) {
+  const cv = document.createElement('canvas'), g = cv.getContext('2d'); cv.width = 32; cv.height = 30; g.imageSmoothingEnabled = false;
+  if (it.slot === 'set') g.drawImage(pieceIcon('N', 'w', 24, 30, 1, it.id, 'classic'), 4, 0);
+  else if (it.slot === 'finish') { g.drawImage(pieceIcon('P', 'w', 20, 28, 1, 'classic', it.id), 0, 1); g.drawImage(pieceIcon('P', 'b', 20, 28, 1, 'classic', it.id), 12, 1); }
+  else if (it.slot === 'board') {
+    const b = BOARDS[it.id]; g.fillStyle = b.f; g.fillRect(2, 1, 28, 28);
+    for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) { g.fillStyle = (x + y) & 1 ? b.d : b.l; g.fillRect(4 + x * 6, 3 + y * 6, 6, 6); if (b.glow) { g.fillStyle = b.glow; if (b.tex === 'grid') { g.fillRect(4 + x * 6, 3 + y * 6, 6, 1); g.fillRect(4 + x * 6, 3 + y * 6, 1, 6); } else g.fillRect(5 + x * 6 + (x * 3 + y) % 4, 4 + y * 6 + (y * 2 + x) % 4, 1, 1); } }
+  } else if (it.slot === 'room') {
+    const r = ROOMS[it.id]; g.fillStyle = r.bg; g.fillRect(0, 0, 32, 30);
+    if (r.floor === null) { g.fillStyle = '#e8ecff'; for (const [x, y] of [[3, 4], [9, 22], [15, 3], [22, 8], [27, 24], [6, 13], [29, 15], [19, 26]]) g.fillRect(x, y, 1, 1); }
+    else { g.fillStyle = r.tiles ? r.tiles[0] : r.floor; g.fillRect(0, 17, 32, 13); if (r.tiles) { g.fillStyle = r.tiles[2] || r.tiles[1]; for (let x = 0; x < 32; x += 8) g.fillRect(x, 17, r.tiles[2] ? 1 : 4, 13); } }
+    g.fillStyle = r.leg || r.table; if (r.floor !== null) g.fillRect(14, 16, 4, 10);
+    g.fillStyle = r.table; g.fillRect(8, 11, 16, 1); g.fillRect(5, 12, 22, 3); g.fillRect(8, 15, 16, 1);
+  } else if (it.slot === 'fx') { const [cols, rows] = FX_ICON[it.id] || FX_ICON.none; g.drawImage(rowsPic(rows, { a: cols[0], b: cols[1], c: cols[2], d: cols[3] }), 3, 2, 27, 27); }
+  else if (it.slot === 'avatar') { const a = AVATARS[it.id] || AVATARS.plain, c = document.createElement('canvas'); c.width = 10; c.height = 14; drawSprite(c.getContext('2d'), a.s, 1, 1, a.shirt, { f: a.skin, h: a.hair, x: a.x, y: a.y }); g.drawImage(c, 6, 1, 20, 28); }
+  else {
+    const m = MARK_LOOKS[it.id] || MARK_LOOKS.standard;
+    for (let y = 0; y < 3; y++) for (let x = 0; x < 3; x++) { g.fillStyle = (x + y) & 1 ? '#5a3b78' : '#c4a67c'; g.fillRect(4 + x * 8, 3 + y * 8, 8, 8); }
+    g.fillStyle = m.last;
+    if (m.shape === 'arrow') { g.fillRect(7, 22, 2, 2); g.fillRect(9, 20, 2, 2); g.fillRect(11, 18, 2, 2); g.fillRect(13, 14, 4, 4); g.fillRect(15, 12, 4, 2); g.fillRect(17, 14, 2, 4); }
+    else if (m.shape === 'corners') for (const [x, y] of [[4, 19], [12, 11]]) { g.fillRect(x, y, 3, 1); g.fillRect(x, y, 1, 3); g.fillRect(x + 5, y + 7, 3, 1); g.fillRect(x + 7, y + 5, 1, 3); g.fillRect(x + 5, y, 3, 1); g.fillRect(x + 7, y, 1, 3); g.fillRect(x, y + 7, 3, 1); g.fillRect(x, y + 5, 1, 3); }
+    else { g.globalAlpha = 0.6; g.fillRect(4, 19, 8, 8); g.fillRect(12, 11, 8, 8); g.globalAlpha = 1; }
+    g.fillStyle = m.go; if (m.dot === 'star') { g.fillRect(23, 5, 2, 4); g.fillRect(22, 6, 4, 2); } else if (m.dot === 'diamond') { g.fillRect(23, 5, 2, 4); g.fillRect(22, 6, 4, 2); g.fillRect(23, 6, 2, 2); } else g.fillRect(22, 5, 4, 4);
+  }
+  return cv;
+}
+// ---- the screens
+const COS = { page: 'locker', slot: 'set', sel: '', shop: 'case:bronze' };
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
+function tile(pic, name, opts = {}) {
+  const b = el('button', 'tile' + (opts.worn ? ' worn' : '')); b.type = 'button';
+  if (opts.slot) b.append(el('span', 'tSlot', opts.slot));
+  b.append(pic); const n = el('span', 'tName', name); if (opts.colour) n.style.color = opts.colour; b.append(n);
+  if (opts.num) b.append(el('span', 'tNum', opts.num));
+  if (opts.pressed !== undefined) b.setAttribute('aria-pressed', String(opts.pressed));
+  if (opts.data) Object.assign(b.dataset, opts.data);
+  return b;
+}
+const wornKey = slot => LK.key(slot, LOCK.wear[slot]);
+function cosPage(page) { if (COS.page === 'slot' && page !== 'slot' && PRE) { PRE = null; dress(); } COS.page = page; renderCos(); }
+function renderCos() {
+  $('#coins').textContent = LOCK.coins.toLocaleString('en-GB') + (DEV ? ' (test)' : '');
+  for (const [id, page] of [['#cLocker', 'locker'], ['#cSlot', 'slot'], ['#cShop', 'shop']]) $(id).hidden = COS.page !== page;
+  for (const t of document.querySelectorAll('.cTab')) t.setAttribute('aria-selected', String(t.dataset.c === (COS.page === 'shop' ? 'shop' : 'locker')));
+  if (COS.page === 'locker') {
+    const grid = $('#slotGrid'); grid.textContent = '';
+    for (const s of LK.SLOTS) { const it = LK.ALL[wornKey(s.id)], p = LK.progress(LOCK, s.id), b = tile(lookPic(it), it.name, { slot: s.name, colour: RARE_COL(it.rarity), num: `${p.have}/${p.of}`, data: { slot: s.id } }); b.onclick = () => { COS.slot = s.id; COS.sel = wornKey(s.id); cosPage('slot'); }; grid.append(b); }
+    const held = $('#held'); held.textContent = '';
+    for (const g of LK.GRADE_IDS) if (LOCK.cases[g]) { const c = el('button', 'chip2'); c.type = 'button'; c.dataset.grade = g; c.append(casePic(g), `${LK.GRADES[g].name} ×${LOCK.cases[g]}`); c.onclick = () => openCase(g); held.append(c); }
+    for (const k of LK.KEY_IDS) if (LOCK.keys[k]) { const c = el('span', 'chip2'); c.dataset.key = k; c.append(keyPic(k), `${LK.KEYS[k].name} ×${LOCK.keys[k]}`); held.append(c); }
+    if (!held.children.length) held.append(el('span', 'note', 'No cases or keys. Beat the computer to win cases; keys are in the Shop.'));
+  } else if (COS.page === 'slot') {
+    const s = LK.SLOTS.find(x => x.id === COS.slot), p = LK.progress(LOCK, s.id), grid = $('#itemGrid'); grid.textContent = '';
+    $('#slotTitle').textContent = `${s.name}: ${p.have} of ${p.of}`;
+    for (const it of LK.slotItems(s.id)) if (LK.owns(LOCK, it.key)) {
+      const n = LK.count(LOCK, it.key), b = tile(lookPic(it), it.name, { colour: RARE_COL(it.rarity), worn: it.key === wornKey(s.id), pressed: it.key === COS.sel, num: n > 1 ? '×' + n : '', data: { item: it.key } });
+      b.onclick = () => { COS.sel = it.key; PRE = { slot: it.slot, id: it.id }; dress(); if (it.slot === 'fx') { fx('cap', 28); LATER.push([0.9, () => fx('check', 60)], [1.8, () => fx('mate')]); } renderCos(); };
+      grid.append(b);
+    }
+    const it = LK.ALL[COS.sel] || LK.ALL[wornKey(s.id)], worn = it.key === wornKey(s.id);
+    $('#itemInfo').textContent = `${it.name}, ${LK.RARITY[it.rarity].name.toLowerCase()}${it.free ? ' (everyone has it)' : ''}`; $('#itemInfo').style.color = RARE_COL(it.rarity);
+    $('#bEquip').textContent = worn ? 'Equipped' : 'Equip'; $('#bEquip').disabled = worn;
+  } else {
+    const cases = $('#shopCases'), keys = $('#shopKeys'); cases.textContent = ''; keys.textContent = '';
+    for (const g of LK.GRADE_IDS) { const b = tile(casePic(g), `${LK.GRADES[g].price}`, { slot: g === 'lucky' ? 'Lucky Box' : LK.GRADES[g].name.replace(' case', ''), pressed: COS.shop === 'case:' + g, num: LOCK.cases[g] ? '×' + LOCK.cases[g] : '', data: { buy: 'case:' + g } }); b.onclick = () => { COS.shop = 'case:' + g; renderCos(); }; cases.append(b); }
+    for (const k of LK.KEY_IDS) { const b = tile(keyPic(k), `${LK.KEYS[k].price}`, { slot: k === 'any' ? 'Standard' : LK.KEYS[k].name.replace(' key', '').replace('Square marks', 'Marks'), pressed: COS.shop === 'key:' + k, num: LOCK.keys[k] ? '×' + LOCK.keys[k] : '', data: { buy: 'key:' + k } }); b.onclick = () => { COS.shop = 'key:' + k; renderCos(); }; keys.append(b); }
+    const [kind, id] = COS.shop.split(':'), price = kind === 'case' ? LK.GRADES[id].price : LK.KEYS[id].price;
+    $('#shopInfo').textContent = kind === 'case'
+      ? `${LK.GRADES[id].name}: ${LK.GRADES[id].odds.map((o, i) => o ? `${o}% ${LK.RARITIES[i]}` : '').filter(Boolean).join(', ')}.${LK.GRADES[id].fresh ? ' Never a duplicate.' : ''}`
+      : `${LK.KEYS[id].name}: opens any case, ${id === 'any' ? 'for a look from any slot' : `and the look is always for ${LK.SLOTS.find(s => s.id === id).name}`}.`;
+    $('#bBuy').textContent = LOCK.coins >= price ? `Buy for ${price}` : `Need ${price}`; $('#bBuy').disabled = LOCK.coins < price;
+  }
+}
+for (const t of document.querySelectorAll('.cTab')) t.onclick = () => cosPage(t.dataset.c);
+$('#bSlotBack').onclick = () => cosPage('locker');
+$('#bEquip').onclick = () => { const k = COS.sel; if (!LK.ALL[k] || !lockerEdit(l => LK.wear(l, k))) return; PRE = null; dress(); renderCos(); };
+$('#bBuy').onclick = () => { const [kind, id] = COS.shop.split(':'); lockerEdit(l => kind === 'case' ? LK.buyCase(l, id) : LK.buyKey(l, id)); renderCos(); };
+// ---- opening a case: pick a key, the reel spins, the prize
+let OPENING = null;   // { grade, key, stage: 'pick' | 'spin' | 'prize', res }
+function openCase(grade) { OPENING = { grade, key: LK.KEY_IDS.find(k => LOCK.keys[k]) || '', stage: 'pick', res: null }; $('#openBox').hidden = false; renderOpen(); }
+function closeOpen() { OPENING = null; clearTimeout(reelT); $('#openBox').hidden = true; if (screen === 'cos') renderCos(); }
+function renderOpen() {
+  const o = OPENING, g = LK.GRADES[o.grade], pick = o.stage === 'pick';
+  $('#openTitle').textContent = pick ? `Open a ${g.name}` : g.name;
+  $('#openPick').hidden = !pick; $('#reel').hidden = o.stage !== 'spin'; $('#prize').hidden = o.stage !== 'prize';
+  $('#bOpen').hidden = o.stage === 'spin'; $('#bPrizeEquip').hidden = true;
+  if (pick) {
+    const keys = $('#openKeys'); keys.textContent = '';
+    for (const k of LK.KEY_IDS) if (LOCK.keys[k]) { const b = el('button', 'btn', `${LK.KEYS[k].name} ×${LOCK.keys[k]}`); b.type = 'button'; b.dataset.key = k; b.setAttribute('aria-pressed', String(k === o.key)); b.onclick = () => { o.key = k; renderOpen(); }; keys.append(b); }
+    $('#openNote').textContent = !LOCK.cases[o.grade] ? 'None of these left.' : !o.key ? 'A case needs a key. Keys are in the Shop.' : o.key === 'any' ? 'A standard key: the look can be for any slot.' : `The look will be for ${LK.SLOTS.find(s => s.id === o.key).name}.`;
+    $('#bOpen').textContent = o.res ? 'Open another' : 'Open'; $('#bOpen').disabled = !o.key || !LOCK.cases[o.grade];
+  } else if (o.stage === 'prize') {
+    const r = o.res, pc = $('#prizePic').getContext('2d'); pc.clearRect(0, 0, 32, 30); pc.drawImage(r.item ? lookPic(r.item) : casePic(o.grade), 0, 0, 32, 30);
+    $('#prizeName').textContent = r.item ? r.item.name : 'Nothing left to win'; $('#prizeName').style.color = r.item ? RARE_COL(r.item.rarity) : '';
+    $('#prizeNote').textContent = !r.item ? `You have every look: +${r.coins} coins.` : `${LK.RARITY[r.item.rarity].name} ${LK.SLOTS.find(s => s.id === r.item.slot).name.toLowerCase()}. ${r.dupe ? `A duplicate: +${r.coins} coins.` : 'New!'}`;
+    $('#bPrizeEquip').hidden = !r.item || r.item.key === wornKey(r.item.slot);
+    $('#bOpen').textContent = 'Open another'; $('#bOpen').disabled = false; $('#bOpen').hidden = !LOCK.cases[o.grade] || !LK.KEY_IDS.some(k => LOCK.keys[k]);
+  }
+}
+let reelT = 0;
+function showPrize() { clearTimeout(reelT); if (!OPENING || OPENING.stage !== 'spin') return; OPENING.stage = 'prize'; const r = OPENING.res; sfx('prize' + (r.item ? LK.RARITIES.indexOf(r.item.rarity) : 0)); renderOpen(); }
+$('#bOpen').onclick = () => {
+  const o = OPENING; if (!o) return;
+  if (o.stage === 'prize') { o.stage = 'pick'; if (!LOCK.keys[o.key]) o.key = LK.KEY_IDS.find(k => LOCK.keys[k]) || ''; renderOpen(); return; }
+  const res = lockerEdit(l => LK.open(l, o.grade, o.key, Math.random));
+  if (res.why) { renderOpen(); return; }
+  o.res = res; o.stage = 'spin'; renderOpen();
+  // the reel: looks drawn at random from what the key could give, the prize among them, gliding to a stop on it
+  const strip = $('#reelStrip'), pool = LK.ITEMS.filter(it => !it.free && (o.key === 'any' || it.slot === o.key)), N = 26, AT = 21; strip.textContent = '';
+  for (let i = 0; i < N; i++) { const it = i === AT && res.item ? res.item : pool[Math.floor(Math.random() * pool.length)], t = el('div', 'reelTile'); t.style.background = shade(RARE_COL(it.rarity), 0.5); t.style.borderColor = RARE_COL(it.rarity); t.append(lookPic(it)); strip.append(t); }
+  const step = strip.children[0].offsetWidth + 4, end = -(AT * step + step / 2 - $('#reel').clientWidth / 2 - 2) + (Math.random() - 0.5) * step * 0.6;
+  strip.style.transition = 'none'; strip.style.transform = 'translateX(0)';
+  if (reduceMotion) { strip.style.transform = `translateX(${end}px)`; showPrize(); return; }
+  void strip.offsetWidth; strip.style.transition = 'transform 3s cubic-bezier(.1,.62,.16,1)'; strip.style.transform = `translateX(${end}px)`;
+  reelT = setTimeout(showPrize, 3300);
+};
+$('#reel').onclick = showPrize;   // a tap skips to the prize
+$('#bPrizeEquip').onclick = () => { const it = OPENING && OPENING.res && OPENING.res.item; if (it && lockerEdit(l => LK.wear(l, it.key))) { dress(); renderOpen(); } };
+$('#bOpenClose').onclick = closeOpen;
+{ const ov = $('#openBox'); let down = false; ov.addEventListener('pointerdown', e => { down = e.target === ov; }); ov.addEventListener('click', e => { if (e.target === ov && down && (!OPENING || OPENING.stage !== 'spin')) closeOpen(); }); }
+// ---- earning: a game against the computer, and the day's gift
+let EARN = null;   // what the game just finished paid, for the result panel
+function gamePaid() {
+  if (!G.result || !vs || vs.paid) return;
+  vs.paid = true;
+  const bot = botOf(), won = G.result.score === '1-0' ? 'w' : G.result.score === '0-1' ? 'b' : '';
+  EARN = lockerEdit(l => LK.gameOver(l, { id: bot.id, rating: bot.rating, top: BT.LIST.indexOf(bot) >= BT.LIST.length - 3 }, !won ? 'draw' : won === vs.me ? 'win' : 'loss'));
+}
+const earnText = e => !e || (!e.coins && !e.cases.length) ? '' : [`+${e.coins} coins`, ...e.cases.map((g, i) => (i && e.first ? 'first win: ' : '') + (g === 'lucky' ? 'a Super Lucky Box' : `a ${LK.GRADES[g].name}`))].join(', ');
+const today = () => { const d = new Date(), p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; };
+function dailyGift(day = today()) {
+  const g = lockerEdit(l => LK.daily(l, day)); if (!g) return;
+  $('#gift').textContent = `Today's gift: +${g.coins} coins${g.lucky ? ' and a Super Lucky Box' : ''} (day ${g.streak} of 7).`; $('#gift').hidden = false;
+  if (screen === 'cos') renderCos();
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) dailyGift(); });
+addEventListener('storage', e => { if (e.key === lockKey()) { LOCK = readLocker(); dress(); if (screen === 'cos') renderCos(); } });   // changed in another open page
 
 // ------------------------------------------------------------------ HUD: the panels' buttons
 // a button that needs a second tap within 3 seconds, for the ones that end the game
@@ -992,15 +1202,17 @@ try { Object.assign(M, JSON.parse(localStorage.getItem('retroSet.menu') || '{}')
 M.bot = (BT.byId(M.bot) || BT.byId('barney')).id;   // a bot from before the renaming becomes the nearest new one
 const saveM = () => { try { localStorage.setItem('retroSet.menu', JSON.stringify(M)); } catch (e) {} };
 let screen = 'home';
-const BACK = { cpu: 'home', online: 'home', room: 'online', settings: 'home' };   // where Back goes from each screen
+const BACK = { cpu: 'home', online: 'home', room: 'online', settings: 'home', cos: 'home' };   // where Back goes from each screen
 function menuGo(name) {
   screen = name;
   for (const sc of document.querySelectorAll('#menuPanel .mScreen')) sc.hidden = sc.id !== 'sc-' + name;
   const sc = $('#sc-' + name);
-  const top = name === 'home' || name === 'settings';   // the two tabs along the top; the other screens have a Back bar
+  if (screen === 'cos' && name !== 'cos' && PRE) { PRE = null; dress(); }   // a look being tried on comes off
+  const top = name === 'home' || name === 'settings' || name === 'cos';   // the tabs along the top; the other screens have a Back bar
   $('#hTabs').hidden = !top; $('#mTop').hidden = top; $('#mTitle').textContent = sc.dataset.title || '';
   for (const t of document.querySelectorAll('.hTab')) t.setAttribute('aria-selected', String(t.dataset.go === name));
   if (name === 'settings') showSettings($('#setHome'), false);
+  if (name === 'cos') { if (COS.page === 'slot') COS.page = 'locker'; renderCos(); }
   if (name === 'cpu') renderCpu();
   if (name === 'room') renderRoom();
   if (name === 'home') refreshHome(); else arm();
@@ -1064,7 +1276,10 @@ let armed = false;
 function arm() { if (armed) return; try { history.pushState({ rs: 1 }, ''); armed = true; } catch (e) {} }
 addEventListener('popstate', () => {
   armed = false;
-  if (state === 'menu') { if (screen !== 'home') menuGo(BACK[screen] || 'home'); return; }
+  if (state === 'menu') {
+    if (!$('#openBox').hidden) { closeOpen(); arm(); } else if (screen === 'cos' && COS.page === 'slot') { cosPage('locker'); arm(); } else if (screen !== 'home') menuGo(BACK[screen] || 'home');
+    return;
+  }
   if (state === 'lobby') { clearRejoin(); toMenu('online'); return; }   // going back cancels the waiting room
   if (!$('#offer').hidden) $('#bOfferNo').click(); else if (!$('#promo').hidden) cancelPromo(); else if (!$('#over').hidden) $('#over').hidden = true; else togglePause();
   arm();
@@ -1107,7 +1322,9 @@ try {
   document.addEventListener('resume', () => mark('1'));
 } catch (e) {}
 function netSend(o) { if (NET.ws && NET.ws.readyState === 1) NET.ws.send(JSON.stringify(o)); }
-function sendHello() { netSend({ t: 'hello', name: NET.myName, started: NET.started, n: NET.started && G ? G.list.length : 0, v: BUILD }); }
+function sendHello() { netSend({ t: 'hello', name: NET.myName, started: NET.started, n: NET.started && G ? G.list.length : 0, v: BUILD, look: { set: LOCK.wear.set, finish: LOCK.wear.finish, avatar: LOCK.wear.avatar } }); }
+// the other player's looks, from their hello: only ids the catalogue knows; anything else is the free look
+const peerLook = l => { const ok = (slot, d) => l && typeof l[slot] === 'string' && LK.ALL[LK.key(slot, l[slot])] ? l[slot] : d; return { set: ok('set', 'classic'), finish: ok('finish', 'classic'), avatar: ok('avatar', 'plain') }; };
 function netConnect() {
   let ws;
   const listQ = NET.list && !NET.started ? `&list=1&name=${encodeURIComponent(NET.myName)}&mode=${encodeURIComponent(M.netColour)}` : '';
@@ -1146,6 +1363,7 @@ function onNet(m) {
       break;
     case 'hello':
       NET.peerName = cleanName(m.name); NET.peer = true; netBadge();
+      { const was = NET.peerLook, lk = peerLook(m.look); NET.peerLook = lk; if ((!was || was.set !== lk.set || was.finish !== lk.finish) && NET.started && SHOWN && !GLIDE) placeAll(SHOWN); hud(); }
       NET.peerVer = typeof m.v === 'string' ? m.v.slice(0, 16) : '';
       NET.verWarn = '';
       if (NET.peerVer !== BUILD) {
@@ -1182,7 +1400,7 @@ function inviteLink() { return location.href.split('#')[0] + '#room=' + NET.code
 function startOnline(code, listed = false, rejoin = null) {
   if (!relayBase()) { menuNote('Online play needs the relay address first: it goes into config.js, next to this file (the README explains how).'); return; }
   if (!code || code.length < 4) { menuNote('Room codes are 5 letters and numbers.'); return; }
-  NET.on = true; NET.code = code; NET.cid = getCid(); NET.myName = cleanName($('#netName').value, 'Player'); NET.peerName = 'Friend';
+  NET.on = true; NET.code = code; NET.cid = getCid(); NET.myName = cleanName($('#netName').value, 'Player'); NET.peerName = 'Friend'; NET.peerLook = null;
   try { localStorage.setItem('retroSet.name', NET.myName); } catch (e) {}
   holdSeat();
   Object.assign(NET, { started: false, games: 0, queue: [], hold: [], again: [false, false], retry: 0, peer: false, peerVer: '', verWarn: '', list: listed, rejoin, drawOffered: false });
@@ -1430,14 +1648,14 @@ function loadSaved() {
     if (!d || !Array.isArray(d.moves)) return null;
     let g = C.newGame(d.start);
     for (const s of d.moves) { g = C.playUci(g, String(s)); if (!g) return null; }
-    const v = d.vs && BT.byId(d.vs.bot) && /^[wb]$/.test(d.vs.me) ? { bot: BT.byId(d.vs.bot).id, me: d.vs.me } : null;
+    const v = d.vs && BT.byId(d.vs.bot) && /^[wb]$/.test(d.vs.me) ? { bot: BT.byId(d.vs.bot).id, me: d.vs.me, paid: !!d.vs.paid } : null;   // paid: the game has ended once and paid out (then a move was taken back)
     return g.result ? null : { g, vs: v };
   } catch (e) { return null; }
 }
 
 // ------------------------------------------------------------------ installable app
 // Only on a real web address: a downloaded copy opened from disk can't install or use a service worker.
-$('#ver').textContent = `Version ${BUILD}`;
+$('#ver').textContent = `Version ${BUILD}${DEV ? ' DEV' : ''}`;
 if (/^https?:$/.test(location.protocol)) {
   const link = document.createElement('link'); link.rel = 'manifest'; link.href = 'manifest.webmanifest';
   const icon = document.createElement('link'); icon.rel = 'apple-touch-icon'; icon.href = 'icons/icon-192.png';
@@ -1460,9 +1678,9 @@ function frame(now) {
   frames++;
 }
 addEventListener('resize', resize);
-resize(); applyLook(); applyBoard(); applyRoom(); applyMarks(); refit();
+resize(); applyLook(); dress(); refit();
 { const s = loadSaved(); placeAll(s ? s.g : C.newGame()); }   // behind the menu: the game waiting to be resumed, or a fresh set
-menuGo('home');
+menuGo('home'); dailyGift();
 requestAnimationFrame(frame);
 { // opening an invite link joins the room straight away
   const m = /#room=([A-Za-z0-9]+)/.exec(location.hash);
@@ -1480,7 +1698,9 @@ window.__rs = {
   look(set, fin) { setLook(set, fin); }, sets: SETS.LIST.map(x => x.id), finishes: SETS.FINISHES.map(x => x.id), get tris() { return PIECES.children.reduce((n, m) => n + (m.geometry.index || m.geometry.attributes.position).count / 3, 0); }, icon: (k, c, w, h) => pieceIcon(k, c, w, h).toDataURL(),
   camSet(o) { Object.assign(cam, o); },
   fx(what, sq) { fx(what, sq === undefined ? undefined : C.sq(sq)); }, get bits() { return BITS.length; }, avatar: id => portrait(AVATARS[id], 4).src, avatars: Object.keys(AVATARS),
-  wear(slot, id) { if (slot === 'set') setLook(id, S.finish); else if (slot === 'finish') setLook(S.set, id); else { W[slot] = id; applyBoard(); applyRoom(); applyMarks(); showMarks(); } }, get worn() { return { set: S.set, finish: S.finish, ...W }; },   // the view in a game: pitch, zoom, yawOff
+  wear(slot, id) { if (slot === 'set') setLook(id, S.finish); else if (slot === 'finish') setLook(S.set, id); else { W[slot] = id; applyBoard(); applyRoom(); applyMarks(); showMarks(); } }, get worn() { return { set: S.set, finish: S.finish, ...W }; },
+  get lock() { return LOCK; }, lockerEdit, LK, DEVW, get dev() { return DEV; }, get earn() { return EARN; }, day(d) { dailyGift(d); }, get opening() { return OPENING && OPENING.stage; }, showPrize,
+  get lookOf() { return { w: { set: lookOf('w').set, finish: lookOf('w').finish }, b: { set: lookOf('b').set, finish: lookOf('b').finish } }; }, get peerLook() { return NET.peerLook || null; },   // the view in a game: pitch, zoom, yawOff
   get pending() { return pending ? C.sqName(pending.from) + C.sqName(pending.to) + (pending.promo || '') : ''; }, get flat() { return FLAT; },
   get coords() { return topMat.map === (BOARD_TEX[(BOARDS[W.board] ? W.board : 'standard') + '+'] || {}).map; }, get soundCount() { return sfxCount; }, soundsFrom(n) { return SFX_LOG.slice(Math.max(0, SFX_LOG.length - (sfxCount - n))); }, get tab() { return SET.tab; }, get pitch() { return cam.cur.pitch; }, get marks() { return MARKS.children.length; },
   shape(k) { const b = SETS.geo(S.set, k).boundingBox; return { h: b.max.y, w: Math.max(b.max.x - b.min.x, b.max.z - b.min.z), low: b.min.y }; },   // a kind's size in the set in use, in metres

@@ -340,7 +340,9 @@ function looksTick(t) {
 // piece is one mesh with a material for the body, the trim and the glow. Every piece faces the other side; knights
 // look to their owner's left and a little forwards, so each player sees the head side on, as in a diagram.
 // In the flat view (S.flat, in a game only: FLAT) each piece is instead its picture lying on the square, drawn by
-// pieceIcon() and kept the right way up for the viewer as the view turns (the main loop). The picture is drawn about
+// pieceIcon(), the right way up for the side the view is on (cam.base). The pictures never turn with the view: in the
+// flat view dragging doesn't turn it, and turning the board (after a move, or the Turn button) is a flip, at once, not a
+// swing round. The picture is drawn about
 // as many pixels tall as a square is on the screen (flatH, between 12 and 64), so big game pixels don't mangle it.
 let FLAT = false, flatH = 48;
 const FLAT_MAT = {}, flatGeo = new THREE.PlaneGeometry(SQ * 0.76, SQ * 0.95).translate(0, 0, 0.003);
@@ -354,7 +356,7 @@ function flatMat(ch) {
 }
 const wantFlat = () => S.flat && state !== 'menu' && state !== 'lobby';
 function makePiece(ch) {
-  if (FLAT) { const f = new THREE.Mesh(flatGeo, flatMat(ch)); f.rotation.set(-PI / 2, 0, cam.cur.yaw); f.userData.ch = ch; return f; }
+  if (FLAT) { const f = new THREE.Mesh(flatGeo, flatMat(ch)); f.rotation.set(-PI / 2, 0, cam.base); f.userData.ch = ch; return f; }
   const k = C.kind(ch), c = C.colour(ch), g = new THREE.Mesh(SETS.geo(S.set, k), SETS.mats(S.finish, c));
   g.rotation.y = k === 'N' ? (c === 'w' ? 5 * PI / 6 : -PI / 6) : c === 'w' ? 0 : PI;
   g.userData.ch = ch;
@@ -774,7 +776,7 @@ canvas.addEventListener('pointermove', e => {
   if (pinch && PTR.size === 2) { const [a, b] = [...PTR.values()]; cam.zoom = clamp(pinch.zoom * pinch.d / Math.max(10, Math.hypot(a.x - b.x, a.y - b.y)), 0.6, 2.2); return; }
   if (!drag) return;
   if (Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) > 6) drag.moved = true;
-  if (drag.moved && !drag.own) {   // turning the view
+  if (drag.moved && !drag.own && !FLAT) {   // turning the view (not the flat view, which stays square on)
     cam.yawOff -= (e.clientX - drag.x) * 0.008; cam.pitch = clamp(cam.pitch + (e.clientY - drag.y) * 0.005, 0.35, 1.45);
   }
   drag.x = e.clientX; drag.y = e.clientY;
@@ -815,7 +817,7 @@ const cam = {
   goal() {
     if (this.mode === 'menu') { const [offX, offY] = this.shift(); return { yaw: this.a, pitch: 0.53, dist: 1.22 * Math.max(1, 0.9 / camera.aspect), offX, offY, ty: -0.02 }; }
     const short = innerHeight < 500;   // a phone on its side: more room for the bar along the top and the buttons
-    return { yaw: this.base + this.yawOff, pitch: FLAT ? 1.54 : this.pitch, dist: this.playDist(), offX: 0, offY: short ? 0.03 : 0.02, ty: 0.01 };
+    return { yaw: this.base + (FLAT ? 0 : this.yawOff), pitch: FLAT ? 1.54 : this.pitch, dist: this.playDist(), offX: 0, offY: short ? 0.03 : 0.02, ty: 0.01 };
   },
   playDist() {   // how far back the view sits in a game: far enough for the board to fit, times the zoom
     const v = Math.tan(camera.fov * PI / 360), h = v * camera.aspect;
@@ -824,7 +826,7 @@ const cam = {
   update(dt) {
     if (this.mode === 'menu' && !reduceMotion) this.a += dt * 0.08;
     const g = this.goal(), c = this.cur, k = reduceMotion ? 1 : 1 - Math.exp(-dt * 5);
-    c.yaw += wrapA(g.yaw - c.yaw) * k;
+    c.yaw += wrapA(g.yaw - c.yaw) * (FLAT ? 1 : k);   // the flat view flips at once: its pictures must never be seen at an angle
     for (const p of ['pitch', 'dist', 'offX', 'offY', 'ty']) c[p] = lerp(c[p], g[p], k);
     const cp = Math.cos(c.pitch);
     camera.position.set(Math.sin(c.yaw) * cp * c.dist, Math.sin(c.pitch) * c.dist, Math.cos(c.yaw) * cp * c.dist);
@@ -1451,7 +1453,7 @@ function frame(now) {
   glideTick(dt); thinkTick(now); fxTick(dt);
   cam.update(dt);
   if (!reduceMotion) looksTick(now / 1000);
-  if (FLAT) for (const m of PIECES.children) m.rotation.z = cam.cur.yaw;   // flat pictures stay the right way up for the viewer
+  if (FLAT) for (const m of PIECES.children) m.rotation.z = cam.base;   // flat pictures face the side the view is on, and nothing else
   renderer.info.reset();
   renderer.setRenderTarget(rt); renderer.render(scene, camera);
   renderer.setRenderTarget(null); renderer.render(postScene, postCam);
@@ -1470,7 +1472,7 @@ requestAnimationFrame(frame);
 window.__rs = {
   get state() { return state; }, get frames() { return frames; }, get triangles() { return renderer.info.render.triangles; }, S, start: C.START,
   get fen() { return G ? C.toFen(G.pos) : ''; }, get moves() { return G ? G.list.map(x => x.san) : []; }, get result() { return G && G.result; },
-  get sel() { return sel >= 0 ? C.sqName(sel) : ''; }, get view() { return { base: cam.base, yaw: cam.cur.yaw }; },
+  get sel() { return sel >= 0 ? C.sqName(sel) : ''; }, get view() { return { base: cam.base, yaw: cam.cur.yaw, off: cam.yawOff }; }, get flatAngles() { return FLAT ? [...new Set(PIECES.children.map(m => m.rotation.z))] : []; },
   get pieces() { return onSq.filter(Boolean).length; }, get taken() { return PIECES.children.length - onSq.filter(Boolean).length; },
   start2(fen) { startLocal(C.newGame(fen)); },   // a two-player game from a given position
   startCpu(bot, me, fen) { startGame(C.newGame(fen), { bot, me }); },   // a game against a bot, from a given position

@@ -116,6 +116,16 @@ const { chromium, SITE, shot, watch, ok } = require('./lib');
   await tap('g1'); await tap('f3'); await p.waitForTimeout(150);
   await tap('d7'); await tap('d5'); await p.waitForTimeout(150);
   ok(await rs(() => window.__rs.moves.join(' ')) === 'Nf3 d5', 'moves by taps work in the flat view, for both sides as the view turns');
+  // the pictures never turn with the view: dragging doesn't turn the flat view, and a turn of the board is a flip
+  const norm = a => ((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI), near = (a, b2) => Math.abs(norm(a - b2)) < 1e-6 || Math.abs(norm(a - b2) - 2 * Math.PI) < 1e-6;
+  let v0 = await rs(() => ({ v: window.__rs.view, a: window.__rs.flatAngles }));
+  await p.mouse.move(20, 200); await p.mouse.down(); await p.mouse.move(120, 230, { steps: 5 }); await p.mouse.move(260, 260, { steps: 5 }); await p.mouse.up(); await p.waitForTimeout(250);
+  let v1 = await rs(() => ({ v: window.__rs.view, a: window.__rs.flatAngles }));
+  ok(v1.v.off === v0.v.off && near(v1.v.yaw, v0.v.yaw) && v1.a.length === 1 && near(v1.a[0], v1.v.base), `dragging across the flat view doesn't turn it, and every picture stays as it was (${JSON.stringify(v1.a)})`);
+  await p.click('#bFlip'); await p.waitForTimeout(120);
+  let v2 = await rs(() => ({ v: window.__rs.view, a: window.__rs.flatAngles }));
+  ok(near(v2.v.yaw, v2.v.base) && near(v2.v.base, v0.v.base + Math.PI) && v2.a.length === 1 && near(v2.a[0], v2.v.base), 'Turn flips the flat view at once, the pictures upright for the other side, with no swing round');
+  await p.click('#bFlip'); await p.waitForTimeout(120);
   await p.click('#bMenu'); await p.click('.sTab[data-tab="board"]');
   ok(await rs(() => document.querySelector('.seg[data-key="flat"] .btn[data-v="1"]').getAttribute('aria-pressed')) === 'true', 'the Board tab shows Flat view on');
   await p.click('.sTab[data-tab="match"]'); await p.click('#bQuit'); await p.waitForTimeout(200);

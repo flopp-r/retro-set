@@ -74,12 +74,27 @@ button.chip2:disabled{cursor:default}
 #overEarn{font-size:20px;color:#7dffb0;margin:6px 0 0}
 #openPanel{width:min(520px,94vw)}
 #openKeys .btn[aria-pressed="true"]{background:var(--lamp);color:var(--ink)}
-#reel{position:relative;height:74px;overflow:hidden;border:3px solid var(--plum2);background:var(--ink);margin:4px 0 0}
-#reelStrip{position:absolute;left:0;top:4px;display:flex;gap:4px;will-change:transform}
-.reelTile{flex:none;width:60px;height:60px;display:flex;align-items:center;justify-content:center;border:3px solid var(--ink)}.reelTile canvas{width:48px;height:45px;image-rendering:pixelated}
-#reelMark{position:absolute;left:50%;top:0;bottom:0;width:3px;margin-left:-1px;background:var(--lamp)}
-#prize{display:flex;align-items:center;gap:14px;margin:6px 0 0}#prizePic{width:96px;height:90px;image-rendering:pixelated;border:3px solid var(--ink);flex:none}
-#prizeName{font-family:'Press Start 2P',monospace;font-size:13px;line-height:1.4}#prizeNote{font-size:21px;margin-top:4px}
+/* opening a case fills the whole screen: the reel across the middle, then the prize in its rarity's colour (--rc) */
+#reelScreen{position:fixed;inset:0;z-index:7;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2vh;background:rgba(13,10,28,.95);--t:min(40vh,22vw);--rc:#ffc56b;overflow:hidden}
+#reelScreen::before{content:'';position:absolute;inset:-40%;background:radial-gradient(closest-side,var(--rc),transparent 72%);opacity:0;transition:opacity .7s;pointer-events:none}
+#reelScreen.lit::before{opacity:.3}
+#reelScreen.rays::after{content:'';position:absolute;left:50%;top:50%;width:220vmax;height:220vmax;margin:-110vmax 0 0 -110vmax;background:repeating-conic-gradient(var(--rc) 0 5deg,transparent 5deg 20deg);opacity:.13;animation:rays 40s linear infinite;pointer-events:none}
+@keyframes rays{to{transform:rotate(360deg)}}
+#rsTitle{position:relative;font-family:'Press Start 2P',monospace;font-size:clamp(11px,2.6vh,20px);color:var(--lamp);text-shadow:3px 3px 0 var(--ink)}
+#reel{position:relative;z-index:1;width:100%;height:calc(var(--t)*1.1 + 6px);flex:none;overflow:hidden;border-top:3px solid var(--plum2);border-bottom:3px solid var(--plum2);background:rgba(13,10,28,.7);cursor:pointer}
+#reelStrip{position:absolute;left:0;top:calc(var(--t)*.05);display:flex;gap:6px;will-change:transform}
+.reelTile{flex:none;width:var(--t);height:var(--t);display:flex;align-items:center;justify-content:center;border:4px solid var(--ink);transition:opacity .45s,transform .45s}
+.reelTile canvas{width:78%;height:auto;image-rendering:pixelated}
+#reelStrip.done .reelTile{opacity:.25}#reelStrip.done .reelTile.won{opacity:1;transform:scale(1.07);outline:4px solid var(--paper);outline-offset:-2px;z-index:1}
+#reelMark{position:absolute;left:50%;top:0;bottom:0;width:4px;margin-left:-2px;background:var(--lamp);box-shadow:0 0 0 2px var(--ink)}
+#reelScreen.lit #reelMark{display:none}
+#prizeBox{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;gap:1vh;text-align:center;padding:0 14px}
+#prizeName{font-family:'Press Start 2P',monospace;font-size:clamp(14px,4vh,30px);line-height:1.3;color:var(--rc);text-shadow:3px 3px 0 var(--ink)}
+#prizeNote{font-size:clamp(18px,3.4vh,26px)}
+#prizeBtns{margin-top:1vh;justify-content:center}#prizeBtns .btn{font-size:clamp(9px,1.9vh,12px);padding:10px 14px}
+#rsHint{font-size:19px;opacity:.6}
+#reelScreen:not(.lit) #prizeName,#reelScreen:not(.lit) #prizeNote,#reelScreen:not(.lit) #prizeBtns{visibility:hidden}#reelScreen.lit #rsHint{display:none}
+@media (prefers-reduced-motion:reduce){#reelScreen.rays::after{animation:none}#reelScreen::before,.reelTile{transition:none}}
 #setBox:not(.inGame) .sTab[data-tab="match"],#setBox:not(.inGame) .sPage[data-tab="match"]{display:none}
 #setBox .row{grid-template-columns:136px 1fr;gap:2px 12px;margin:0 0 9px}#setBox .note{grid-column:2;font-size:18px;margin:0;max-width:none}#setBox .lbl{padding-top:4px}
 #setBox .seg .btn{padding:7px 9px}
@@ -207,7 +222,7 @@ input:focus{border-color:var(--chalk)}
   #cPages{padding-top:6px}.cHead{margin:5px 0 3px}.tile{padding:3px 2px 2px;gap:1px}.tile canvas,.tile img{width:40px;height:37px}.tile .tName{font-size:14px}
   #itemGrid{min-height:126px}.chip2{font-size:16px;padding:2px 5px 2px 2px}.chip2 canvas{width:20px;height:20px}.cFoot{margin-top:5px;min-height:28px}#itemInfo,#shopInfo{font-size:16px}
   .cBar{margin-bottom:5px}#slotTitle{font-size:18px}#gift{font-size:15px}#coins{font-size:18px;padding-bottom:4px}
-  #reel{height:62px}.reelTile{width:50px;height:50px}.reelTile canvas{width:40px;height:37px}#prizePic{width:64px;height:60px}#prizeName{font-size:10px}#prizeNote{font-size:17px}
+  #reelScreen{gap:1.2vh}#prizeBtns{margin-top:0}#prizeBtns .btn{padding:7px 10px}#rsHint{font-size:16px}
   #overTitle{font-size:16px!important}#overWhy{font-size:20px}
   #promoBtns canvas{width:36px;height:45px}#promoBtns .btn{padding:6px 4px;gap:4px}
 }
@@ -383,9 +398,16 @@ input:focus{border-color:var(--chalk)}
   <div class="panel ovPanel" id="openPanel" role="dialog" aria-labelledby="openTitle">
     <h2 id="openTitle"></h2>
     <div id="openPick"><p class="note" id="openNote"></p><div class="seg" id="openKeys"></div></div>
-    <div id="reel" hidden><div id="reelStrip"></div><div id="reelMark"></div></div>
-    <div id="prize" hidden><canvas id="prizePic" width="32" height="30"></canvas><div><div id="prizeName"></div><div id="prizeNote"></div></div></div>
-    <div class="actions"><button class="btn" id="bOpen" type="button">Open</button><button class="btn" id="bPrizeEquip" type="button" hidden>Equip</button><button class="btn" id="bOpenClose" type="button">Close</button></div>
+    <div class="actions"><button class="btn" id="bOpen" type="button">Open</button><button class="btn" id="bOpenClose" type="button">Close</button></div>
+  </div>
+</div>
+<div id="reelScreen" role="dialog" aria-labelledby="rsTitle" hidden>
+  <div id="rsTitle"></div>
+  <div id="reel"><div id="reelStrip"></div><div id="reelMark"></div></div>
+  <div id="prizeBox">
+    <div id="prizeName"></div><div id="prizeNote"></div>
+    <div class="actions" id="prizeBtns"><button class="btn" id="bPrizeEquip" type="button">Equip</button><button class="btn" id="bOpenMore" type="button">Open another</button><button class="btn" id="bPrizeClose" type="button">Close</button></div>
+    <div id="rsHint">Tap to skip</div>
   </div>
 </div>
 <div id="rotate" class="panel" role="status" hidden><p>Turn your phone sideways for a bigger board.</p><button class="btn" id="bRotateOk" type="button">OK</button></div>
@@ -1333,7 +1355,7 @@ const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const lerp = (a, b, t) => a + (b - a) * t;
 const ease = t => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
 const wrapA = a => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
-const BUILD = '5c242d99';   // version: tools/build.js fills in a fingerprint of the game code
+const BUILD = '2b61c049';   // version: tools/build.js fills in a fingerprint of the game code
 const reduceMotion = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 // ------------------------------------------------------------------ settings
@@ -1815,7 +1837,7 @@ function hiss(dur, vol, fc, q, type = 'bandpass', delay = 0) {
 // lose, draw and ui: square-wave notes, as on an old games machine
 function sfx(kind) {
   if (!S.volume) return;
-  SFX_LOG.push(kind); sfxCount++; if (SFX_LOG.length > 40) SFX_LOG.shift();
+  if (kind !== 'tick') { SFX_LOG.push(kind); sfxCount++; if (SFX_LOG.length > 40) SFX_LOG.shift(); }
   if (!AU.ctx) return;
   const tock = (d = 0, f = 210) => { blip(f, 0.07, 0.34, 'sine', f * 0.57, d); hiss(0.03, 0.2, 1900, 1.2, 'bandpass', d); };
   try {
@@ -1827,6 +1849,7 @@ function sfx(kind) {
     else if (kind === 'ui') blip(660, 0.05, 0.045, 'square');
     else if (kind === 'win') [523, 659, 784, 1046].forEach((f, i) => blip(f, 0.14, 0.07, 'square', 0, 0.4 + i * 0.1));
     else if (kind === 'lose') [392, 330, 262, 196].forEach((f, i) => blip(f, 0.18, 0.06, 'square', 0, 0.4 + i * 0.13));
+    else if (kind === 'tick') blip(880, 0.018, 0.022, 'square');
     else if (kind.startsWith('prize')) { const tier = +kind.slice(5) || 0; [523, 659, 784, 1046, 1318].slice(0, 2 + tier).forEach((f, i) => blip(f, 0.12 + tier * 0.02, 0.06, 'square', 0, i * 0.09)); }
     else if (kind === 'draw') [440, 440].forEach((f, i) => blip(f, 0.16, 0.06, 'square', 0, 0.4 + i * 0.2));
   } catch (e) {}
@@ -2125,7 +2148,7 @@ canvas.addEventListener('pointerup', pointerEnd);
 canvas.addEventListener('pointercancel', pointerEnd);
 canvas.addEventListener('wheel', e => { if (state === 'menu' || state === 'lobby') return; e.preventDefault(); cam.zoom = clamp(cam.zoom * Math.pow(1.1, Math.sign(e.deltaY)), 0.6, 2.2); }, { passive: false });
 addEventListener('keydown', e => {
-  if (e.key === 'Escape' && !$('#openBox').hidden) { if (OPENING && OPENING.stage === 'spin') showPrize(); else closeOpen(); return; }
+  if (e.key === 'Escape' && OPENING) { if (OPENING.stage === 'spin') showPrize(); else closeOpen(); return; }
   if (e.key === 'Escape' && state === 'menu' && screen === 'cos' && COS.page === 'slot') { cosPage('locker'); return; }
   if (e.key === 'Escape' && state === 'menu' && screen !== 'home') { $('#mBack').click(); return; }
   if (e.key === 'Escape' && state === 'lobby') { clearRejoin(); toMenu('online'); return; }
@@ -2423,49 +2446,59 @@ for (const t of document.querySelectorAll('.cTab')) t.onclick = () => cosPage(t.
 $('#bSlotBack').onclick = () => cosPage('locker');
 $('#bEquip').onclick = () => { const k = COS.sel; if (!LK.ALL[k] || !lockerEdit(l => LK.wear(l, k))) return; PRE = null; dress(); renderCos(); };
 $('#bBuy').onclick = () => { const [kind, id] = COS.shop.split(':'); lockerEdit(l => kind === 'case' ? LK.buyCase(l, id) : LK.buyKey(l, id)); renderCos(); };
-// ---- opening a case: pick a key, the reel spins, the prize
+// ---- opening a case: pick a key (a small panel), then the reel and the prize fill the whole screen
 let OPENING = null;   // { grade, key, stage: 'pick' | 'spin' | 'prize', res }
-function openCase(grade) { OPENING = { grade, key: LK.KEY_IDS.find(k => LOCK.keys[k]) || '', stage: 'pick', res: null }; $('#openBox').hidden = false; renderOpen(); }
-function closeOpen() { OPENING = null; clearTimeout(reelT); $('#openBox').hidden = true; if (screen === 'cos') renderCos(); }
+function openCase(grade) { OPENING = { grade, key: LK.KEY_IDS.find(k => LOCK.keys[k]) || '', stage: 'pick', res: null }; renderOpen(); }
+function closeOpen() { OPENING = null; clearTimeout(reelT); $('#openBox').hidden = true; $('#reelScreen').hidden = true; if (screen === 'cos') renderCos(); }
 function renderOpen() {
-  const o = OPENING, g = LK.GRADES[o.grade], pick = o.stage === 'pick';
-  $('#openTitle').textContent = pick ? `Open a ${g.name}` : g.name;
-  $('#openPick').hidden = !pick; $('#reel').hidden = o.stage !== 'spin'; $('#prize').hidden = o.stage !== 'prize';
-  $('#bOpen').hidden = o.stage === 'spin'; $('#bPrizeEquip').hidden = true;
+  const o = OPENING, g = LK.GRADES[o.grade], pick = o.stage === 'pick', rs = $('#reelScreen');
+  $('#openBox').hidden = !pick; rs.hidden = pick;
   if (pick) {
+    $('#openTitle').textContent = `Open a ${g.name}`;
     const keys = $('#openKeys'); keys.textContent = '';
     for (const k of LK.KEY_IDS) if (LOCK.keys[k]) { const b = el('button', 'btn', `${LK.KEYS[k].name} ×${LOCK.keys[k]}`); b.type = 'button'; b.dataset.key = k; b.setAttribute('aria-pressed', String(k === o.key)); b.onclick = () => { o.key = k; renderOpen(); }; keys.append(b); }
     $('#openNote').textContent = !LOCK.cases[o.grade] ? 'None of these left.' : !o.key ? 'A case needs a key. Keys are in the Shop.' : o.key === 'any' ? 'A standard key: the look can be for any slot.' : `The look will be for ${LK.SLOTS.find(s => s.id === o.key).name}.`;
     $('#bOpen').textContent = o.res ? 'Open another' : 'Open'; $('#bOpen').disabled = !o.key || !LOCK.cases[o.grade];
-  } else if (o.stage === 'prize') {
-    const r = o.res, pc = $('#prizePic').getContext('2d'); pc.clearRect(0, 0, 32, 30); pc.drawImage(r.item ? lookPic(r.item) : casePic(o.grade), 0, 0, 32, 30);
-    $('#prizeName').textContent = r.item ? r.item.name : 'Nothing left to win'; $('#prizeName').style.color = r.item ? RARE_COL(r.item.rarity) : '';
-    $('#prizeNote').textContent = !r.item ? `You have every look: +${r.coins} coins.` : `${LK.RARITY[r.item.rarity].name} ${LK.SLOTS.find(s => s.id === r.item.slot).name.toLowerCase()}. ${r.dupe ? `A duplicate: +${r.coins} coins.` : 'New!'}`;
-    $('#bPrizeEquip').hidden = !r.item || r.item.key === wornKey(r.item.slot);
-    $('#bOpen').textContent = 'Open another'; $('#bOpen').disabled = false; $('#bOpen').hidden = !LOCK.cases[o.grade] || !LK.KEY_IDS.some(k => LOCK.keys[k]);
+    return;
   }
+  const r = o.res, won = o.stage === 'prize', tier = r.item ? LK.RARITIES.indexOf(r.item.rarity) : 0;
+  $('#rsTitle').textContent = g.name;
+  rs.style.setProperty('--rc', r.item ? RARE_COL(r.item.rarity) : '#ffc56b');
+  rs.classList.toggle('lit', won); rs.classList.toggle('rays', won && tier >= 2);   // rays for an epic or better
+  $('#reelStrip').classList.toggle('done', won);
+  if (!won) return;
+  $('#prizeName').textContent = r.item ? r.item.name : 'Nothing left to win';
+  $('#prizeNote').textContent = !r.item ? `You have every look: +${r.coins} coins.` : `${LK.RARITY[r.item.rarity].name} ${LK.SLOTS.find(s => s.id === r.item.slot).name.toLowerCase()}. ${r.dupe ? `A duplicate: +${r.coins} coins.` : 'New!'}`;
+  $('#bPrizeEquip').hidden = !r.item || r.item.key === wornKey(r.item.slot);
+  $('#bOpenMore').hidden = !LOCK.cases[o.grade] || !LK.KEY_IDS.some(k => LOCK.keys[k]);
 }
 let reelT = 0;
-function showPrize() { clearTimeout(reelT); if (!OPENING || OPENING.stage !== 'spin') return; OPENING.stage = 'prize'; const r = OPENING.res; sfx('prize' + (r.item ? LK.RARITIES.indexOf(r.item.rarity) : 0)); renderOpen(); }
+function showPrize() { clearTimeout(reelT); if (!OPENING || OPENING.stage !== 'spin') return; OPENING.stage = 'prize'; const r = OPENING.res, strip = $('#reelStrip'); strip.style.transition = 'none'; strip.style.transform = `translateX(${strip.dataset.end}px)`; sfx('prize' + (r.item ? LK.RARITIES.indexOf(r.item.rarity) : 0)); renderOpen(); }
+const REEL = { n: 30, at: 25, secs: 5.5 };   // tiles on the reel, which one is the prize, and how long it spins
 $('#bOpen').onclick = () => {
   const o = OPENING; if (!o) return;
-  if (o.stage === 'prize') { o.stage = 'pick'; if (!LOCK.keys[o.key]) o.key = LK.KEY_IDS.find(k => LOCK.keys[k]) || ''; renderOpen(); return; }
   const res = lockerEdit(l => LK.open(l, o.grade, o.key, Math.random));
   if (res.why) { renderOpen(); return; }
-  o.res = res; o.stage = 'spin'; renderOpen();
+  o.res = res; o.stage = 'spin';
   // the reel: looks drawn at random from what the key could give, the prize among them, gliding to a stop on it
-  const strip = $('#reelStrip'), pool = LK.ITEMS.filter(it => !it.free && (o.key === 'any' || it.slot === o.key)), N = 26, AT = 21; strip.textContent = '';
-  for (let i = 0; i < N; i++) { const it = i === AT && res.item ? res.item : pool[Math.floor(Math.random() * pool.length)], t = el('div', 'reelTile'); t.style.background = shade(RARE_COL(it.rarity), 0.5); t.style.borderColor = RARE_COL(it.rarity); t.append(lookPic(it)); strip.append(t); }
-  const step = strip.children[0].offsetWidth + 4, end = -(AT * step + step / 2 - $('#reel').clientWidth / 2 - 2) + (Math.random() - 0.5) * step * 0.6;
-  strip.style.transition = 'none'; strip.style.transform = 'translateX(0)';
-  if (reduceMotion) { strip.style.transform = `translateX(${end}px)`; showPrize(); return; }
-  void strip.offsetWidth; strip.style.transition = 'transform 3s cubic-bezier(.1,.62,.16,1)'; strip.style.transform = `translateX(${end}px)`;
-  reelT = setTimeout(showPrize, 3300);
+  const strip = $('#reelStrip'), pool = LK.ITEMS.filter(it => !it.free && (o.key === 'any' || it.slot === o.key)); strip.textContent = ''; strip.classList.remove('done');
+  for (let i = 0; i < REEL.n; i++) { const it = i === REEL.at && res.item ? res.item : pool[Math.floor(Math.random() * pool.length)], t = el('div', 'reelTile' + (i === REEL.at ? ' won' : '')); t.style.background = shade(RARE_COL(it.rarity), 0.5); t.style.borderColor = RARE_COL(it.rarity); t.append(lookPic(it)); strip.append(t); }
+  renderOpen();
+  const step = strip.children[0].offsetWidth + 6, end = -(REEL.at * step + step / 2 - 3 - $('#reel').clientWidth / 2) + (Math.random() - 0.5) * step * 0.6;
+  strip.dataset.end = end; strip.style.transition = 'none'; strip.style.transform = 'translateX(0)';
+  if (reduceMotion) { showPrize(); return; }
+  void strip.offsetWidth; strip.style.transition = `transform ${REEL.secs}s cubic-bezier(.08,.6,.12,1)`; strip.style.transform = `translateX(${end}px)`;
+  reelT = setTimeout(showPrize, REEL.secs * 1000 + 250);
+  // a tick as each look passes the marker
+  let last = -1; const mid = $('#reel').clientWidth / 2;
+  const tick = () => { if (!OPENING || OPENING.stage !== 'spin') return; const x = new DOMMatrixReadOnly(getComputedStyle(strip).transform).m41, i = Math.floor((mid - x) / step); if (i !== last) { last = i; sfx('tick'); } requestAnimationFrame(tick); };
+  requestAnimationFrame(tick);
 };
 $('#reel').onclick = showPrize;   // a tap skips to the prize
 $('#bPrizeEquip').onclick = () => { const it = OPENING && OPENING.res && OPENING.res.item; if (it && lockerEdit(l => LK.wear(l, it.key))) { dress(); renderOpen(); } };
-$('#bOpenClose').onclick = closeOpen;
-{ const ov = $('#openBox'); let down = false; ov.addEventListener('pointerdown', e => { down = e.target === ov; }); ov.addEventListener('click', e => { if (e.target === ov && down && (!OPENING || OPENING.stage !== 'spin')) closeOpen(); }); }
+$('#bOpenMore').onclick = () => { const o = OPENING; if (!o) return; o.stage = 'pick'; if (!LOCK.keys[o.key]) o.key = LK.KEY_IDS.find(k => LOCK.keys[k]) || ''; renderOpen(); };
+$('#bOpenClose').onclick = closeOpen; $('#bPrizeClose').onclick = closeOpen;
+{ const ov = $('#openBox'); let down = false; ov.addEventListener('pointerdown', e => { down = e.target === ov; }); ov.addEventListener('click', e => { if (e.target === ov && down) closeOpen(); }); }
 // ---- earning: a game against the computer, and the day's gift
 let EARN = null;   // what the game just finished paid, for the result panel
 function gamePaid() {
@@ -2602,7 +2635,7 @@ function arm() { if (armed) return; try { history.pushState({ rs: 1 }, ''); arme
 addEventListener('popstate', () => {
   armed = false;
   if (state === 'menu') {
-    if (!$('#openBox').hidden) { closeOpen(); arm(); } else if (screen === 'cos' && COS.page === 'slot') { cosPage('locker'); arm(); } else if (screen !== 'home') menuGo(BACK[screen] || 'home');
+    if (OPENING) { if (OPENING.stage === 'spin') showPrize(); else closeOpen(); arm(); } else if (screen === 'cos' && COS.page === 'slot') { cosPage('locker'); arm(); } else if (screen !== 'home') menuGo(BACK[screen] || 'home');
     return;
   }
   if (state === 'lobby') { clearRejoin(); toMenu('online'); return; }   // going back cancels the waiting room
@@ -2858,6 +2891,10 @@ function saveRejoin() {
   putRejoin([{ code: NET.code, cid: NET.cid, peer: NET.peerName, at: Date.now() }, ...rejoinList().filter(r => r.cid !== NET.cid)].slice(0, 4));
 }
 function clearRejoin() { if (NET.cid) putRejoin(rejoinList().filter(r => r.cid !== NET.cid)); }
+// Two tabs of one browser (playing yourself) share this list, and each reads it, changes it and writes it back: when
+// both save at the same moment one can write over the other's entry. So a tab that sees the list change without its
+// own entry in it, while it's in a game, puts itself back.
+addEventListener('storage', e => { if (e.key === REJOIN_KEY && NET.on && NET.started && !rejoinList().some(r => r.cid === NET.cid)) saveRejoin(); });
 // A page in an online room holds a lock named after its player id; the browser frees it when the page closes.
 // So another tab never offers to take over a seat that's still being played.
 const seatLock = cid => 'retroSet.seat.' + cid;

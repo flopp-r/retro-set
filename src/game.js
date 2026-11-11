@@ -490,7 +490,7 @@ function hiss(dur, vol, fc, q, type = 'bandpass', delay = 0) {
 // lose, draw and ui: square-wave notes, as on an old games machine
 function sfx(kind) {
   if (!S.volume) return;
-  SFX_LOG.push(kind); sfxCount++; if (SFX_LOG.length > 40) SFX_LOG.shift();
+  if (kind !== 'tick') { SFX_LOG.push(kind); sfxCount++; if (SFX_LOG.length > 40) SFX_LOG.shift(); }
   if (!AU.ctx) return;
   const tock = (d = 0, f = 210) => { blip(f, 0.07, 0.34, 'sine', f * 0.57, d); hiss(0.03, 0.2, 1900, 1.2, 'bandpass', d); };
   try {
@@ -502,6 +502,7 @@ function sfx(kind) {
     else if (kind === 'ui') blip(660, 0.05, 0.045, 'square');
     else if (kind === 'win') [523, 659, 784, 1046].forEach((f, i) => blip(f, 0.14, 0.07, 'square', 0, 0.4 + i * 0.1));
     else if (kind === 'lose') [392, 330, 262, 196].forEach((f, i) => blip(f, 0.18, 0.06, 'square', 0, 0.4 + i * 0.13));
+    else if (kind === 'tick') blip(880, 0.018, 0.022, 'square');
     else if (kind.startsWith('prize')) { const tier = +kind.slice(5) || 0; [523, 659, 784, 1046, 1318].slice(0, 2 + tier).forEach((f, i) => blip(f, 0.12 + tier * 0.02, 0.06, 'square', 0, i * 0.09)); }
     else if (kind === 'draw') [440, 440].forEach((f, i) => blip(f, 0.16, 0.06, 'square', 0, 0.4 + i * 0.2));
   } catch (e) {}
@@ -800,7 +801,7 @@ canvas.addEventListener('pointerup', pointerEnd);
 canvas.addEventListener('pointercancel', pointerEnd);
 canvas.addEventListener('wheel', e => { if (state === 'menu' || state === 'lobby') return; e.preventDefault(); cam.zoom = clamp(cam.zoom * Math.pow(1.1, Math.sign(e.deltaY)), 0.6, 2.2); }, { passive: false });
 addEventListener('keydown', e => {
-  if (e.key === 'Escape' && !$('#openBox').hidden) { if (OPENING && OPENING.stage === 'spin') showPrize(); else closeOpen(); return; }
+  if (e.key === 'Escape' && OPENING) { if (OPENING.stage === 'spin') showPrize(); else closeOpen(); return; }
   if (e.key === 'Escape' && state === 'menu' && screen === 'cos' && COS.page === 'slot') { cosPage('locker'); return; }
   if (e.key === 'Escape' && state === 'menu' && screen !== 'home') { $('#mBack').click(); return; }
   if (e.key === 'Escape' && state === 'lobby') { clearRejoin(); toMenu('online'); return; }
@@ -1098,49 +1099,59 @@ for (const t of document.querySelectorAll('.cTab')) t.onclick = () => cosPage(t.
 $('#bSlotBack').onclick = () => cosPage('locker');
 $('#bEquip').onclick = () => { const k = COS.sel; if (!LK.ALL[k] || !lockerEdit(l => LK.wear(l, k))) return; PRE = null; dress(); renderCos(); };
 $('#bBuy').onclick = () => { const [kind, id] = COS.shop.split(':'); lockerEdit(l => kind === 'case' ? LK.buyCase(l, id) : LK.buyKey(l, id)); renderCos(); };
-// ---- opening a case: pick a key, the reel spins, the prize
+// ---- opening a case: pick a key (a small panel), then the reel and the prize fill the whole screen
 let OPENING = null;   // { grade, key, stage: 'pick' | 'spin' | 'prize', res }
-function openCase(grade) { OPENING = { grade, key: LK.KEY_IDS.find(k => LOCK.keys[k]) || '', stage: 'pick', res: null }; $('#openBox').hidden = false; renderOpen(); }
-function closeOpen() { OPENING = null; clearTimeout(reelT); $('#openBox').hidden = true; if (screen === 'cos') renderCos(); }
+function openCase(grade) { OPENING = { grade, key: LK.KEY_IDS.find(k => LOCK.keys[k]) || '', stage: 'pick', res: null }; renderOpen(); }
+function closeOpen() { OPENING = null; clearTimeout(reelT); $('#openBox').hidden = true; $('#reelScreen').hidden = true; if (screen === 'cos') renderCos(); }
 function renderOpen() {
-  const o = OPENING, g = LK.GRADES[o.grade], pick = o.stage === 'pick';
-  $('#openTitle').textContent = pick ? `Open a ${g.name}` : g.name;
-  $('#openPick').hidden = !pick; $('#reel').hidden = o.stage !== 'spin'; $('#prize').hidden = o.stage !== 'prize';
-  $('#bOpen').hidden = o.stage === 'spin'; $('#bPrizeEquip').hidden = true;
+  const o = OPENING, g = LK.GRADES[o.grade], pick = o.stage === 'pick', rs = $('#reelScreen');
+  $('#openBox').hidden = !pick; rs.hidden = pick;
   if (pick) {
+    $('#openTitle').textContent = `Open a ${g.name}`;
     const keys = $('#openKeys'); keys.textContent = '';
     for (const k of LK.KEY_IDS) if (LOCK.keys[k]) { const b = el('button', 'btn', `${LK.KEYS[k].name} ×${LOCK.keys[k]}`); b.type = 'button'; b.dataset.key = k; b.setAttribute('aria-pressed', String(k === o.key)); b.onclick = () => { o.key = k; renderOpen(); }; keys.append(b); }
     $('#openNote').textContent = !LOCK.cases[o.grade] ? 'None of these left.' : !o.key ? 'A case needs a key. Keys are in the Shop.' : o.key === 'any' ? 'A standard key: the look can be for any slot.' : `The look will be for ${LK.SLOTS.find(s => s.id === o.key).name}.`;
     $('#bOpen').textContent = o.res ? 'Open another' : 'Open'; $('#bOpen').disabled = !o.key || !LOCK.cases[o.grade];
-  } else if (o.stage === 'prize') {
-    const r = o.res, pc = $('#prizePic').getContext('2d'); pc.clearRect(0, 0, 32, 30); pc.drawImage(r.item ? lookPic(r.item) : casePic(o.grade), 0, 0, 32, 30);
-    $('#prizeName').textContent = r.item ? r.item.name : 'Nothing left to win'; $('#prizeName').style.color = r.item ? RARE_COL(r.item.rarity) : '';
-    $('#prizeNote').textContent = !r.item ? `You have every look: +${r.coins} coins.` : `${LK.RARITY[r.item.rarity].name} ${LK.SLOTS.find(s => s.id === r.item.slot).name.toLowerCase()}. ${r.dupe ? `A duplicate: +${r.coins} coins.` : 'New!'}`;
-    $('#bPrizeEquip').hidden = !r.item || r.item.key === wornKey(r.item.slot);
-    $('#bOpen').textContent = 'Open another'; $('#bOpen').disabled = false; $('#bOpen').hidden = !LOCK.cases[o.grade] || !LK.KEY_IDS.some(k => LOCK.keys[k]);
+    return;
   }
+  const r = o.res, won = o.stage === 'prize', tier = r.item ? LK.RARITIES.indexOf(r.item.rarity) : 0;
+  $('#rsTitle').textContent = g.name;
+  rs.style.setProperty('--rc', r.item ? RARE_COL(r.item.rarity) : '#ffc56b');
+  rs.classList.toggle('lit', won); rs.classList.toggle('rays', won && tier >= 2);   // rays for an epic or better
+  $('#reelStrip').classList.toggle('done', won);
+  if (!won) return;
+  $('#prizeName').textContent = r.item ? r.item.name : 'Nothing left to win';
+  $('#prizeNote').textContent = !r.item ? `You have every look: +${r.coins} coins.` : `${LK.RARITY[r.item.rarity].name} ${LK.SLOTS.find(s => s.id === r.item.slot).name.toLowerCase()}. ${r.dupe ? `A duplicate: +${r.coins} coins.` : 'New!'}`;
+  $('#bPrizeEquip').hidden = !r.item || r.item.key === wornKey(r.item.slot);
+  $('#bOpenMore').hidden = !LOCK.cases[o.grade] || !LK.KEY_IDS.some(k => LOCK.keys[k]);
 }
 let reelT = 0;
-function showPrize() { clearTimeout(reelT); if (!OPENING || OPENING.stage !== 'spin') return; OPENING.stage = 'prize'; const r = OPENING.res; sfx('prize' + (r.item ? LK.RARITIES.indexOf(r.item.rarity) : 0)); renderOpen(); }
+function showPrize() { clearTimeout(reelT); if (!OPENING || OPENING.stage !== 'spin') return; OPENING.stage = 'prize'; const r = OPENING.res, strip = $('#reelStrip'); strip.style.transition = 'none'; strip.style.transform = `translateX(${strip.dataset.end}px)`; sfx('prize' + (r.item ? LK.RARITIES.indexOf(r.item.rarity) : 0)); renderOpen(); }
+const REEL = { n: 30, at: 25, secs: 5.5 };   // tiles on the reel, which one is the prize, and how long it spins
 $('#bOpen').onclick = () => {
   const o = OPENING; if (!o) return;
-  if (o.stage === 'prize') { o.stage = 'pick'; if (!LOCK.keys[o.key]) o.key = LK.KEY_IDS.find(k => LOCK.keys[k]) || ''; renderOpen(); return; }
   const res = lockerEdit(l => LK.open(l, o.grade, o.key, Math.random));
   if (res.why) { renderOpen(); return; }
-  o.res = res; o.stage = 'spin'; renderOpen();
+  o.res = res; o.stage = 'spin';
   // the reel: looks drawn at random from what the key could give, the prize among them, gliding to a stop on it
-  const strip = $('#reelStrip'), pool = LK.ITEMS.filter(it => !it.free && (o.key === 'any' || it.slot === o.key)), N = 26, AT = 21; strip.textContent = '';
-  for (let i = 0; i < N; i++) { const it = i === AT && res.item ? res.item : pool[Math.floor(Math.random() * pool.length)], t = el('div', 'reelTile'); t.style.background = shade(RARE_COL(it.rarity), 0.5); t.style.borderColor = RARE_COL(it.rarity); t.append(lookPic(it)); strip.append(t); }
-  const step = strip.children[0].offsetWidth + 4, end = -(AT * step + step / 2 - $('#reel').clientWidth / 2 - 2) + (Math.random() - 0.5) * step * 0.6;
-  strip.style.transition = 'none'; strip.style.transform = 'translateX(0)';
-  if (reduceMotion) { strip.style.transform = `translateX(${end}px)`; showPrize(); return; }
-  void strip.offsetWidth; strip.style.transition = 'transform 3s cubic-bezier(.1,.62,.16,1)'; strip.style.transform = `translateX(${end}px)`;
-  reelT = setTimeout(showPrize, 3300);
+  const strip = $('#reelStrip'), pool = LK.ITEMS.filter(it => !it.free && (o.key === 'any' || it.slot === o.key)); strip.textContent = ''; strip.classList.remove('done');
+  for (let i = 0; i < REEL.n; i++) { const it = i === REEL.at && res.item ? res.item : pool[Math.floor(Math.random() * pool.length)], t = el('div', 'reelTile' + (i === REEL.at ? ' won' : '')); t.style.background = shade(RARE_COL(it.rarity), 0.5); t.style.borderColor = RARE_COL(it.rarity); t.append(lookPic(it)); strip.append(t); }
+  renderOpen();
+  const step = strip.children[0].offsetWidth + 6, end = -(REEL.at * step + step / 2 - 3 - $('#reel').clientWidth / 2) + (Math.random() - 0.5) * step * 0.6;
+  strip.dataset.end = end; strip.style.transition = 'none'; strip.style.transform = 'translateX(0)';
+  if (reduceMotion) { showPrize(); return; }
+  void strip.offsetWidth; strip.style.transition = `transform ${REEL.secs}s cubic-bezier(.08,.6,.12,1)`; strip.style.transform = `translateX(${end}px)`;
+  reelT = setTimeout(showPrize, REEL.secs * 1000 + 250);
+  // a tick as each look passes the marker
+  let last = -1; const mid = $('#reel').clientWidth / 2;
+  const tick = () => { if (!OPENING || OPENING.stage !== 'spin') return; const x = new DOMMatrixReadOnly(getComputedStyle(strip).transform).m41, i = Math.floor((mid - x) / step); if (i !== last) { last = i; sfx('tick'); } requestAnimationFrame(tick); };
+  requestAnimationFrame(tick);
 };
 $('#reel').onclick = showPrize;   // a tap skips to the prize
 $('#bPrizeEquip').onclick = () => { const it = OPENING && OPENING.res && OPENING.res.item; if (it && lockerEdit(l => LK.wear(l, it.key))) { dress(); renderOpen(); } };
-$('#bOpenClose').onclick = closeOpen;
-{ const ov = $('#openBox'); let down = false; ov.addEventListener('pointerdown', e => { down = e.target === ov; }); ov.addEventListener('click', e => { if (e.target === ov && down && (!OPENING || OPENING.stage !== 'spin')) closeOpen(); }); }
+$('#bOpenMore').onclick = () => { const o = OPENING; if (!o) return; o.stage = 'pick'; if (!LOCK.keys[o.key]) o.key = LK.KEY_IDS.find(k => LOCK.keys[k]) || ''; renderOpen(); };
+$('#bOpenClose').onclick = closeOpen; $('#bPrizeClose').onclick = closeOpen;
+{ const ov = $('#openBox'); let down = false; ov.addEventListener('pointerdown', e => { down = e.target === ov; }); ov.addEventListener('click', e => { if (e.target === ov && down) closeOpen(); }); }
 // ---- earning: a game against the computer, and the day's gift
 let EARN = null;   // what the game just finished paid, for the result panel
 function gamePaid() {
@@ -1277,7 +1288,7 @@ function arm() { if (armed) return; try { history.pushState({ rs: 1 }, ''); arme
 addEventListener('popstate', () => {
   armed = false;
   if (state === 'menu') {
-    if (!$('#openBox').hidden) { closeOpen(); arm(); } else if (screen === 'cos' && COS.page === 'slot') { cosPage('locker'); arm(); } else if (screen !== 'home') menuGo(BACK[screen] || 'home');
+    if (OPENING) { if (OPENING.stage === 'spin') showPrize(); else closeOpen(); arm(); } else if (screen === 'cos' && COS.page === 'slot') { cosPage('locker'); arm(); } else if (screen !== 'home') menuGo(BACK[screen] || 'home');
     return;
   }
   if (state === 'lobby') { clearRejoin(); toMenu('online'); return; }   // going back cancels the waiting room
@@ -1533,6 +1544,10 @@ function saveRejoin() {
   putRejoin([{ code: NET.code, cid: NET.cid, peer: NET.peerName, at: Date.now() }, ...rejoinList().filter(r => r.cid !== NET.cid)].slice(0, 4));
 }
 function clearRejoin() { if (NET.cid) putRejoin(rejoinList().filter(r => r.cid !== NET.cid)); }
+// Two tabs of one browser (playing yourself) share this list, and each reads it, changes it and writes it back: when
+// both save at the same moment one can write over the other's entry. So a tab that sees the list change without its
+// own entry in it, while it's in a game, puts itself back.
+addEventListener('storage', e => { if (e.key === REJOIN_KEY && NET.on && NET.started && !rejoinList().some(r => r.cid === NET.cid)) saveRejoin(); });
 // A page in an online room holds a lock named after its player id; the browser frees it when the page closes.
 // So another tab never offers to take over a seat that's still being played.
 const seatLock = cid => 'retroSet.seat.' + cid;

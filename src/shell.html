@@ -74,12 +74,27 @@ button.chip2:disabled{cursor:default}
 #overEarn{font-size:20px;color:#7dffb0;margin:6px 0 0}
 #openPanel{width:min(520px,94vw)}
 #openKeys .btn[aria-pressed="true"]{background:var(--lamp);color:var(--ink)}
-#reel{position:relative;height:74px;overflow:hidden;border:3px solid var(--plum2);background:var(--ink);margin:4px 0 0}
-#reelStrip{position:absolute;left:0;top:4px;display:flex;gap:4px;will-change:transform}
-.reelTile{flex:none;width:60px;height:60px;display:flex;align-items:center;justify-content:center;border:3px solid var(--ink)}.reelTile canvas{width:48px;height:45px;image-rendering:pixelated}
-#reelMark{position:absolute;left:50%;top:0;bottom:0;width:3px;margin-left:-1px;background:var(--lamp)}
-#prize{display:flex;align-items:center;gap:14px;margin:6px 0 0}#prizePic{width:96px;height:90px;image-rendering:pixelated;border:3px solid var(--ink);flex:none}
-#prizeName{font-family:'Press Start 2P',monospace;font-size:13px;line-height:1.4}#prizeNote{font-size:21px;margin-top:4px}
+/* opening a case fills the whole screen: the reel across the middle, then the prize in its rarity's colour (--rc) */
+#reelScreen{position:fixed;inset:0;z-index:7;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2vh;background:rgba(13,10,28,.95);--t:min(40vh,22vw);--rc:#ffc56b;overflow:hidden}
+#reelScreen::before{content:'';position:absolute;inset:-40%;background:radial-gradient(closest-side,var(--rc),transparent 72%);opacity:0;transition:opacity .7s;pointer-events:none}
+#reelScreen.lit::before{opacity:.3}
+#reelScreen.rays::after{content:'';position:absolute;left:50%;top:50%;width:220vmax;height:220vmax;margin:-110vmax 0 0 -110vmax;background:repeating-conic-gradient(var(--rc) 0 5deg,transparent 5deg 20deg);opacity:.13;animation:rays 40s linear infinite;pointer-events:none}
+@keyframes rays{to{transform:rotate(360deg)}}
+#rsTitle{position:relative;font-family:'Press Start 2P',monospace;font-size:clamp(11px,2.6vh,20px);color:var(--lamp);text-shadow:3px 3px 0 var(--ink)}
+#reel{position:relative;z-index:1;width:100%;height:calc(var(--t)*1.1 + 6px);flex:none;overflow:hidden;border-top:3px solid var(--plum2);border-bottom:3px solid var(--plum2);background:rgba(13,10,28,.7);cursor:pointer}
+#reelStrip{position:absolute;left:0;top:calc(var(--t)*.05);display:flex;gap:6px;will-change:transform}
+.reelTile{flex:none;width:var(--t);height:var(--t);display:flex;align-items:center;justify-content:center;border:4px solid var(--ink);transition:opacity .45s,transform .45s}
+.reelTile canvas{width:78%;height:auto;image-rendering:pixelated}
+#reelStrip.done .reelTile{opacity:.25}#reelStrip.done .reelTile.won{opacity:1;transform:scale(1.07);outline:4px solid var(--paper);outline-offset:-2px;z-index:1}
+#reelMark{position:absolute;left:50%;top:0;bottom:0;width:4px;margin-left:-2px;background:var(--lamp);box-shadow:0 0 0 2px var(--ink)}
+#reelScreen.lit #reelMark{display:none}
+#prizeBox{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;gap:1vh;text-align:center;padding:0 14px}
+#prizeName{font-family:'Press Start 2P',monospace;font-size:clamp(14px,4vh,30px);line-height:1.3;color:var(--rc);text-shadow:3px 3px 0 var(--ink)}
+#prizeNote{font-size:clamp(18px,3.4vh,26px)}
+#prizeBtns{margin-top:1vh;justify-content:center}#prizeBtns .btn{font-size:clamp(9px,1.9vh,12px);padding:10px 14px}
+#rsHint{font-size:19px;opacity:.6}
+#reelScreen:not(.lit) #prizeName,#reelScreen:not(.lit) #prizeNote,#reelScreen:not(.lit) #prizeBtns{visibility:hidden}#reelScreen.lit #rsHint{display:none}
+@media (prefers-reduced-motion:reduce){#reelScreen.rays::after{animation:none}#reelScreen::before,.reelTile{transition:none}}
 #setBox:not(.inGame) .sTab[data-tab="match"],#setBox:not(.inGame) .sPage[data-tab="match"]{display:none}
 #setBox .row{grid-template-columns:136px 1fr;gap:2px 12px;margin:0 0 9px}#setBox .note{grid-column:2;font-size:18px;margin:0;max-width:none}#setBox .lbl{padding-top:4px}
 #setBox .seg .btn{padding:7px 9px}
@@ -207,7 +222,7 @@ input:focus{border-color:var(--chalk)}
   #cPages{padding-top:6px}.cHead{margin:5px 0 3px}.tile{padding:3px 2px 2px;gap:1px}.tile canvas,.tile img{width:40px;height:37px}.tile .tName{font-size:14px}
   #itemGrid{min-height:126px}.chip2{font-size:16px;padding:2px 5px 2px 2px}.chip2 canvas{width:20px;height:20px}.cFoot{margin-top:5px;min-height:28px}#itemInfo,#shopInfo{font-size:16px}
   .cBar{margin-bottom:5px}#slotTitle{font-size:18px}#gift{font-size:15px}#coins{font-size:18px;padding-bottom:4px}
-  #reel{height:62px}.reelTile{width:50px;height:50px}.reelTile canvas{width:40px;height:37px}#prizePic{width:64px;height:60px}#prizeName{font-size:10px}#prizeNote{font-size:17px}
+  #reelScreen{gap:1.2vh}#prizeBtns{margin-top:0}#prizeBtns .btn{padding:7px 10px}#rsHint{font-size:16px}
   #overTitle{font-size:16px!important}#overWhy{font-size:20px}
   #promoBtns canvas{width:36px;height:45px}#promoBtns .btn{padding:6px 4px;gap:4px}
 }
@@ -383,9 +398,16 @@ input:focus{border-color:var(--chalk)}
   <div class="panel ovPanel" id="openPanel" role="dialog" aria-labelledby="openTitle">
     <h2 id="openTitle"></h2>
     <div id="openPick"><p class="note" id="openNote"></p><div class="seg" id="openKeys"></div></div>
-    <div id="reel" hidden><div id="reelStrip"></div><div id="reelMark"></div></div>
-    <div id="prize" hidden><canvas id="prizePic" width="32" height="30"></canvas><div><div id="prizeName"></div><div id="prizeNote"></div></div></div>
-    <div class="actions"><button class="btn" id="bOpen" type="button">Open</button><button class="btn" id="bPrizeEquip" type="button" hidden>Equip</button><button class="btn" id="bOpenClose" type="button">Close</button></div>
+    <div class="actions"><button class="btn" id="bOpen" type="button">Open</button><button class="btn" id="bOpenClose" type="button">Close</button></div>
+  </div>
+</div>
+<div id="reelScreen" role="dialog" aria-labelledby="rsTitle" hidden>
+  <div id="rsTitle"></div>
+  <div id="reel"><div id="reelStrip"></div><div id="reelMark"></div></div>
+  <div id="prizeBox">
+    <div id="prizeName"></div><div id="prizeNote"></div>
+    <div class="actions" id="prizeBtns"><button class="btn" id="bPrizeEquip" type="button">Equip</button><button class="btn" id="bOpenMore" type="button">Open another</button><button class="btn" id="bPrizeClose" type="button">Close</button></div>
+    <div id="rsHint">Tap to skip</div>
   </div>
 </div>
 <div id="rotate" class="panel" role="status" hidden><p>Turn your phone sideways for a bigger board.</p><button class="btn" id="bRotateOk" type="button">OK</button></div>

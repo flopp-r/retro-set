@@ -37,8 +37,10 @@ const overlap = (a, b) => a && b && a.left < b.right - 1 && b.left < a.right - 1
     await p.click('#held .chip2[data-grade="silver"]'); await p.waitForTimeout(100);
     r = await fits('#openPanel'); ok(good(r) && await p.isVisible('#openBox'), say(r, 'opening a case'));
     await p.click('#bOpen'); await p.waitForTimeout(150);
-    r = await fits('#openPanel'); ok(good(r) && await p.isVisible('#prize'), say(r, 'a case\'s prize'));
-    await p.click('#bOpenClose');
+    const pz = await p.evaluate(() => { const on = s => { const r = document.querySelector(s).getBoundingClientRect(); return r.height > 0 && r.top >= 0 && r.left >= 0 && r.bottom <= innerHeight && r.right <= innerWidth; }, rs = document.querySelector('#reelScreen').getBoundingClientRect();
+      return { full: rs.left <= 0 && rs.top <= 0 && rs.width >= innerWidth && rs.height >= innerHeight, on: ['#rsTitle', '.reelTile.won', '#prizeName', '#prizeNote', '#prizeBtns'].every(on) }; });
+    ok(pz.full && pz.on, `${w}x${h}: a case's reel and prize take up the whole screen, the look, its name and the buttons all on it (${JSON.stringify(pz)})`);
+    await p.click('#bPrizeClose');
     await p.click('.cTab[data-c="shop"]'); await p.waitForTimeout(100);
     for (const buy of ['case:bronze', 'case:lucky', 'key:marks']) { await p.click(`.tile[data-buy="${buy}"]`); r = await fits('#mStage'); r2 = await fits('#menuPanel'); ok(good(r) && good(r2), say({ ...r, on: r2.on }, `the shop, ${buy}`)); }
     if (w === 762) await p.screenshot({ path: shot('fit-shop-phone.png') });

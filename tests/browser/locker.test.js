@@ -38,9 +38,9 @@ async function until(fn, ms = 15000) { const t = Date.now(); while (Date.now() -
   ok(await rs(() => window.__rs.opening) === 'prize' && l.cases.silver === 0 && l.keys.any === 0 && l.opened === 1 && won && /New!/.test(await txt('#prizeNote')), `opening takes the case and the key and gives a new look (${won}: "${await txt('#prizeName')}", "${await txt('#prizeNote')}")`);
   await p.screenshot({ path: shot('locker-prize.png') });
   await p.click('#bPrizeEquip'); l = await lock();
-  ok(l.wear[won.split(':')[0]] === won.split(':')[1] && !(await p.isVisible('#bPrizeEquip')) && !(await p.isVisible('#bOpen')), 'Equip on the prize puts it on; with no case or key left there is nothing more to open');
+  ok(l.wear[won.split(':')[0]] === won.split(':')[1] && !(await p.isVisible('#bPrizeEquip')) && !(await p.isVisible('#bOpenMore')), 'Equip on the prize puts it on; with no case or key left there is nothing more to open');
   await p.keyboard.press('Escape'); await p.waitForTimeout(100);
-  ok(!(await p.isVisible('#openBox')) && (await rs(() => document.querySelectorAll('#held .chip2').length)) === 0 && /No cases or keys/.test(await txt('#held')), 'Esc closes it, and the locker says there are no cases or keys left');
+  ok(!(await p.isVisible('#openBox')) && !(await p.isVisible('#reelScreen')) && (await rs(() => document.querySelectorAll('#held .chip2').length)) === 0 && /No cases or keys/.test(await txt('#held')), 'Esc closes it, and the locker says there are no cases or keys left');
 
   // --- trying a look on, and Equip
   await rs(() => window.__rs.lockerEdit(x => { for (const k of ['board:ocean', 'board:lava', 'set:blocks', 'marks:arrow', 'fx:sparks', 'room:library']) x.owned[k] = 1; x.owned['board:ocean'] = 3; x.wear = { set: 'classic', finish: 'classic', board: 'standard', room: 'parlour', fx: 'none', avatar: 'plain', marks: 'standard' }; }));
@@ -88,18 +88,22 @@ async function until(fn, ms = 15000) { const t = Date.now(); while (Date.now() -
   await p.click('#bOpen'); await p.waitForTimeout(150);
   const got = Object.keys((await lock()).owned).find(k => !before.includes(k));
   ok(got && got.startsWith('finish:'), `and it is (${got})`);
-  await p.click('#bOpenClose');
+  await p.click('#bPrizeClose');
 
   // --- the reel, where motion is allowed
   const ctx2 = await b.newContext({ viewport: { width: 700, height: 440 } });
   const q = await ctx2.newPage(); watch(q, log);
   await q.goto(SITE.new); await q.waitForTimeout(1200);
   await q.click('.hTab[data-go="cos"]'); await q.click('#held .chip2[data-grade="silver"]'); await q.click('#bOpen'); await q.waitForTimeout(400);
-  const spin = await q.evaluate(() => ({ stage: window.__rs.opening, tiles: document.querySelectorAll('#reelStrip .reelTile').length, shown: !document.querySelector('#reel').hidden, open: document.querySelector('#bOpen').hidden }));
-  ok(spin.stage === 'spin' && spin.tiles > 20 && spin.shown && spin.open, `with motion allowed the reel spins first (${spin.tiles} looks on it)`);
+  const spin = await q.evaluate(() => { const r = document.querySelector('#reelScreen').getBoundingClientRect(), t = document.querySelector('.reelTile').getBoundingClientRect();
+    return { stage: window.__rs.opening, tiles: document.querySelectorAll('#reelStrip .reelTile').length, full: !document.querySelector('#reelScreen').hidden && r.left <= 0 && r.top <= 0 && r.width >= innerWidth && r.height >= innerHeight, tile: Math.round(t.height), h: innerHeight, pick: document.querySelector('#openBox').hidden, lit: document.querySelector('#reelScreen').classList.contains('lit') }; });
+  ok(spin.stage === 'spin' && spin.tiles > 20 && spin.pick && !spin.lit, `with motion allowed the reel spins first (${spin.tiles} looks on it)`);
+  ok(spin.full && spin.tile >= spin.h * 0.3, `and it takes up the whole screen, each look ${spin.tile} px tall in a ${spin.h} px window`);
   await q.screenshot({ path: shot('locker-reel.png') });
+  await q.waitForTimeout(1200);
+  ok(await q.evaluate(() => window.__rs.opening) === 'spin', 'a second and a half later it is still turning');
   await q.click('#reel'); await q.waitForTimeout(150);
-  ok(await q.evaluate(() => window.__rs.opening === 'prize' && !document.querySelector('#prize').hidden), 'a tap on the reel skips to the prize');
+  ok(await q.evaluate(() => window.__rs.opening === 'prize' && document.querySelector('#reelScreen').classList.contains('lit') && !!document.querySelector('#prizeName').textContent), 'a tap on the reel skips to the prize, shown across the whole screen');
   await ctx2.close();
 
   // --- what a game pays

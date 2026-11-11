@@ -18,13 +18,15 @@ const reduceMotion = window.matchMedia && matchMedia('(prefers-reduced-motion: r
 // piece can go; autoQueen: a pawn reaching the end becomes a queen without asking; confirm: a move waits for a tap on
 // Confirm; flat: in a game, look straight down at flat pictures of the pieces; coords: the letters and numbers round
 // the board; lastMove: the last move's squares tinted; volume: 0 to 1 (0.75 the loudness the sounds were made at);
-// vibrate: a buzz for a capture and for check, on phones that can
+// vibrate: a buzz for a capture and for check, on phones that can; mySet: online, both sides wear your pieces
 const DEFAULTS = { pixel: 1, levels: 256, dither: true, outline: true, turn: true, set: 'classic', finish: 'classic',
-  hints: true, autoQueen: false, confirm: false, flat: false, coords: true, lastMove: true, volume: 0.75, vibrate: true };
+  hints: true, autoQueen: false, confirm: false, flat: false, coords: true, lastMove: true, volume: 0.75, vibrate: true, mySet: false };
 const S = { ...DEFAULTS };
 try { Object.assign(S, JSON.parse(localStorage.getItem('retroSet.settings') || '{}')); } catch (e) {}
 S.set = SETS.byId(S.set).id; S.finish = SETS.finish(S.finish).id;
 if (!(S.volume >= 0 && S.volume <= 1)) S.volume = DEFAULTS.volume;
+// what is worn in each of the locker's seven slots (looks.js): the pieces' set and finish are S.set and S.finish
+const W = { board: 'standard', room: 'parlour', fx: 'none', avatar: 'plain', marks: 'standard' };
 const saveS = () => { try { localStorage.setItem('retroSet.settings', JSON.stringify(S)); } catch (e) {} };
 
 // ------------------------------------------------------------------ renderer + post
@@ -117,24 +119,134 @@ function canvasTex(w, h, draw) {
 // ------------------------------------------------------------------ scene: lights + room
 // physically based light units (three.js r155+), as in Retro Rack
 const PI = Math.PI;
+const SQ = 0.057, BORDER = 0.03, B = 8 * SQ + 2 * BORDER, TABLE_Y = -0.02, FLOOR_Y = -0.75;
 scene.add(new THREE.HemisphereLight(0xb7c0ff, 0x2a1a3a, 0.32 * PI));
 const sun = new THREE.DirectionalLight(0xfff0d8, 0.17 * PI); sun.position.set(0.6, 3, 1.2); scene.add(sun);
 // two low lights from opposite corners, warm and cool, so the upright faces of the pieces differ from one another and
 // their shapes show from either side of the board (the lamp and sun are overhead, and light every side face alike)
 for (const [x, z, col] of [[1, 0.8, 0xffe2c0], [-1, -0.8, 0xc8d4ff]]) { const f = new THREE.DirectionalLight(col, 0.16 * PI); f.position.set(x, 0.55, z); scene.add(f); }
 const lamp = new THREE.PointLight(0xffdca4, 0.75 * PI, 5, 0.43); lamp.position.set(0, 0.7, 0); scene.add(lamp);
-const FLOOR_Y = -0.75;   // the floor reaches past the fog, so its edge never shows
-{
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshLambertMaterial({ color: 0x2a1d40 }));
-  floor.rotation.x = -PI / 2; floor.position.y = FLOOR_Y; scene.add(floor);
+// The room (the Room slot, W.room): the colour of the air, the floor and the table, and a few things standing round the
+// edge (props). The lights over the board stay as they are in every room, so the pieces always read the same.
+const ROOMS = {
+  parlour: { bg: '#1a1433', floor: '#2a1d40', table: '#6b3a22' },
+  library: { bg: '#17100b', floor: '#3b2515', table: '#1f4a36', leg: '#4a2a16', props: 'shelves' },
+  cafe: { bg: '#2b2420', floor: '#ffffff', tiles: ['#b9afa2', '#5a4a44'], table: '#bdb9b0', leg: '#3a3a3e', props: 'cafe' },
+  park: { bg: '#8cc0e6', floor: '#4f8a3c', table: '#85857f', props: 'trees' },
+  arcade: { bg: '#0a0716', floor: '#ffffff', tiles: ['#141030', '#141030', '#ff4fb4'], table: '#221a44', props: 'cabinets' },
+  space: { bg: '#04030a', floor: null, table: '#1a1830', props: 'stars' },
+};
+const lam = (color, more) => new THREE.MeshLambertMaterial({ color, flatShading: true, ...more });
+const floorMat = lam('#2a1d40'), tableMat = lam('#6b3a22', { flatShading: false }), legMat = lam('#6b3a22', { flatShading: false });
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), floorMat);   // it reaches past the fog, so its edge never shows
+floor.rotation.x = -PI / 2; floor.position.y = FLOOR_Y; scene.add(floor);
+const table = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.04, 24), tableMat); table.position.y = TABLE_Y - 0.02; scene.add(table);
+const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.08, TABLE_Y - 0.04 - FLOOR_Y, 8), legMat); leg.position.y = (TABLE_Y - 0.04 + FLOOR_Y) / 2; scene.add(leg);
+const PROPS = new THREE.Group(); scene.add(PROPS);
+const prop = (geo, mat, x, y, z, ry = 0, to = PROPS) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.y = ry; to.add(m); return m; };
+const boxG = (w, h, d) => new THREE.BoxGeometry(w, h, d), cylG = (r0, r1, h, n = 8) => new THREE.CylinderGeometry(r1, r0, h, n);
+// floor tiles: a tiny picture repeated (two colours chequered; a third makes it lines on a ground instead)
+const TILES = {};
+function tiles(cols) {
+  const k = cols.join();
+  if (!TILES[k]) {
+    const t = canvasTex(8, 8, g => { g.fillStyle = cols[0]; g.fillRect(0, 0, 8, 8); g.fillStyle = cols[2] || cols[1]; if (cols[2]) { g.fillRect(0, 0, 8, 1); g.fillRect(0, 0, 1, 8); } else { g.fillRect(0, 0, 4, 4); g.fillRect(4, 4, 4, 4); } });
+    t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(50, 50); TILES[k] = t;
+  }
+  return TILES[k];
+}
+const PROPS_OF = {
+  shelves(rnd) {   // bookcases in a ring, and a rug under the table
+    const wood = lam('#3a2414'), books = ['#8a2f3a', '#2f5a4a', '#c9a24a', '#2f4f7a', '#6a3c7a', '#b5653a'].map(c => lam(c));
+    for (let i = 0; i < 9; i++) {
+      const a = i / 9 * 2 * PI + 0.35, g = new THREE.Group(); g.position.set(Math.sin(a) * 2.3, FLOOR_Y, Math.cos(a) * 2.3); g.rotation.y = a + PI; PROPS.add(g);
+      prop(boxG(1, 1.9, 0.32), wood, 0, 0.95, 0, 0, g);
+      for (let row = 0; row < 4; row++) for (let x = -0.44; x < 0.38;) { const w = 0.05 + rnd() * 0.05, h = 0.24 + rnd() * 0.1; prop(boxG(w, h, 0.12), books[Math.floor(rnd() * 6)], x + w / 2, 0.16 + row * 0.44 + h / 2, 0.13, 0, g); x += w + 0.004; }
+    }
+    prop(new THREE.CircleGeometry(1.15, 20), lam('#6a2030'), 0, FLOOR_Y + 0.003, 0).rotation.x = -PI / 2;
+  },
+  cafe(rnd) {   // little round tables with stools, and a counter
+    const top = lam('#e6e2da'), dark = lam('#3a3a3e'), seat = lam('#b5653a');
+    for (let i = 0; i < 6; i++) {
+      const a = i / 6 * 2 * PI + 0.5, r = 1.9 + rnd() * 0.7, x = Math.sin(a) * r, z = Math.cos(a) * r;
+      prop(cylG(0.3, 0.3, 0.03, 10), top, x, FLOOR_Y + 0.7, z); prop(cylG(0.03, 0.03, 0.7, 6), dark, x, FLOOR_Y + 0.35, z);
+      for (const s of [-1, 1]) { const b = a + s * 0.24; prop(cylG(0.13, 0.13, 0.04, 8), seat, Math.sin(b) * (r + 0.1), FLOOR_Y + 0.45, Math.cos(b) * (r + 0.1)); prop(cylG(0.025, 0.025, 0.45, 5), dark, Math.sin(b) * (r + 0.1), FLOOR_Y + 0.225, Math.cos(b) * (r + 0.1)); }
+    }
+    prop(boxG(2.4, 1, 0.5), lam('#5a3a2a'), 0, FLOOR_Y + 0.5, -3.2); prop(boxG(2.5, 0.05, 0.6), top, 0, FLOOR_Y + 1.02, -3.2); prop(boxG(0.4, 0.45, 0.3), lam('#c4cbd6'), -0.7, FLOOR_Y + 1.27, -3.2);
+  },
+  trees(rnd) {   // trees and a bench, on grass
+    const trunk = lam('#6a4426'), leaf = [lam('#2f6a2c'), lam('#3f8a3a'), lam('#4f9a40')], wood = lam('#8a5a32');
+    for (let i = 0; i < 11; i++) {
+      const a = i / 11 * 2 * PI + rnd() * 0.3, r = 2.1 + rnd() * 2.6, x = Math.sin(a) * r, z = Math.cos(a) * r, k = 0.8 + rnd() * 0.6;
+      prop(cylG(0.09 * k, 0.06 * k, 0.9 * k, 6), trunk, x, FLOOR_Y + 0.45 * k, z);
+      prop(cylG(0.52 * k, 0, 1 * k, 7), leaf[i % 3], x, FLOOR_Y + 1.3 * k, z); prop(cylG(0.38 * k, 0, 0.8 * k, 7), leaf[(i + 1) % 3], x, FLOOR_Y + 1.85 * k, z);
+    }
+    prop(boxG(1.1, 0.05, 0.3), wood, 0, FLOOR_Y + 0.42, 1.25); prop(boxG(1.1, 0.3, 0.05), wood, 0, FLOOR_Y + 0.62, 1.4);
+    for (const x of [-0.45, 0.45]) prop(boxG(0.06, 0.42, 0.28), wood, x, FLOOR_Y + 0.21, 1.25);
+  },
+  cabinets() {   // arcade machines in a ring, their screens lit, and two coloured lights
+    const body = lam('#1c1636'), cols = ['#35e0ff', '#ff4fb4', '#ffc56b', '#7dffb0'];
+    for (let i = 0; i < 8; i++) {
+      const a = i / 8 * 2 * PI + 0.4, g = new THREE.Group(); g.position.set(Math.sin(a) * 2.3, FLOOR_Y, Math.cos(a) * 2.3); g.rotation.y = a + PI; PROPS.add(g);
+      const lit = new THREE.MeshBasicMaterial({ color: cols[i % 4] });
+      prop(boxG(0.62, 1.6, 0.6), body, 0, 0.8, 0, 0, g); prop(boxG(0.46, 0.34, 0.02), lit, 0, 1.12, 0.31, 0, g); prop(boxG(0.62, 0.14, 0.04), lit, 0, 1.5, 0.32, 0, g); prop(boxG(0.5, 0.05, 0.22), lam('#3a2f66'), 0, 0.82, 0.38, 0, g);
+    }
+    for (const [x, z, c] of [[-1.5, 1.1, 0xff4fb4], [1.5, -1.1, 0x35e0ff]]) { const l = new THREE.PointLight(c, 0.5 * PI, 5, 0.6); l.position.set(x, 0.9, z); PROPS.add(l); }
+  },
+  stars(rnd) {   // stars all round, a planet, and a lit rim on the table, which floats
+    const pos = [];
+    for (let i = 0; i < 700; i++) { const u = rnd() * 2 - 1, a = rnd() * 2 * PI, r = Math.sqrt(1 - u * u) * 9.5; pos.push(Math.cos(a) * r, u * 9.5, Math.sin(a) * r); }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    PROPS.add(new THREE.Points(g, new THREE.PointsMaterial({ color: '#e8ecff', size: 1.5, sizeAttenuation: false, fog: false, depthWrite: false })));
+    prop(new THREE.SphereGeometry(1.2, 10, 7), lam('#c9703a', { fog: false }), -4.6, 0.3, -6.2);
+    prop(new THREE.TorusGeometry(1.9, 0.09, 3, 24), lam('#e0c890', { fog: false }), -4.6, 0.3, -6.2).rotation.x = 1.25;
+    prop(new THREE.TorusGeometry(0.42, 0.012, 4, 24), new THREE.MeshBasicMaterial({ color: '#6cb8ff' }), 0, TABLE_Y - 0.04, 0).rotation.x = PI / 2;
+  },
+};
+let roomOn = '';
+function applyRoom() {
+  const r = ROOMS[W.room] || ROOMS.parlour;
+  if (roomOn === W.room) return; roomOn = W.room;
+  ROOM.set(r.bg); scene.fog.color.set(r.bg);
+  floor.visible = r.floor !== null; if (r.floor) floorMat.color.set(r.floor);
+  floorMat.map = r.tiles ? tiles(r.tiles) : null; floorMat.needsUpdate = true;
+  tableMat.color.set(r.table); legMat.color.set(r.leg || r.table); leg.visible = r.floor !== null;
+  PROPS.traverse(o => { if (o.geometry) o.geometry.dispose(); }); PROPS.clear();
+  if (r.props) PROPS_OF[r.props](C.rng(7));
 }
 
 // ------------------------------------------------------------------ board
 // Squares of 5.7 cm with a 3 cm border, on a small round table. Square s (0 = a1 … 63 = h8) is centred at
 // (sqX(s), 0, sqZ(s)); White sits at +z, so from White's side a1 is at the near left.
-const SQ = 0.057, BORDER = 0.03, B = 8 * SQ + 2 * BORDER, TABLE_Y = -0.02;
 const sqX = s => ((s & 7) - 3.5) * SQ, sqZ = s => (3.5 - (s >> 3)) * SQ;
-const LIGHT_SQ = '#c4a67c', DARK_SQ = '#5a3b78', FRAME = '#3a2452';
+// The board (the Board slot, W.board): light and dark squares, the frame, the coordinates' ink; tex: a pattern drawn
+// into every square; glow: a colour that shines by itself wherever the pattern says; anim: the glow swells and fades.
+const BOARDS = {
+  standard: { l: '#c4a67c', d: '#5a3b78', f: '#3a2452', ink: '#c9b48f' },
+  tournament: { l: '#b4b38c', d: '#55804a', f: '#2f4a2c', ink: '#c9c8a2' },
+  walnut: { l: '#bc9c6c', d: '#704226', f: '#3c2414', ink: '#c9a878' },
+  slate: { l: '#969ba6', d: '#525a68', f: '#2c313a', ink: '#a4a9b4' },
+  ocean: { l: '#8cb0c0', d: '#2c6690', f: '#173a55', ink: '#a4c8d6' },
+  rosewood: { l: '#bea486', d: '#822c38', f: '#4a1620', ink: '#d0b698' },
+  mint: { l: '#98bca4', d: '#2c7668', f: '#16423a', ink: '#b0d2bc' },
+  sand: { l: '#c2aa74', d: '#9a6a34', f: '#6a4420', ink: '#d6be88' },
+  hall: { l: '#b2b0a8', d: '#454b58', f: '#1c1f26', ink: '#cfae6a', tex: 'veins' },
+  grid: { l: '#34306a', d: '#17123a', f: '#0b0818', ink: '#35e0ff', tex: 'grid', glow: '#35e0ff' },
+  galaxy: { l: '#5a4f9a', d: '#221c50', f: '#0d0a24', ink: '#b8c4ff', tex: 'stars', glow: '#ffffff' },
+  lava: { l: '#6a3220', d: '#2a1512', f: '#120807', ink: '#ffb060', tex: 'cracks', glow: '#e04a10', anim: true },
+};
+// the patterns: each draws one square (16 px), and, on the glow pass, what shines; both passes must ask rnd for the
+// same numbers, so the two pictures line up
+const PATTERN = {
+  veins(g, x0, y0, light, rnd, glow) {
+    for (let v = 0; v < 2; v++) { let x = Math.floor(rnd() * 16), y = 0; const d = rnd() < 0.5 ? 1 : -1; for (let i = 0; i < 16; i++) { if (!glow && x >= 0 && x < 16) { g.fillStyle = light ? '#b4b0a6' : '#7a8296'; g.fillRect(x0 + x, y0 + y, 1, 1); } y++; if (rnd() < 0.6) x += d; } }
+  },
+  grid(g, x0, y0, light, rnd, glow, b) { g.fillStyle = glow ? '#888' : b.glow; g.globalAlpha = glow ? 1 : 0.5; g.fillRect(x0, y0, 16, 1); g.fillRect(x0, y0, 1, 16); g.globalAlpha = 1; },
+  stars(g, x0, y0, light, rnd, glow) { const n = 2 + Math.floor(rnd() * 3); for (let i = 0; i < n; i++) { const x = Math.floor(rnd() * 16), y = Math.floor(rnd() * 16), big = rnd() < 0.3; g.fillStyle = glow ? (big ? '#fff' : '#555') : big ? '#ffffff' : '#b8c4ff'; g.fillRect(x0 + x, y0 + y, 1, 1); } },
+  cracks(g, x0, y0, light, rnd, glow) {
+    for (let v = 0; v < (light ? 0 : 1); v++) { let x = Math.floor(rnd() * 16), y = Math.floor(rnd() * 16); for (let i = 0; i < 10; i++) { g.fillStyle = glow ? '#fff' : '#b03c14'; if (x >= 0 && x < 16 && y >= 0 && y < 16) g.fillRect(x0 + x, y0 + y, 1, 1); const r = rnd(); if (r < 0.4) x++; else if (r < 0.6) x--; else if (r < 0.85) y++; else y--; } }
+  },
+};
 // the coordinates round the border, in a tiny pixel font (3 × 5): files along White's and Black's edges, ranks up the
 // sides, each set the right way up for the player sitting nearest
 const GLYPH = {
@@ -143,47 +255,86 @@ const GLYPH = {
   1: ['.#.', '##.', '.#.', '.#.', '###'], 2: ['##.', '..#', '.#.', '#..', '###'], 3: ['##.', '..#', '.#.', '..#', '##.'], 4: ['#.#', '#.#', '###', '..#', '..#'],
   5: ['###', '#..', '##.', '..#', '##.'], 6: ['.##', '#..', '###', '#.#', '###'], 7: ['###', '..#', '.#.', '.#.', '.#.'], 8: ['###', '#.#', '###', '#.#', '###'],
 };
-const drawBoard = coords => canvasTex(144, 144, (g) => {   // 16 px a square, 8 px of border
-  g.fillStyle = FRAME; g.fillRect(0, 0, 144, 144);
-  for (let r = 0; r < 8; r++) for (let f = 0; f < 8; f++) { g.fillStyle = (f + r) & 1 ? LIGHT_SQ : DARK_SQ; g.fillRect(8 + f * 16, 8 + (7 - r) * 16, 16, 16); }
-  if (!coords) return;
-  g.fillStyle = '#c9b48f';
+const drawBoard = (coords, id = 'standard', glow = false) => canvasTex(144, 144, (g) => {   // 16 px a square, 8 px of border
+  const b = BOARDS[id], rnd = C.rng(id.length * 977 + id.charCodeAt(0));
+  g.fillStyle = glow ? '#000' : b.f; g.fillRect(0, 0, 144, 144);
+  for (let r = 0; r < 8; r++) for (let f = 0; f < 8; f++) {
+    const light = (f + r) & 1, x0 = 8 + f * 16, y0 = 8 + (7 - r) * 16;
+    g.fillStyle = glow ? '#000' : light ? b.l : b.d; g.fillRect(x0, y0, 16, 16);
+    if (b.tex) PATTERN[b.tex](g, x0, y0, light, rnd, glow, b);
+  }
+  if (!coords || glow) return;
+  g.fillStyle = b.ink;
   const glyph = (ch, x, y, flip) => GLYPH[ch].forEach((row, j) => [...row].forEach((p, i) => { if (p === '#') g.fillRect(flip ? x + 2 - i : x + i, flip ? y + 4 - j : y + j, 1, 1); }));
   for (let i = 0; i < 8; i++) {
     glyph(C.FILES[i], 8 + i * 16 + 7, 137, false); glyph(C.FILES[i], 8 + i * 16 + 6, 2, true);
     glyph(String(i + 1), 3, 8 + (7 - i) * 16 + 6, false); glyph(String(i + 1), 138, 8 + (7 - i) * 16 + 5, true);
   }
 });
-const BOARD_TEX = {};   // with the coordinates and without
-let boardTop = null;
-function applyBoard() { const k = S.coords ? 'on' : 'off'; boardTop.material.map = BOARD_TEX[k] || (BOARD_TEX[k] = drawBoard(!!S.coords)); }
-const woodMat = new THREE.MeshLambertMaterial({ color: 0x6b3a22 });
-{
-  const table = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.04, 24), woodMat);
-  table.position.y = TABLE_Y - 0.02; scene.add(table);
-  const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.08, TABLE_Y - 0.04 - FLOOR_Y, 8), woodMat);
-  leg.position.y = (TABLE_Y - 0.04 + FLOOR_Y) / 2; scene.add(leg);
-  const frame = new THREE.Mesh(new THREE.BoxGeometry(B, -TABLE_Y, B), new THREE.MeshLambertMaterial({ color: FRAME }));
-  frame.position.y = TABLE_Y / 2; scene.add(frame);
-  boardTop = new THREE.Mesh(new THREE.PlaneGeometry(B, B), new THREE.MeshLambertMaterial({ map: BOARD_TEX.on = drawBoard(true) }));
-  boardTop.rotation.x = -PI / 2; boardTop.position.y = 0.0005; scene.add(boardTop); applyBoard();
+const BOARD_TEX = {};   // each board's pictures, with the coordinates and without
+const frameMat = lam('#3a2452', { flatShading: false }), topMat = new THREE.MeshLambertMaterial({ map: drawBoard(true) });
+const frameBox = new THREE.Mesh(new THREE.BoxGeometry(B, -TABLE_Y, B), frameMat); frameBox.position.y = TABLE_Y / 2; scene.add(frameBox);
+const boardTop = new THREE.Mesh(new THREE.PlaneGeometry(B, B), topMat); boardTop.rotation.x = -PI / 2; boardTop.position.y = 0.0005; scene.add(boardTop);
+function applyBoard() {
+  const id = BOARDS[W.board] ? W.board : 'standard', b = BOARDS[id], k = id + (S.coords ? '+' : '-');
+  const t = BOARD_TEX[k] || (BOARD_TEX[k] = { map: drawBoard(!!S.coords, id), glow: b.glow ? drawBoard(false, id, true) : null });
+  topMat.map = t.map; topMat.emissiveMap = t.glow; topMat.emissive.set(t.glow ? b.glow : '#000000'); topMat.emissiveIntensity = 0.85; topMat.needsUpdate = true;
+  frameMat.color.set(b.f);
 }
 // marks on the squares: the last move (S.lastMove), the piece picked up, a king in check, where the picked-up piece
-// can go (S.hints: a dot on an empty square, a ring round a piece it can take), and a move waiting to be confirmed
-const markMat = (color, opacity) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false });
+// can go (S.hints: a dot on an empty square, a ring round a piece it can take), and a move waiting to be confirmed.
+// Their look is the Square marks slot (W.marks): the colours; shape: the last move and the piece picked up as corner
+// brackets, or the last move as an arrow; dot: the shape of the dots; anim: the tints breathe or flicker, slowly.
+const MARK_LOOKS = {
+  standard: { last: '#ffc56b', go: '#6cb8ff', check: '#ff6f8f' },
+  mint: { last: '#7dffb0', go: '#f7ead2', check: '#ff6f8f' },
+  rose: { last: '#ff9ab0', go: '#ffc56b', check: '#ff3050' },
+  mono: { last: '#ffffff', go: '#ffffff', check: '#ff6f8f' },
+  corners: { last: '#ff8a1a', go: '#6cb8ff', check: '#ff6f8f', shape: 'corners' },
+  arrow: { last: '#ff8a1a', go: '#6cb8ff', check: '#ff6f8f', shape: 'arrow' },
+  pulse: { last: '#c58cff', go: '#6cb8ff', check: '#ff6f8f', anim: 'pulse' },
+  stars: { last: '#ffc56b', go: '#fff0a0', check: '#ff6f8f', dot: 'star' },
+  flame: { last: '#ff8a3a', go: '#ffd9a0', check: '#ff3030', dot: 'diamond', anim: 'flicker' },
+};
+const markMat = (color, opacity) => { const m = new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false }); m.userData.o = opacity; return m; };
 const MARKS = new THREE.Group(); scene.add(MARKS);
-const squareGeo = new THREE.PlaneGeometry(SQ, SQ), dotGeo = new THREE.CircleGeometry(SQ * 0.17, 8), ringGeo = new THREE.RingGeometry(SQ * 0.37, SQ * 0.47, 12);
-const MM = { last: markMat('#ffc56b', 0.3), sel: markMat('#ffc56b', 0.6), check: markMat('#ff6f8f', 0.65), go: markMat('#6cb8ff', 0.8), to: markMat('#6cb8ff', 0.55) };
+// a flat shape from rectangles [x, y, w, h] or corner points, lying in the mark's own plane
+const shapeGeo = pts => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pts.flatMap(([x, y]) => [x, y, 0]), 3)); return g; };
+const rectPts = (x, y, w, h) => [[x, y], [x + w, y], [x + w, y + h], [x, y], [x + w, y + h], [x, y + h]];
+const squareGeo = new THREE.PlaneGeometry(SQ, SQ), ringGeo = new THREE.RingGeometry(SQ * 0.37, SQ * 0.47, 12);
+const DOTS = { dot: new THREE.CircleGeometry(SQ * 0.17, 8), diamond: new THREE.CircleGeometry(SQ * 0.2, 4),
+  star: shapeGeo([0, 1, 2, 3, 4].flatMap(i => { const a = i * 2 * PI / 5, p = (b, r) => [Math.sin(b) * r * SQ, Math.cos(b) * r * SQ]; return [[0, 0], p(a, 0.24), p(a - 0.63, 0.1), [0, 0], p(a + 0.63, 0.1), p(a, 0.24)]; })) };
+const cornerGeo = shapeGeo([-1, 1].flatMap(sx => [-1, 1].flatMap(sy => { const h = SQ / 2, n = SQ * 0.36, t = SQ * 0.12; return [...rectPts(sx > 0 ? h - n : -h, sy > 0 ? h - t : -h, n, t), ...rectPts(sx > 0 ? h - t : -h, sy > 0 ? h - n : -h, t, n)]; })));
+const MM = { last: markMat('#ffc56b', 0.3), sel: markMat('#ffc56b', 0.6), check: markMat('#ff6f8f', 0.65), go: markMat('#6cb8ff', 0.8), to: markMat('#6cb8ff', 0.55), edge: markMat('#ffc56b', 0.95) };
+let MK = MARK_LOOKS.standard;
+function applyMarks() {
+  MK = MARK_LOOKS[W.marks] || MARK_LOOKS.standard;
+  MM.last.color.set(MK.last); MM.sel.color.set(MK.last); MM.edge.color.set(MK.last); MM.check.color.set(MK.check); MM.go.color.set(MK.go); MM.to.color.set(MK.go);
+  for (const k in MM) MM[k].opacity = MM[k].userData.o;
+}
 function mark(geo, mat, s, y) { const m = new THREE.Mesh(geo, mat); m.rotation.x = -PI / 2; m.position.set(sqX(s), y, sqZ(s)); MARKS.add(m); }
+// the last move as an arrow from one square to the other
+function arrow(from, to) {
+  const ax = sqX(from), ay = -sqZ(from), bx = sqX(to), by = -sqZ(to), len = Math.hypot(bx - ax, by - ay), dx = (bx - ax) / len, dy = (by - ay) / len, px = -dy, py = dx;
+  const s = SQ * 0.28, h = SQ * 0.5, w = SQ * 0.12, hw = SQ * 0.3, at = (t, u) => [ax + dx * t + px * u, ay + dy * t + py * u];
+  const m = new THREE.Mesh(shapeGeo([at(s, -w), at(len - h, -w), at(len - h, w), at(s, -w), at(len - h, w), at(s, w), at(len - h, -hw), at(len, 0), at(len - h, hw)]), MM.edge);
+  m.rotation.x = -PI / 2; m.position.y = 0.0009; MARKS.add(m);
+}
 function showMarks() {
-  MARKS.clear();
-  if (!G || state === 'menu') return;
-  const last = G.list[G.list.length - 1];
-  if (last && S.lastMove) { mark(squareGeo, MM.last, last.m.from, 0.0008); mark(squareGeo, MM.last, last.m.to, 0.0008); }
+  MARKS.traverse(o => { if (o.geometry && o.material === MM.edge && MK.shape === 'arrow') o.geometry.dispose(); }); MARKS.clear();
+  if (!G || state === 'menu') { if (PRE && PRE.slot === 'marks' && state === 'menu') sampleMarks(); return; }
+  const last = G.list[G.list.length - 1], tint = MK.shape === 'corners' ? cornerGeo : squareGeo, mat = MK.shape === 'corners' ? MM.edge : null;
+  if (last && S.lastMove) { if (MK.shape === 'arrow') arrow(last.m.from, last.m.to); else { mark(tint, mat || MM.last, last.m.from, 0.0008); mark(tint, mat || MM.last, last.m.to, 0.0008); } }
   if (C.inCheck(G.pos)) mark(squareGeo, MM.check, G.pos.b.indexOf(G.pos.turn === 'w' ? 'K' : 'k'), 0.001);
-  if (sel >= 0) mark(squareGeo, MM.sel, sel, 0.0012);
-  if (pending) { mark(squareGeo, MM.sel, pending.from, 0.0012); mark(squareGeo, MM.to, pending.to, 0.0012); }
-  if (S.hints) for (const s of new Set(targets.map(m => m.to))) mark(G.pos.b[s] || targets.some(m => m.to === s && m.ep) ? ringGeo : dotGeo, MM.go, s, 0.0014);
+  if (sel >= 0) mark(tint, mat || MM.sel, sel, 0.0012);
+  if (pending) { mark(tint, mat || MM.sel, pending.from, 0.0012); mark(squareGeo, MM.to, pending.to, 0.0012); }
+  if (S.hints) for (const s of new Set(targets.map(m => m.to))) mark(G.pos.b[s] || targets.some(m => m.to === s && m.ep) ? ringGeo : DOTS[MK.dot || 'dot'], MM.go, s, 0.0014);
+}
+// the looks that move (not with reduced motion): the marks' tints, a board's glow, and the two moving finishes
+function looksTick(t) {
+  if (MK.anim) { const k = MK.anim === 'pulse' ? 0.7 + 0.3 * Math.sin(t * 2.4) : 0.78 + 0.14 * Math.sin(t * 7) + 0.08 * Math.sin(t * 11.3); for (const m of [MM.last, MM.sel, MM.edge]) m.opacity = m.userData.o * k; }
+  if ((BOARDS[W.board] || {}).anim) topMat.emissiveIntensity = 0.75 + 0.25 * Math.sin(t * 1.1);
+  SETS.tick(t);
 }
 
 // ------------------------------------------------------------------ pieces
@@ -191,22 +342,27 @@ function showMarks() {
 // piece is one mesh with a material for the body, the trim and the glow. Every piece faces the other side; knights
 // look to their owner's left and a little forwards, so each player sees the head side on, as in a diagram.
 // In the flat view (S.flat, in a game only: FLAT) each piece is instead its picture lying on the square, drawn by
-// pieceIcon() and kept the right way up for the viewer as the view turns (the main loop). The picture is drawn about
+// pieceIcon(), the right way up for the side the view is on (cam.base). The pictures never turn with the view: in the
+// flat view dragging doesn't turn it, and turning the board (after a move, or the Turn button) is a flip, at once, not a
+// swing round. The picture is drawn about
 // as many pixels tall as a square is on the screen (flatH, between 12 and 64), so big game pixels don't mangle it.
 let FLAT = false, flatH = 48;
 const FLAT_MAT = {}, flatGeo = new THREE.PlaneGeometry(SQ * 0.76, SQ * 0.95).translate(0, 0, 0.003);
+// whose set and finish a side's pieces wear: yours, except online, where the other side wears the other player's
+// (unless "My set only" is on, or they sent none)
+const lookOf = c => NET.on && NET.peerLook && !S.mySet && c !== NET.me ? NET.peerLook : S;
 function flatMat(ch) {
-  const key = `${S.set} ${S.finish} ${ch} ${flatH}`;
+  const lk = lookOf(C.colour(ch)), key = `${lk.set} ${lk.finish} ${ch} ${flatH}`;
   if (!FLAT_MAT[key]) {
-    const t = new THREE.CanvasTexture(pieceIcon(C.kind(ch), C.colour(ch), Math.round(flatH * 0.8), flatH, 0.6)); t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
+    const t = new THREE.CanvasTexture(pieceIcon(C.kind(ch), C.colour(ch), Math.round(flatH * 0.8), flatH, 0.6, lk.set, lk.finish)); t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
     FLAT_MAT[key] = new THREE.MeshBasicMaterial({ map: t, alphaTest: 0.5 });
   }
   return FLAT_MAT[key];
 }
 const wantFlat = () => S.flat && state !== 'menu' && state !== 'lobby';
 function makePiece(ch) {
-  if (FLAT) { const f = new THREE.Mesh(flatGeo, flatMat(ch)); f.rotation.set(-PI / 2, 0, cam.cur.yaw); f.userData.ch = ch; return f; }
-  const k = C.kind(ch), c = C.colour(ch), g = new THREE.Mesh(SETS.geo(S.set, k), SETS.mats(S.finish, c));
+  if (FLAT) { const f = new THREE.Mesh(flatGeo, flatMat(ch)); f.rotation.set(-PI / 2, 0, cam.base); f.userData.ch = ch; return f; }
+  const k = C.kind(ch), c = C.colour(ch), lk = lookOf(c), g = new THREE.Mesh(SETS.geo(lk.set, k), SETS.mats(lk.finish, c));
   g.rotation.y = k === 'N' ? (c === 'w' ? 5 * PI / 6 : -PI / 6) : c === 'w' ? 0 : PI;
   g.userData.ch = ch;
   return g;
@@ -234,10 +390,10 @@ function refit() { $('#bView').textContent = S.flat ? '3D' : '2D'; if (SHOWN && 
 // a little picture of a piece (the promotion buttons), drawn pixel by pixel from the set's own shape seen from the
 // front, in the finish's colours. fit 0: every kind at the same scale (the king fills the height); 1: this kind
 // fills the height; between, the sizes are drawn closer together
-function pieceIcon(k, c, W = 24, H = 30, fit = false) {
+function pieceIcon(k, c, W = 24, H = 30, fit = false, set = S.set, fin0 = S.finish) {
   const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
-  const g = cv.getContext('2d'), geo = SETS.geo(S.set, k), pos = geo.attributes.position.array, fin = SETS.finish(S.finish)[c];
-  const tall = x => SETS.geo(S.set, x).boundingBox.max.y, sc = (H - 2) / lerp(tall('K'), tall(k), +fit), flip = k === 'N' ? -1 : 1;
+  const g = cv.getContext('2d'), geo = SETS.geo(set, k), pos = geo.attributes.position.array, fin = SETS.finish(fin0)[c];
+  const tall = x => SETS.geo(set, x).boundingBox.max.y, sc = (H - 2) / lerp(tall('K'), tall(k), +fit), flip = k === 'N' ? -1 : 1;
   const slot = new Int8Array(W * H).fill(-1), depth = new Float32Array(W * H).fill(Infinity);
   for (const gr of geo.groups) for (let i = gr.start * 3; i < (gr.start + gr.count) * 3; i += 9) {
     const X = [0, 3, 6].map(j => W / 2 + flip * pos[i + j] * sc), Y = [0, 3, 6].map(j => H - 1 - pos[i + j + 1] * sc), Z = (pos[i + 2] + pos[i + 5] + pos[i + 8]) / 3;
@@ -274,13 +430,28 @@ const SPRITES = {
   glasses: ['..hhhh..', '.hggggh.', '..ffff..', '...ff...', ...BODY],
   beard: ['..hhhh..', '.hffffh.', '..hhhh..', '...hh...', ...BODY],
 };
-const SPRITE_COL = { h: '#5a3420', f: '#f2c49b', p: '#1a1433', b: '#0d0a1c', g: '#0d0a1c' };
+// the Avatar slot's extra heads: x and y are the look's own two colours (a hat, a helmet, a robot's eyes)
+Object.assign(SPRITES, {
+  beanie: ['..xxxx..', '.xxxxxx.', '..ffff..', '...ff...', ...BODY], shades: ['..hhhh..', '.gggggg.', '..ffff..', '...ff...', ...BODY],
+  headset: ['.xhhhhx.', '.xffffx.', '.yffff..', '...ff...', ...BODY], helm: ['..yxxx..', '.xxggxx.', '..xxxx..', '...xx...', ...BODY],
+  jester: ['.y.xx.y.', '.xyxxyx.', '..ffff..', '...ff...', ...BODY], robot: ['...yy...', '.xxxxxx.', '.xyxxyx.', '..xggx..', ...BODY],
+  wizard: ['...xx...', '..xxxx..', '.xyxxyx.', '..ffff..', ...BODY],
+});
+const AVATARS = {
+  plain: { s: 'man', skin: '#f2c49b', hair: '#5a3420', shirt: '#6cb8ff' }, curly: { s: 'long', skin: '#c98f62', hair: '#2a1a12', shirt: '#ff6f8f' },
+  cap: { s: 'cap', skin: '#f2c49b', hair: '#5a3420', shirt: '#7dffb0' }, specs: { s: 'glasses', skin: '#e8b58a', hair: '#b5653a', shirt: '#ffc56b' },
+  beard: { s: 'beard', skin: '#d9a070', hair: '#3a2a20', shirt: '#c58cff' }, beanie: { s: 'beanie', skin: '#e8b58a', hair: '#3a2a20', shirt: '#f7ead2', x: '#ff6f8f' },
+  shades: { s: 'shades', skin: '#c98f62', hair: '#1a1433', shirt: '#2a2140' }, headset: { s: 'headset', skin: '#f2c49b', hair: '#b5653a', shirt: '#4e3270', x: '#35e0ff', y: '#35e0ff' },
+  knight: { s: 'helm', skin: '#f2c49b', hair: '#5a3420', shirt: '#9aa3ad', x: '#c4cbd6', y: '#ff6f8f' }, jester: { s: 'jester', skin: '#f2c49b', hair: '#5a3420', shirt: '#7dffb0', x: '#c58cff', y: '#ffc56b' },
+  robot: { s: 'robot', skin: '#c4cbd6', hair: '#c4cbd6', shirt: '#7a8494', x: '#c4cbd6', y: '#35e0ff' }, wizard: { s: 'wizard', skin: '#f2c49b', hair: '#f7ead2', shirt: '#4e3270', x: '#6a3cc0', y: '#ffc56b' },
+};
+const SPRITE_COL = { h: '#5a3420', f: '#f2c49b', p: '#1a1433', b: '#0d0a1c', g: '#0d0a1c', x: '#c4cbd6', y: '#ffc56b' };
 function drawSprite(g, name, x0, y0, shirt, pal) {
   SPRITES[name].forEach((row, y) => { for (let x = 0; x < row.length; x++) { const ch = row[x]; if (ch === '.') continue; g.fillStyle = ch === 's' ? shirt : (pal && pal[ch]) || SPRITE_COL[ch]; g.fillRect(x0 + x, y0 + y, 1, 1); } });
 }
 function portrait(look, scale) {
   const c = document.createElement('canvas'), g = c.getContext('2d'); c.width = 10; c.height = 14;
-  drawSprite(g, look.s, 1, 1, look.shirt, { f: look.skin, h: look.hair });
+  drawSprite(g, look.s, 1, 1, look.shirt, { f: look.skin, h: look.hair, x: look.x, y: look.y });
   const img = new Image(); img.src = c.toDataURL(); img.className = 'portrait'; img.alt = ''; img.width = 10 * scale; img.height = 14 * scale;
   return img;
 }
@@ -319,7 +490,7 @@ function hiss(dur, vol, fc, q, type = 'bandpass', delay = 0) {
 // lose, draw and ui: square-wave notes, as on an old games machine
 function sfx(kind) {
   if (!S.volume) return;
-  SFX_LOG.push(kind); sfxCount++; if (SFX_LOG.length > 40) SFX_LOG.shift();
+  if (kind !== 'tick') { SFX_LOG.push(kind); sfxCount++; if (SFX_LOG.length > 40) SFX_LOG.shift(); }
   if (!AU.ctx) return;
   const tock = (d = 0, f = 210) => { blip(f, 0.07, 0.34, 'sine', f * 0.57, d); hiss(0.03, 0.2, 1900, 1.2, 'bandpass', d); };
   try {
@@ -331,6 +502,8 @@ function sfx(kind) {
     else if (kind === 'ui') blip(660, 0.05, 0.045, 'square');
     else if (kind === 'win') [523, 659, 784, 1046].forEach((f, i) => blip(f, 0.14, 0.07, 'square', 0, 0.4 + i * 0.1));
     else if (kind === 'lose') [392, 330, 262, 196].forEach((f, i) => blip(f, 0.18, 0.06, 'square', 0, 0.4 + i * 0.13));
+    else if (kind === 'tick') blip(880, 0.018, 0.022, 'square');
+    else if (kind.startsWith('prize')) { const tier = +kind.slice(5) || 0; [523, 659, 784, 1046, 1318].slice(0, 2 + tier).forEach((f, i) => blip(f, 0.12 + tier * 0.02, 0.06, 'square', 0, i * 0.09)); }
     else if (kind === 'draw') [440, 440].forEach((f, i) => blip(f, 0.16, 0.06, 'square', 0, 0.4 + i * 0.2));
   } catch (e) {}
 }
@@ -378,7 +551,7 @@ const clearSel = () => select(-1);
 const mine = s => s >= 0 && state === 'play' && !botTurn() && (!NET.on || G.pos.turn === NET.me) && C.colour(G.pos.b[s]) === G.pos.turn;
 // starts a game (g: a game to carry on, else a new one) against opp ({ bot, me }) or, with no opp, for two players
 function startGame(g, opp) {
-  vs = opp || null; THINK = null;
+  vs = opp || null; THINK = null; EARN = null;
   if (vs) botRnd = C.rng(Math.floor(Math.random() * 4294967296));
   G = g || C.newGame(); state = G.result ? 'over' : 'play'; sel = -1; targets = [];
   closePanels(); placeAll(G);
@@ -432,6 +605,9 @@ function landed(m) {
   sfx(m.cap ? 'capture' : m.castle ? 'castle' : m.promo ? 'promo' : 'move');
   if (check) sfx('check');
   if (check) buzz([30, 50, 30]); else if (m.cap) buzz(25);
+  if (m.cap) fx('cap', m.ep ? m.to + (C.colour(m.p) === 'w' ? -8 : 8) : m.to);
+  if (check) fx('check', G.pos.b.indexOf(G.pos.turn === 'w' ? 'K' : 'k'));
+  if (G.result && G.result.why === 'checkmate') fx('mate');
 }
 // With Confirm moves on, a move chosen waits (pending, its squares marked) for the Confirm button; a tap anywhere
 // else drops it. Only your own moves: the computer's and the other player's go straight to tryMove().
@@ -453,7 +629,7 @@ $('#bCancelMove').onclick = dropPending;
 function afterMove() {
   state = G.result ? 'over' : 'play';
   if (S.turn && !vs && !NET.on && state === 'play') cam.base = G.pos.turn === 'w' ? 0 : PI;
-  save(); hud(); showMarks();
+  gamePaid(); save(); hud(); showMarks();
   if (G.result) { const me = meCol(), won = G.result.score === '1-0' ? 'w' : G.result.score === '0-1' ? 'b' : ''; sfx(!won ? 'draw' : me && won !== me ? 'lose' : 'win'); }
   if (state === 'over') setTimeout(() => { if (state === 'over' && G.result) showOver(); }, reduceMotion ? 0 : 500);
   else if (botTurn()) startThink();
@@ -509,6 +685,62 @@ function glideTick(dt) {
   if (GLIDE.t >= GLIDE.end) { const then = GLIDE.then; GLIDE = null; then(); }
 }
 
+// ------------------------------------------------------------------ effects
+// The Effects slot (W.fx): what happens over the board on a capture, a check and a checkmate. Little flat-coloured
+// bits, each with a speed, a weight and a life, or a path of its own (fn). Only on your own screen, and never with
+// reduced motion.
+const FXG = new THREE.Group(); scene.add(FXG);
+let BITS = [], LATER = [];   // the bits in the air, and bursts still to come ([seconds from now, what to do])
+const bitGeo = new THREE.BoxGeometry(1, 1, 1), discGeo = new THREE.CircleGeometry(1, 16), hoopGeo = new THREE.RingGeometry(0.82, 1, 24), BIT_MAT = {};
+const bitMat = c => BIT_MAT[c] || (BIT_MAT[c] = new THREE.MeshBasicMaterial({ color: c }));
+function bit(geo, col, x, y, z, o) { const m = new THREE.Mesh(geo, o.fade ? new THREE.MeshBasicMaterial({ color: col, transparent: true, depthWrite: false }) : bitMat(col)); m.position.set(x, y, z); m.scale.setScalar(o.size); FXG.add(m); BITS.push({ m, v: [0, 0, 0], g: 0, life: 0.6, age: 0, spin: 0, ...o }); return m; }
+// n bits thrown outwards and upwards from a square
+function burst(at, n, cols, o) {
+  for (let i = 0; i < n; i++) { const a = Math.random() * 2 * PI, sp = o.speed * (0.4 + Math.random() * 0.6); bit(bitGeo, cols[i % cols.length], at[0], at[1] + 0.02, at[2], { ...o, size: o.size * (0.7 + Math.random() * 0.6), life: o.life * (0.7 + Math.random() * 0.5), v: [Math.cos(a) * sp, o.up * (0.5 + Math.random() * 0.5), Math.sin(a) * sp] }); }
+}
+const CONF = ['#ff6f8f', '#ffc56b', '#6cb8ff', '#7dffb0', '#c58cff'], FIRE = ['#ff6f8f', '#ffc56b', '#6cb8ff', '#fff4d0'];
+const hoop = (at, col) => { bit(hoopGeo, col, at[0], 0.004, at[2], { size: 0.01, grow: 0.085, life: 0.5, fade: true }).rotation.x = -PI / 2; };
+function bolt(at, col) {   // a jagged line down to the square, then a flash of sparks
+  let x = at[0], z = at[2];
+  for (let i = 0; i < 6; i++) { const nx = at[0] + (i < 5 ? (Math.random() - 0.5) * 0.03 : 0), nz = at[2] + (i < 5 ? (Math.random() - 0.5) * 0.03 : 0), m = bit(bitGeo, col, (x + nx) / 2, 0.33 - i * 0.055, (z + nz) / 2, { size: 1, life: 0.22, keep: true }); m.scale.set(0.006, 0.062, 0.006); m.rotation.z = (nx - x) / 0.055; m.rotation.x = -(nz - z) / 0.055; x = nx; z = nz; }
+  burst(at, 8, [col, '#ffffff'], { speed: 0.3, up: 0.25, g: 1.4, life: 0.35, size: 0.006 });
+}
+function hole(at) {   // a dark disc that opens and closes, and bits spiralling into it
+  bit(discGeo, '#0d0a1c', at[0], 0.005, at[2], { size: 0.001, life: 0.9, fn: (b, k) => b.m.scale.setScalar(0.03 * Math.sin(PI * k)) }).rotation.x = -PI / 2;
+  for (let i = 0; i < 16; i++) { const a0 = i / 16 * 2 * PI, r0 = 0.05 + Math.random() * 0.02; bit(bitGeo, i % 2 ? '#c58cff' : '#6cb8ff', at[0], 0.02, at[2], { size: 0.006, life: 0.9, fn: (b, k) => { const r = r0 * (1 - k), a = a0 + k * 7; b.m.position.set(at[0] + Math.cos(a) * r, 0.012 + 0.03 * (1 - k), at[2] + Math.sin(a) * r); b.m.scale.setScalar(0.006 * (1 - k * 0.7)); } }); }
+}
+const above = () => [(Math.random() - 0.5) * 0.4, 0.16 + Math.random() * 0.14, (Math.random() - 0.5) * 0.4];
+const FX_LOOKS = {
+  dust: { cap: at => burst(at, 9, ['#cfc6b8', '#a89f92'], { speed: 0.1, up: 0.16, g: 0.12, life: 0.6, size: 0.011 }) },
+  sparks: { cap: at => burst(at, 18, ['#ffe08a', '#ffb347', '#fff4d0'], { speed: 0.4, up: 0.5, g: 1.7, life: 0.5, size: 0.006 }) },
+  confetti: { cap: at => burst(at, 16, CONF, { speed: 0.26, up: 0.6, g: 1, life: 1, size: 0.008, spin: 9 }),
+    mate: () => { for (let i = 0; i < 6; i++) LATER.push([i * 0.22, () => burst(above(), 22, CONF, { speed: 0.3, up: 0.3, g: 0.8, life: 1.4, size: 0.009, spin: 9 })]); } },
+  shockwave: { cap: at => hoop(at, '#6cb8ff'), check: at => { hoop(at, '#ff6f8f'); LATER.push([0.18, () => hoop(at, '#ff6f8f')]); } },
+  lightning: { cap: at => bolt(at, '#cfe8ff'), check: at => bolt(at, '#ffb0c0') },
+  fireworks: { cap: at => burst([at[0], 0.09, at[2]], 20, FIRE, { speed: 0.3, up: 0.22, g: 0.5, life: 0.7, size: 0.006 }),
+    mate: () => { for (let i = 0; i < 7; i++) LATER.push([i * 0.3, () => burst(above(), 26, [FIRE[i % 4], '#ffffff'], { speed: 0.42, up: 0.18, g: 0.45, life: 0.9, size: 0.007 })]); } },
+  blackhole: { cap: hole },
+};
+// what: 'cap' (a capture), 'check' or 'mate'; s: the square it happens on
+function fx(what, s) {
+  const f = (FX_LOOKS[W.fx] || {})[what];
+  if (f && !reduceMotion) f(s === undefined ? null : [sqX(s), 0, sqZ(s)]);
+}
+function fxTick(dt) {
+  if (LATER.length) { for (const l of LATER) l[0] -= dt; const due = LATER.filter(l => l[0] <= 0); LATER = LATER.filter(l => l[0] > 0); for (const l of due) l[1](); }
+  if (!BITS.length) return;
+  for (const b of BITS) {
+    b.age += dt; const k = Math.min(1, b.age / b.life);
+    if (b.fn) { b.fn(b, k); continue; }
+    b.v[1] -= b.g * dt; b.m.position.x += b.v[0] * dt; b.m.position.y = Math.max(0.003, b.m.position.y + b.v[1] * dt); b.m.position.z += b.v[2] * dt;
+    if (b.spin) { b.m.rotation.x += b.spin * dt; b.m.rotation.z += b.spin * 0.7 * dt; }
+    if (b.grow) b.m.scale.setScalar(b.size + b.grow * k); else if (!b.keep) b.m.scale.setScalar(b.size * (1 - k * k));
+    if (b.fade) b.m.material.opacity = 1 - k;
+  }
+  for (const b of BITS) if (b.age >= b.life) { FXG.remove(b.m); if (b.fade) b.m.material.dispose(); }
+  BITS = BITS.filter(b => b.age < b.life);
+}
+
 // ------------------------------------------------------------------ input
 // Tap a piece then a square, or drag a piece onto a square. Drag anywhere else to turn the view round the board,
 // up and down to tilt it; the mouse wheel or a pinch zooms.
@@ -551,7 +783,7 @@ canvas.addEventListener('pointermove', e => {
   if (pinch && PTR.size === 2) { const [a, b] = [...PTR.values()]; cam.zoom = clamp(pinch.zoom * pinch.d / Math.max(10, Math.hypot(a.x - b.x, a.y - b.y)), 0.6, 2.2); return; }
   if (!drag) return;
   if (Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) > 6) drag.moved = true;
-  if (drag.moved && !drag.own) {   // turning the view
+  if (drag.moved && !drag.own && !FLAT) {   // turning the view (not the flat view, which stays square on)
     cam.yawOff -= (e.clientX - drag.x) * 0.008; cam.pitch = clamp(cam.pitch + (e.clientY - drag.y) * 0.005, 0.35, 1.45);
   }
   drag.x = e.clientX; drag.y = e.clientY;
@@ -569,6 +801,8 @@ canvas.addEventListener('pointerup', pointerEnd);
 canvas.addEventListener('pointercancel', pointerEnd);
 canvas.addEventListener('wheel', e => { if (state === 'menu' || state === 'lobby') return; e.preventDefault(); cam.zoom = clamp(cam.zoom * Math.pow(1.1, Math.sign(e.deltaY)), 0.6, 2.2); }, { passive: false });
 addEventListener('keydown', e => {
+  if (e.key === 'Escape' && OPENING) { if (OPENING.stage === 'spin') showPrize(); else closeOpen(); return; }
+  if (e.key === 'Escape' && state === 'menu' && screen === 'cos' && COS.page === 'slot') { cosPage('locker'); return; }
   if (e.key === 'Escape' && state === 'menu' && screen !== 'home') { $('#mBack').click(); return; }
   if (e.key === 'Escape' && state === 'lobby') { clearRejoin(); toMenu('online'); return; }
   if (e.key !== 'Escape' || state === 'menu') return;
@@ -592,7 +826,7 @@ const cam = {
   goal() {
     if (this.mode === 'menu') { const [offX, offY] = this.shift(); return { yaw: this.a, pitch: 0.53, dist: 1.22 * Math.max(1, 0.9 / camera.aspect), offX, offY, ty: -0.02 }; }
     const short = innerHeight < 500;   // a phone on its side: more room for the bar along the top and the buttons
-    return { yaw: this.base + this.yawOff, pitch: FLAT ? 1.54 : this.pitch, dist: this.playDist(), offX: 0, offY: short ? 0.03 : 0.02, ty: 0.01 };
+    return { yaw: this.base + (FLAT ? 0 : this.yawOff), pitch: FLAT ? 1.54 : this.pitch, dist: this.playDist(), offX: 0, offY: short ? 0.03 : 0.02, ty: 0.01 };
   },
   playDist() {   // how far back the view sits in a game: far enough for the board to fit, times the zoom
     const v = Math.tan(camera.fov * PI / 360), h = v * camera.aspect;
@@ -601,7 +835,7 @@ const cam = {
   update(dt) {
     if (this.mode === 'menu' && !reduceMotion) this.a += dt * 0.08;
     const g = this.goal(), c = this.cur, k = reduceMotion ? 1 : 1 - Math.exp(-dt * 5);
-    c.yaw += wrapA(g.yaw - c.yaw) * k;
+    c.yaw += wrapA(g.yaw - c.yaw) * (FLAT ? 1 : k);   // the flat view flips at once: its pictures must never be seen at an angle
     for (const p of ['pitch', 'dist', 'offX', 'offY', 'ty']) c[p] = lerp(c[p], g[p], k);
     const cp = Math.cos(c.pitch);
     camera.position.set(Math.sin(c.yaw) * cp * c.dist, Math.sin(c.pitch) * c.dist, Math.cos(c.yaw) * cp * c.dist);
@@ -619,7 +853,9 @@ function hud() {
   for (const c of ['w', 'b']) {   // the names (and against the computer, its face)
     const pl = $(c === 'w' ? '#plW' : '#plB'), its = bot && c !== vs.me;
     pl.querySelector('.plName').textContent = !me ? turnName(c) : c === me ? 'You' : NET.on ? NET.peerName : `${bot.name} ${bot.rating}`;
-    const face = pl.querySelector('.plFace'); face.textContent = ''; if (its) face.append(portrait(bot.look, 2));
+    const face = pl.querySelector('.plFace'); face.textContent = '';
+    if (its) face.append(portrait(bot.look, 2)); else if (me && c === me) face.append(portrait(AVATARS[W.avatar] || AVATARS.plain, 2));   // the computer's face, and yours
+    else if (NET.on && me && NET.peerLook) face.append(portrait(AVATARS[NET.peerLook.avatar] || AVATARS.plain, 2));   // and online, the other player's
   }
   const tl = $('#turnLine'), ch = check ? ': check!' : '';
   tl.textContent = over ? resultText(G.result)[0] : state === 'think' ? `${bot.name} is thinking…` : !me ? `${turnName(G.pos.turn)} to move${ch}` : G.pos.turn === me ? `Your move${ch}` : `${NET.peerName} to move${ch}`;
@@ -656,6 +892,7 @@ function showOver() {
   const [title, why] = resultText(G.result);
   $('#overTitle').textContent = title; $('#overWhy').textContent = why;
   $('#overMoves').textContent = `${Math.ceil(G.list.length / 2)} moves`;
+  $('#overEarn').textContent = earnText(EARN); $('#overEarn').hidden = !earnText(EARN);
   $('#pause').hidden = true; $('#over').hidden = false; updateAgainBtn();
 }
 function closePanels() { for (const s of ['#pause', '#promo', '#over', '#offer', '#chatPop']) $(s).hidden = true; promoAt = null; disarm(); }
@@ -670,14 +907,6 @@ function togglePause(open = $('#pause').hidden) {
     showSettings($('#setGame'), true);
   }
 }
-// The Match tab's choice of piece set and finish, stepped through with < and >. (A stand-in until the locker: every
-// set and finish is free to use.)
-const FINS = SETS.FINISHES;
-function renderLook() { $('#setName').textContent = 'Set: ' + SETS.byId(S.set).name; $('#finName').textContent = 'Finish: ' + SETS.finish(S.finish).name; }
-const stepIn = (list, id, d) => list[(Math.max(0, list.findIndex(x => x.id === id)) + d + list.length) % list.length].id;
-for (const b of document.querySelectorAll('#pkSet .btn')) b.onclick = () => { setLook(stepIn(SETS.LIST, S.set, +b.dataset.d), S.finish); renderLook(); };
-for (const b of document.querySelectorAll('#pkFin .btn')) b.onclick = () => { setLook(S.set, stepIn(FINS, S.finish, +b.dataset.d)); renderLook(); };
-
 // ------------------------------------------------------------------ settings panel
 // One box of tabs and pages (#setBox) serves both the menu's Settings tab and the game's Menu panel, where a Match tab
 // comes first; showSettings() moves it into whichever is open. Each setting is a row of buttons (.seg[data-key], a
@@ -698,13 +927,13 @@ function renderSettings() {
   for (const e of document.querySelectorAll('#setBox .onlyLocal')) e.hidden = SET.inGame && !!meCol();   // turning the board is for a shared device
   $('#rowVibrate').hidden = !canVibrate; $('#rowFull').hidden = !canFull;
   for (const b of document.querySelectorAll('#sFull .btn')) b.setAttribute('aria-pressed', String(!!+b.dataset.v === !!document.fullscreenElement));
-  renderLook();
 }
 function applySetting(k) {
   if (k === 'pixel') resize();
   else if (k === 'levels' || k === 'dither' || k === 'outline') applyLook();
   else if (k === 'coords') applyBoard();
   else if (k === 'flat') refit();
+  else if (k === 'mySet') { if (SHOWN && !GLIDE) placeAll(SHOWN); }
   else if (k === 'turn') { if (S.turn && G && !vs && !NET.on && state !== 'menu') cam.base = G.pos.turn === 'w' ? 0 : PI; }
   else if (k === 'volume') { ensureAudio(); sfx('move'); }
   else if (k === 'confirm' && !S.confirm) dropPending();
@@ -722,6 +951,224 @@ addEventListener('keydown', e => {
   settingsTab(tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length].dataset.tab);
 });
 $('#bView').onclick = () => { S.flat = !S.flat; saveS(); refit(); };
+
+// ------------------------------------------------------------------ locker
+// The Cosmetics tab: the locker (what's worn in each of the seven slots, and the cases and keys in hand), one slot's
+// looks (tap one to see it on the board, Equip to wear it), the shop (cases and keys for coins) and opening a case.
+// The rules are in looks.js (LK); the locker itself is LOCK, saved in localStorage (retroSet.locker). Every change goes
+// through lockerEdit(), which reads the saved copy, changes it and writes it straight back, so two open pages don't
+// undo each other's changes.
+const LK = LOOKS;
+// Dev mode, for the owner to try every look: typing the dev word as the name on the Online screen switches it on or
+// off. Only a fingerprint of the word is here (the repository is public); it is Retro Rack's, so the same word works
+// in both games. While it's on the locker is a separate test locker with everything.
+const DEVW = { print: 'f5fbd99c8a9a458d2267847deb9aab64fd2f699c0746cea014e74f8cc48e6ee5' };
+let DEV = false;
+try { DEV = localStorage.getItem('retroSet.dev') === '1'; } catch (e) {}
+const lockKey = () => DEV ? 'retroSet.lockerDev' : 'retroSet.locker';
+function readLocker() {
+  try { const raw = localStorage.getItem(lockKey()); if (raw) return LK.validate(JSON.parse(raw)); } catch (e) {}
+  return DEV ? LK.full() : LK.fresh();
+}
+let LOCK = readLocker();
+function lockerEdit(fn) { const l = readLocker(), out = fn(l); LOCK = l; try { localStorage.setItem(lockKey(), JSON.stringify(l)); } catch (e) {} return out; }
+async function isDevWord(v) {
+  if (!v || v.length > 40 || !(window.crypto && crypto.subtle)) return false;
+  try { const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('retroRack:' + v.trim().toLowerCase())); return [...new Uint8Array(h)].map(b => b.toString(16).padStart(2, '0')).join('') === DEVW.print; }
+  catch (e) { return false; }
+}
+function setDev(on) {
+  DEV = !!on; try { if (DEV) localStorage.setItem('retroSet.dev', '1'); else { localStorage.removeItem('retroSet.dev'); localStorage.removeItem('retroSet.lockerDev'); } } catch (e) {}
+  LOCK = readLocker(); PRE = null; dress(); $('#ver').textContent = `Version ${BUILD}${DEV ? ' DEV' : ''}`; if (screen === 'cos') renderCos();
+}
+$('#netName').addEventListener('input', async () => { const v = $('#netName').value; if (!(await isDevWord(v)) || $('#netName').value !== v) return; $('#netName').value = ''; setDev(!DEV); menuNote(DEV ? 'Dev mode on: a test locker with every look.' : 'Dev mode off: your own locker is back.'); });
+// PRE: a look being tried on in the locker ({ slot, id }), shown on the board but not worn. dress() puts on what the
+// locker says is worn, with the look being tried in its place.
+let PRE = null;
+function dress() {
+  const w = { ...LOCK.wear }; if (PRE) w[PRE.slot] = PRE.id;
+  Object.assign(W, { board: w.board, room: w.room, fx: w.fx, avatar: w.avatar, marks: w.marks });
+  if (S.set !== w.set || S.finish !== w.finish) setLook(w.set, w.finish);
+  applyBoard(); applyRoom(); applyMarks(); showMarks();
+}
+// the marks as they'd look in a game, for trying a Square marks look on behind the menu
+function sampleMarks() {
+  const tint = MK.shape === 'corners' ? cornerGeo : squareGeo, mat = MK.shape === 'corners' ? MM.edge : null;
+  if (MK.shape === 'arrow') arrow(12, 28); else { mark(tint, mat || MM.last, 12, 0.0008); mark(tint, mat || MM.last, 28, 0.0008); }
+  mark(squareGeo, MM.check, 60, 0.001); mark(tint, mat || MM.sel, 6, 0.0012);
+  for (const s of [21, 23]) mark(DOTS[MK.dot || 'dot'], MM.go, s, 0.0014);
+}
+// ---- pictures: every look, case and key as a small pixel picture
+const RARE_COL = r => LK.RARITY[r].colour;
+const FX_ICON = {   // 9 × 9, the letters a look's own colours
+  none: [['#6b6480'], ['.........', '..aaaaa..', '.a....aa.', '.a...a.a.', '.a..a..a.', '.a.a...a.', '.aa....a.', '..aaaaa..', '.........']],
+  dust: [['#cfc6b8', '#a89f92'], ['.........', '..aa.....', '.aaaa.bb.', '.aaaa.bbb', '..aa..bb.', '....aa...', '...aaaa..', '....aa...', '.........']],
+  sparks: [['#ffe08a', '#ffb347'], ['a...b...a', '.a..b..a.', '..a.b.a..', '.........', 'bbb.a.bbb', '.........', '..a.b.a..', '.a..b..a.', 'a...b...a']],
+  confetti: [['#ff6f8f', '#6cb8ff', '#7dffb0', '#ffc56b'], ['a...c....', '..b...d..', '.....a...', '.d.....c.', '...b.....', 'c.....a..', '..a..d...', '.....b..c', '.d.......']],
+  shockwave: [['#6cb8ff', '#ff6f8f'], ['..aaaaa..', '.a.....a.', 'a..bbb..a', 'a.b...b.a', 'a.b...b.a', 'a.b...b.a', 'a..bbb..a', '.a.....a.', '..aaaaa..']],
+  lightning: [['#cfe8ff', '#ffe08a'], ['.....aa..', '....aa...', '...aa....', '..aaaaa..', '....aa...', '...aa....', '..aa..b..', '.aa..b.b.', '.a....b..']],
+  fireworks: [['#ff6f8f', '#ffc56b', '#6cb8ff'], ['..a...c..', '.a.a.c.c.', '..a...c..', '....b....', '...b.b...', '.b.....b.', '...b.b...', '....b....', '....b....']],
+  blackhole: [['#c58cff', '#0d0a1c', '#6cb8ff'], ['..a...c..', '.a.aaa...', '..abbba.c', '.abbbbba.', '.abbbbba.', 'cabbbbba.', '..abbba..', '...aaa.a.', '.c....a..']],
+};
+const CASE_COL = { bronze: '#b5713a', silver: '#c4cbd6', gold: '#ffc56b', diamond: '#8fe6ff', lucky: '#ff6f8f' };
+const KEY_COL = { any: '#ffc56b', set: '#f7ead2', finish: '#c58cff', board: '#7dffb0', room: '#6cb8ff', fx: '#ff6f8f', avatar: '#ffb347', marks: '#b9c2cf' };
+const CASE_ROWS = ['................', '................', '..xxxxxxxxxxxx..', '.xxyyyyyyyyyyxx.', '.xyyyyyyyyyyyyx.', '.xyyyyyyyyyyyyx.', '.xxxxxxddxxxxxx.', '.xyyyyyddyyyyyx.', '.xyyyyyyyyyyyyx.', '.xyyyyyyyyyyyyx.', '.xyyyyyyyyyyyyx.', '.xxxxxxxxxxxxxx.', '................'];
+const KEY_ROWS = ['................', '..xxxx..........', '.xx..xx.........', '.x....xxxxxxxxx.', '.x....xxxxxxxxx.', '.xx..xx....x.x..', '..xxxx.....x.x..', '................'];
+function rowsPic(rows, cols, w = rows[0].length, h = rows.length) {
+  const cv = document.createElement('canvas'), g = cv.getContext('2d'); cv.width = w; cv.height = h;
+  rows.forEach((r, y) => { for (let x = 0; x < r.length; x++) if (cols[r[x]]) { g.fillStyle = cols[r[x]]; g.fillRect(x, y, 1, 1); } });
+  return cv;
+}
+const shade = (c, k) => '#' + new THREE.Color(c).multiplyScalar(k).getHexString();
+const casePic = g => rowsPic(CASE_ROWS, { x: shade(CASE_COL[g], 0.55), y: CASE_COL[g], d: g === 'lucky' ? '#fff4d0' : '#0d0a1c' });
+const keyPic = k => rowsPic(KEY_ROWS, { x: KEY_COL[k] });
+function lookPic(it) {
+  const cv = document.createElement('canvas'), g = cv.getContext('2d'); cv.width = 32; cv.height = 30; g.imageSmoothingEnabled = false;
+  if (it.slot === 'set') g.drawImage(pieceIcon('N', 'w', 24, 30, 1, it.id, 'classic'), 4, 0);
+  else if (it.slot === 'finish') { g.drawImage(pieceIcon('P', 'w', 20, 28, 1, 'classic', it.id), 0, 1); g.drawImage(pieceIcon('P', 'b', 20, 28, 1, 'classic', it.id), 12, 1); }
+  else if (it.slot === 'board') {
+    const b = BOARDS[it.id]; g.fillStyle = b.f; g.fillRect(2, 1, 28, 28);
+    for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) { g.fillStyle = (x + y) & 1 ? b.d : b.l; g.fillRect(4 + x * 6, 3 + y * 6, 6, 6); if (b.glow) { g.fillStyle = b.glow; if (b.tex === 'grid') { g.fillRect(4 + x * 6, 3 + y * 6, 6, 1); g.fillRect(4 + x * 6, 3 + y * 6, 1, 6); } else g.fillRect(5 + x * 6 + (x * 3 + y) % 4, 4 + y * 6 + (y * 2 + x) % 4, 1, 1); } }
+  } else if (it.slot === 'room') {
+    const r = ROOMS[it.id]; g.fillStyle = r.bg; g.fillRect(0, 0, 32, 30);
+    if (r.floor === null) { g.fillStyle = '#e8ecff'; for (const [x, y] of [[3, 4], [9, 22], [15, 3], [22, 8], [27, 24], [6, 13], [29, 15], [19, 26]]) g.fillRect(x, y, 1, 1); }
+    else { g.fillStyle = r.tiles ? r.tiles[0] : r.floor; g.fillRect(0, 17, 32, 13); if (r.tiles) { g.fillStyle = r.tiles[2] || r.tiles[1]; for (let x = 0; x < 32; x += 8) g.fillRect(x, 17, r.tiles[2] ? 1 : 4, 13); } }
+    g.fillStyle = r.leg || r.table; if (r.floor !== null) g.fillRect(14, 16, 4, 10);
+    g.fillStyle = r.table; g.fillRect(8, 11, 16, 1); g.fillRect(5, 12, 22, 3); g.fillRect(8, 15, 16, 1);
+  } else if (it.slot === 'fx') { const [cols, rows] = FX_ICON[it.id] || FX_ICON.none; g.drawImage(rowsPic(rows, { a: cols[0], b: cols[1], c: cols[2], d: cols[3] }), 3, 2, 27, 27); }
+  else if (it.slot === 'avatar') { const a = AVATARS[it.id] || AVATARS.plain, c = document.createElement('canvas'); c.width = 10; c.height = 14; drawSprite(c.getContext('2d'), a.s, 1, 1, a.shirt, { f: a.skin, h: a.hair, x: a.x, y: a.y }); g.drawImage(c, 6, 1, 20, 28); }
+  else {
+    const m = MARK_LOOKS[it.id] || MARK_LOOKS.standard;
+    for (let y = 0; y < 3; y++) for (let x = 0; x < 3; x++) { g.fillStyle = (x + y) & 1 ? '#5a3b78' : '#c4a67c'; g.fillRect(4 + x * 8, 3 + y * 8, 8, 8); }
+    g.fillStyle = m.last;
+    if (m.shape === 'arrow') { g.fillRect(7, 22, 2, 2); g.fillRect(9, 20, 2, 2); g.fillRect(11, 18, 2, 2); g.fillRect(13, 14, 4, 4); g.fillRect(15, 12, 4, 2); g.fillRect(17, 14, 2, 4); }
+    else if (m.shape === 'corners') for (const [x, y] of [[4, 19], [12, 11]]) { g.fillRect(x, y, 3, 1); g.fillRect(x, y, 1, 3); g.fillRect(x + 5, y + 7, 3, 1); g.fillRect(x + 7, y + 5, 1, 3); g.fillRect(x + 5, y, 3, 1); g.fillRect(x + 7, y, 1, 3); g.fillRect(x, y + 7, 3, 1); g.fillRect(x, y + 5, 1, 3); }
+    else { g.globalAlpha = 0.6; g.fillRect(4, 19, 8, 8); g.fillRect(12, 11, 8, 8); g.globalAlpha = 1; }
+    g.fillStyle = m.go; if (m.dot === 'star') { g.fillRect(23, 5, 2, 4); g.fillRect(22, 6, 4, 2); } else if (m.dot === 'diamond') { g.fillRect(23, 5, 2, 4); g.fillRect(22, 6, 4, 2); g.fillRect(23, 6, 2, 2); } else g.fillRect(22, 5, 4, 4);
+  }
+  return cv;
+}
+// ---- the screens
+const COS = { page: 'locker', slot: 'set', sel: '', shop: 'case:bronze' };
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
+function tile(pic, name, opts = {}) {
+  const b = el('button', 'tile' + (opts.worn ? ' worn' : '')); b.type = 'button';
+  if (opts.slot) b.append(el('span', 'tSlot', opts.slot));
+  b.append(pic); const n = el('span', 'tName', name); if (opts.colour) n.style.color = opts.colour; b.append(n);
+  if (opts.num) b.append(el('span', 'tNum', opts.num));
+  if (opts.pressed !== undefined) b.setAttribute('aria-pressed', String(opts.pressed));
+  if (opts.data) Object.assign(b.dataset, opts.data);
+  return b;
+}
+const wornKey = slot => LK.key(slot, LOCK.wear[slot]);
+function cosPage(page) { if (COS.page === 'slot' && page !== 'slot' && PRE) { PRE = null; dress(); } COS.page = page; renderCos(); }
+function renderCos() {
+  $('#coins').textContent = LOCK.coins.toLocaleString('en-GB') + (DEV ? ' (test)' : '');
+  for (const [id, page] of [['#cLocker', 'locker'], ['#cSlot', 'slot'], ['#cShop', 'shop']]) $(id).hidden = COS.page !== page;
+  for (const t of document.querySelectorAll('.cTab')) t.setAttribute('aria-selected', String(t.dataset.c === (COS.page === 'shop' ? 'shop' : 'locker')));
+  if (COS.page === 'locker') {
+    const grid = $('#slotGrid'); grid.textContent = '';
+    for (const s of LK.SLOTS) { const it = LK.ALL[wornKey(s.id)], p = LK.progress(LOCK, s.id), b = tile(lookPic(it), it.name, { slot: s.name, colour: RARE_COL(it.rarity), num: `${p.have}/${p.of}`, data: { slot: s.id } }); b.onclick = () => { COS.slot = s.id; COS.sel = wornKey(s.id); cosPage('slot'); }; grid.append(b); }
+    const held = $('#held'); held.textContent = '';
+    for (const g of LK.GRADE_IDS) if (LOCK.cases[g]) { const c = el('button', 'chip2'); c.type = 'button'; c.dataset.grade = g; c.append(casePic(g), `${LK.GRADES[g].name} ×${LOCK.cases[g]}`); c.onclick = () => openCase(g); held.append(c); }
+    for (const k of LK.KEY_IDS) if (LOCK.keys[k]) { const c = el('span', 'chip2'); c.dataset.key = k; c.append(keyPic(k), `${LK.KEYS[k].name} ×${LOCK.keys[k]}`); held.append(c); }
+    if (!held.children.length) held.append(el('span', 'note', 'No cases or keys. Beat the computer to win cases; keys are in the Shop.'));
+  } else if (COS.page === 'slot') {
+    const s = LK.SLOTS.find(x => x.id === COS.slot), p = LK.progress(LOCK, s.id), grid = $('#itemGrid'); grid.textContent = '';
+    $('#slotTitle').textContent = `${s.name}: ${p.have} of ${p.of}`;
+    for (const it of LK.slotItems(s.id)) if (LK.owns(LOCK, it.key)) {
+      const n = LK.count(LOCK, it.key), b = tile(lookPic(it), it.name, { colour: RARE_COL(it.rarity), worn: it.key === wornKey(s.id), pressed: it.key === COS.sel, num: n > 1 ? '×' + n : '', data: { item: it.key } });
+      b.onclick = () => { COS.sel = it.key; PRE = { slot: it.slot, id: it.id }; dress(); if (it.slot === 'fx') { fx('cap', 28); LATER.push([0.9, () => fx('check', 60)], [1.8, () => fx('mate')]); } renderCos(); };
+      grid.append(b);
+    }
+    const it = LK.ALL[COS.sel] || LK.ALL[wornKey(s.id)], worn = it.key === wornKey(s.id);
+    $('#itemInfo').textContent = `${it.name}, ${LK.RARITY[it.rarity].name.toLowerCase()}${it.free ? ' (everyone has it)' : ''}`; $('#itemInfo').style.color = RARE_COL(it.rarity);
+    $('#bEquip').textContent = worn ? 'Equipped' : 'Equip'; $('#bEquip').disabled = worn;
+  } else {
+    const cases = $('#shopCases'), keys = $('#shopKeys'); cases.textContent = ''; keys.textContent = '';
+    for (const g of LK.GRADE_IDS) { const b = tile(casePic(g), `${LK.GRADES[g].price}`, { slot: g === 'lucky' ? 'Lucky Box' : LK.GRADES[g].name.replace(' case', ''), pressed: COS.shop === 'case:' + g, num: LOCK.cases[g] ? '×' + LOCK.cases[g] : '', data: { buy: 'case:' + g } }); b.onclick = () => { COS.shop = 'case:' + g; renderCos(); }; cases.append(b); }
+    for (const k of LK.KEY_IDS) { const b = tile(keyPic(k), `${LK.KEYS[k].price}`, { slot: k === 'any' ? 'Standard' : LK.KEYS[k].name.replace(' key', '').replace('Square marks', 'Marks'), pressed: COS.shop === 'key:' + k, num: LOCK.keys[k] ? '×' + LOCK.keys[k] : '', data: { buy: 'key:' + k } }); b.onclick = () => { COS.shop = 'key:' + k; renderCos(); }; keys.append(b); }
+    const [kind, id] = COS.shop.split(':'), price = kind === 'case' ? LK.GRADES[id].price : LK.KEYS[id].price;
+    $('#shopInfo').textContent = kind === 'case'
+      ? `${LK.GRADES[id].name}: ${LK.GRADES[id].odds.map((o, i) => o ? `${o}% ${LK.RARITIES[i]}` : '').filter(Boolean).join(', ')}.${LK.GRADES[id].fresh ? ' Never a duplicate.' : ''}`
+      : `${LK.KEYS[id].name}: opens any case, ${id === 'any' ? 'for a look from any slot' : `and the look is always for ${LK.SLOTS.find(s => s.id === id).name}`}.`;
+    $('#bBuy').textContent = LOCK.coins >= price ? `Buy for ${price}` : `Need ${price}`; $('#bBuy').disabled = LOCK.coins < price;
+  }
+}
+for (const t of document.querySelectorAll('.cTab')) t.onclick = () => cosPage(t.dataset.c);
+$('#bSlotBack').onclick = () => cosPage('locker');
+$('#bEquip').onclick = () => { const k = COS.sel; if (!LK.ALL[k] || !lockerEdit(l => LK.wear(l, k))) return; PRE = null; dress(); renderCos(); };
+$('#bBuy').onclick = () => { const [kind, id] = COS.shop.split(':'); lockerEdit(l => kind === 'case' ? LK.buyCase(l, id) : LK.buyKey(l, id)); renderCos(); };
+// ---- opening a case: pick a key (a small panel), then the reel and the prize fill the whole screen
+let OPENING = null;   // { grade, key, stage: 'pick' | 'spin' | 'prize', res }
+function openCase(grade) { OPENING = { grade, key: LK.KEY_IDS.find(k => LOCK.keys[k]) || '', stage: 'pick', res: null }; renderOpen(); }
+function closeOpen() { OPENING = null; clearTimeout(reelT); $('#openBox').hidden = true; $('#reelScreen').hidden = true; if (screen === 'cos') renderCos(); }
+function renderOpen() {
+  const o = OPENING, g = LK.GRADES[o.grade], pick = o.stage === 'pick', rs = $('#reelScreen');
+  $('#openBox').hidden = !pick; rs.hidden = pick;
+  if (pick) {
+    $('#openTitle').textContent = `Open a ${g.name}`;
+    const keys = $('#openKeys'); keys.textContent = '';
+    for (const k of LK.KEY_IDS) if (LOCK.keys[k]) { const b = el('button', 'btn', `${LK.KEYS[k].name} ×${LOCK.keys[k]}`); b.type = 'button'; b.dataset.key = k; b.setAttribute('aria-pressed', String(k === o.key)); b.onclick = () => { o.key = k; renderOpen(); }; keys.append(b); }
+    $('#openNote').textContent = !LOCK.cases[o.grade] ? 'None of these left.' : !o.key ? 'A case needs a key. Keys are in the Shop.' : o.key === 'any' ? 'A standard key: the look can be for any slot.' : `The look will be for ${LK.SLOTS.find(s => s.id === o.key).name}.`;
+    $('#bOpen').textContent = o.res ? 'Open another' : 'Open'; $('#bOpen').disabled = !o.key || !LOCK.cases[o.grade];
+    return;
+  }
+  const r = o.res, won = o.stage === 'prize', tier = r.item ? LK.RARITIES.indexOf(r.item.rarity) : 0;
+  $('#rsTitle').textContent = g.name;
+  rs.style.setProperty('--rc', r.item ? RARE_COL(r.item.rarity) : '#ffc56b');
+  rs.classList.toggle('lit', won); rs.classList.toggle('rays', won && tier >= 2);   // rays for an epic or better
+  $('#reelStrip').classList.toggle('done', won);
+  if (!won) return;
+  $('#prizeName').textContent = r.item ? r.item.name : 'Nothing left to win';
+  $('#prizeNote').textContent = !r.item ? `You have every look: +${r.coins} coins.` : `${LK.RARITY[r.item.rarity].name} ${LK.SLOTS.find(s => s.id === r.item.slot).name.toLowerCase()}. ${r.dupe ? `A duplicate: +${r.coins} coins.` : 'New!'}`;
+  $('#bPrizeEquip').hidden = !r.item || r.item.key === wornKey(r.item.slot);
+  $('#bOpenMore').hidden = !LOCK.cases[o.grade] || !LK.KEY_IDS.some(k => LOCK.keys[k]);
+}
+let reelT = 0;
+function showPrize() { clearTimeout(reelT); if (!OPENING || OPENING.stage !== 'spin') return; OPENING.stage = 'prize'; const r = OPENING.res, strip = $('#reelStrip'); strip.style.transition = 'none'; strip.style.transform = `translateX(${strip.dataset.end}px)`; sfx('prize' + (r.item ? LK.RARITIES.indexOf(r.item.rarity) : 0)); renderOpen(); }
+const REEL = { n: 30, at: 25, secs: 5.5 };   // tiles on the reel, which one is the prize, and how long it spins
+$('#bOpen').onclick = () => {
+  const o = OPENING; if (!o) return;
+  const res = lockerEdit(l => LK.open(l, o.grade, o.key, Math.random));
+  if (res.why) { renderOpen(); return; }
+  o.res = res; o.stage = 'spin';
+  // the reel: looks drawn at random from what the key could give, the prize among them, gliding to a stop on it
+  const strip = $('#reelStrip'), pool = LK.ITEMS.filter(it => !it.free && (o.key === 'any' || it.slot === o.key)); strip.textContent = ''; strip.classList.remove('done');
+  for (let i = 0; i < REEL.n; i++) { const it = i === REEL.at && res.item ? res.item : pool[Math.floor(Math.random() * pool.length)], t = el('div', 'reelTile' + (i === REEL.at ? ' won' : '')); t.style.background = shade(RARE_COL(it.rarity), 0.5); t.style.borderColor = RARE_COL(it.rarity); t.append(lookPic(it)); strip.append(t); }
+  renderOpen();
+  const step = strip.children[0].offsetWidth + 6, end = -(REEL.at * step + step / 2 - 3 - $('#reel').clientWidth / 2) + (Math.random() - 0.5) * step * 0.6;
+  strip.dataset.end = end; strip.style.transition = 'none'; strip.style.transform = 'translateX(0)';
+  if (reduceMotion) { showPrize(); return; }
+  void strip.offsetWidth; strip.style.transition = `transform ${REEL.secs}s cubic-bezier(.08,.6,.12,1)`; strip.style.transform = `translateX(${end}px)`;
+  reelT = setTimeout(showPrize, REEL.secs * 1000 + 250);
+  // a tick as each look passes the marker
+  let last = -1; const mid = $('#reel').clientWidth / 2;
+  const tick = () => { if (!OPENING || OPENING.stage !== 'spin') return; const x = new DOMMatrixReadOnly(getComputedStyle(strip).transform).m41, i = Math.floor((mid - x) / step); if (i !== last) { last = i; sfx('tick'); } requestAnimationFrame(tick); };
+  requestAnimationFrame(tick);
+};
+$('#reel').onclick = showPrize;   // a tap skips to the prize
+$('#bPrizeEquip').onclick = () => { const it = OPENING && OPENING.res && OPENING.res.item; if (it && lockerEdit(l => LK.wear(l, it.key))) { dress(); renderOpen(); } };
+$('#bOpenMore').onclick = () => { const o = OPENING; if (!o) return; o.stage = 'pick'; if (!LOCK.keys[o.key]) o.key = LK.KEY_IDS.find(k => LOCK.keys[k]) || ''; renderOpen(); };
+$('#bOpenClose').onclick = closeOpen; $('#bPrizeClose').onclick = closeOpen;
+{ const ov = $('#openBox'); let down = false; ov.addEventListener('pointerdown', e => { down = e.target === ov; }); ov.addEventListener('click', e => { if (e.target === ov && down) closeOpen(); }); }
+// ---- earning: a game against the computer, and the day's gift
+let EARN = null;   // what the game just finished paid, for the result panel
+function gamePaid() {
+  if (!G.result || !vs || vs.paid) return;
+  vs.paid = true;
+  const bot = botOf(), won = G.result.score === '1-0' ? 'w' : G.result.score === '0-1' ? 'b' : '';
+  EARN = lockerEdit(l => LK.gameOver(l, { id: bot.id, rating: bot.rating, top: BT.LIST.indexOf(bot) >= BT.LIST.length - 3 }, !won ? 'draw' : won === vs.me ? 'win' : 'loss'));
+}
+const earnText = e => !e || (!e.coins && !e.cases.length) ? '' : [`+${e.coins} coins`, ...e.cases.map((g, i) => (i && e.first ? 'first win: ' : '') + (g === 'lucky' ? 'a Super Lucky Box' : `a ${LK.GRADES[g].name}`))].join(', ');
+const today = () => { const d = new Date(), p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; };
+function dailyGift(day = today()) {
+  const g = lockerEdit(l => LK.daily(l, day)); if (!g) return;
+  $('#gift').textContent = `Today's gift: +${g.coins} coins${g.lucky ? ' and a Super Lucky Box' : ''} (day ${g.streak} of 7).`; $('#gift').hidden = false;
+  if (screen === 'cos') renderCos();
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) dailyGift(); });
+addEventListener('storage', e => { if (e.key === lockKey()) { LOCK = readLocker(); dress(); if (screen === 'cos') renderCos(); } });   // changed in another open page
 
 // ------------------------------------------------------------------ HUD: the panels' buttons
 // a button that needs a second tap within 3 seconds, for the ones that end the game
@@ -766,15 +1213,17 @@ try { Object.assign(M, JSON.parse(localStorage.getItem('retroSet.menu') || '{}')
 M.bot = (BT.byId(M.bot) || BT.byId('barney')).id;   // a bot from before the renaming becomes the nearest new one
 const saveM = () => { try { localStorage.setItem('retroSet.menu', JSON.stringify(M)); } catch (e) {} };
 let screen = 'home';
-const BACK = { cpu: 'home', online: 'home', room: 'online', settings: 'home' };   // where Back goes from each screen
+const BACK = { cpu: 'home', online: 'home', room: 'online', settings: 'home', cos: 'home' };   // where Back goes from each screen
 function menuGo(name) {
   screen = name;
   for (const sc of document.querySelectorAll('#menuPanel .mScreen')) sc.hidden = sc.id !== 'sc-' + name;
   const sc = $('#sc-' + name);
-  const top = name === 'home' || name === 'settings';   // the two tabs along the top; the other screens have a Back bar
+  if (screen === 'cos' && name !== 'cos' && PRE) { PRE = null; dress(); }   // a look being tried on comes off
+  const top = name === 'home' || name === 'settings' || name === 'cos';   // the tabs along the top; the other screens have a Back bar
   $('#hTabs').hidden = !top; $('#mTop').hidden = top; $('#mTitle').textContent = sc.dataset.title || '';
   for (const t of document.querySelectorAll('.hTab')) t.setAttribute('aria-selected', String(t.dataset.go === name));
   if (name === 'settings') showSettings($('#setHome'), false);
+  if (name === 'cos') { if (COS.page === 'slot') COS.page = 'locker'; renderCos(); }
   if (name === 'cpu') renderCpu();
   if (name === 'room') renderRoom();
   if (name === 'home') refreshHome(); else arm();
@@ -838,7 +1287,10 @@ let armed = false;
 function arm() { if (armed) return; try { history.pushState({ rs: 1 }, ''); armed = true; } catch (e) {} }
 addEventListener('popstate', () => {
   armed = false;
-  if (state === 'menu') { if (screen !== 'home') menuGo(BACK[screen] || 'home'); return; }
+  if (state === 'menu') {
+    if (OPENING) { if (OPENING.stage === 'spin') showPrize(); else closeOpen(); arm(); } else if (screen === 'cos' && COS.page === 'slot') { cosPage('locker'); arm(); } else if (screen !== 'home') menuGo(BACK[screen] || 'home');
+    return;
+  }
   if (state === 'lobby') { clearRejoin(); toMenu('online'); return; }   // going back cancels the waiting room
   if (!$('#offer').hidden) $('#bOfferNo').click(); else if (!$('#promo').hidden) cancelPromo(); else if (!$('#over').hidden) $('#over').hidden = true; else togglePause();
   arm();
@@ -881,7 +1333,9 @@ try {
   document.addEventListener('resume', () => mark('1'));
 } catch (e) {}
 function netSend(o) { if (NET.ws && NET.ws.readyState === 1) NET.ws.send(JSON.stringify(o)); }
-function sendHello() { netSend({ t: 'hello', name: NET.myName, started: NET.started, n: NET.started && G ? G.list.length : 0, v: BUILD }); }
+function sendHello() { netSend({ t: 'hello', name: NET.myName, started: NET.started, n: NET.started && G ? G.list.length : 0, v: BUILD, look: { set: LOCK.wear.set, finish: LOCK.wear.finish, avatar: LOCK.wear.avatar } }); }
+// the other player's looks, from their hello: only ids the catalogue knows; anything else is the free look
+const peerLook = l => { const ok = (slot, d) => l && typeof l[slot] === 'string' && LK.ALL[LK.key(slot, l[slot])] ? l[slot] : d; return { set: ok('set', 'classic'), finish: ok('finish', 'classic'), avatar: ok('avatar', 'plain') }; };
 function netConnect() {
   let ws;
   const listQ = NET.list && !NET.started ? `&list=1&name=${encodeURIComponent(NET.myName)}&mode=${encodeURIComponent(M.netColour)}` : '';
@@ -920,6 +1374,7 @@ function onNet(m) {
       break;
     case 'hello':
       NET.peerName = cleanName(m.name); NET.peer = true; netBadge();
+      { const was = NET.peerLook, lk = peerLook(m.look); NET.peerLook = lk; if ((!was || was.set !== lk.set || was.finish !== lk.finish) && NET.started && SHOWN && !GLIDE) placeAll(SHOWN); hud(); }
       NET.peerVer = typeof m.v === 'string' ? m.v.slice(0, 16) : '';
       NET.verWarn = '';
       if (NET.peerVer !== BUILD) {
@@ -956,7 +1411,7 @@ function inviteLink() { return location.href.split('#')[0] + '#room=' + NET.code
 function startOnline(code, listed = false, rejoin = null) {
   if (!relayBase()) { menuNote('Online play needs the relay address first: it goes into config.js, next to this file (the README explains how).'); return; }
   if (!code || code.length < 4) { menuNote('Room codes are 5 letters and numbers.'); return; }
-  NET.on = true; NET.code = code; NET.cid = getCid(); NET.myName = cleanName($('#netName').value, 'Player'); NET.peerName = 'Friend';
+  NET.on = true; NET.code = code; NET.cid = getCid(); NET.myName = cleanName($('#netName').value, 'Player'); NET.peerName = 'Friend'; NET.peerLook = null;
   try { localStorage.setItem('retroSet.name', NET.myName); } catch (e) {}
   holdSeat();
   Object.assign(NET, { started: false, games: 0, queue: [], hold: [], again: [false, false], retry: 0, peer: false, peerVer: '', verWarn: '', list: listed, rejoin, drawOffered: false });
@@ -1089,6 +1544,10 @@ function saveRejoin() {
   putRejoin([{ code: NET.code, cid: NET.cid, peer: NET.peerName, at: Date.now() }, ...rejoinList().filter(r => r.cid !== NET.cid)].slice(0, 4));
 }
 function clearRejoin() { if (NET.cid) putRejoin(rejoinList().filter(r => r.cid !== NET.cid)); }
+// Two tabs of one browser (playing yourself) share this list, and each reads it, changes it and writes it back: when
+// both save at the same moment one can write over the other's entry. So a tab that sees the list change without its
+// own entry in it, while it's in a game, puts itself back.
+addEventListener('storage', e => { if (e.key === REJOIN_KEY && NET.on && NET.started && !rejoinList().some(r => r.cid === NET.cid)) saveRejoin(); });
 // A page in an online room holds a lock named after its player id; the browser frees it when the page closes.
 // So another tab never offers to take over a seat that's still being played.
 const seatLock = cid => 'retroSet.seat.' + cid;
@@ -1204,14 +1663,14 @@ function loadSaved() {
     if (!d || !Array.isArray(d.moves)) return null;
     let g = C.newGame(d.start);
     for (const s of d.moves) { g = C.playUci(g, String(s)); if (!g) return null; }
-    const v = d.vs && BT.byId(d.vs.bot) && /^[wb]$/.test(d.vs.me) ? { bot: BT.byId(d.vs.bot).id, me: d.vs.me } : null;
+    const v = d.vs && BT.byId(d.vs.bot) && /^[wb]$/.test(d.vs.me) ? { bot: BT.byId(d.vs.bot).id, me: d.vs.me, paid: !!d.vs.paid } : null;   // paid: the game has ended once and paid out (then a move was taken back)
     return g.result ? null : { g, vs: v };
   } catch (e) { return null; }
 }
 
 // ------------------------------------------------------------------ installable app
 // Only on a real web address: a downloaded copy opened from disk can't install or use a service worker.
-$('#ver').textContent = `Version ${BUILD}`;
+$('#ver').textContent = `Version ${BUILD}${DEV ? ' DEV' : ''}`;
 if (/^https?:$/.test(location.protocol)) {
   const link = document.createElement('link'); link.rel = 'manifest'; link.href = 'manifest.webmanifest';
   const icon = document.createElement('link'); icon.rel = 'apple-touch-icon'; icon.href = 'icons/icon-192.png';
@@ -1224,18 +1683,19 @@ let frames = 0, lastT = performance.now();
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, (now - lastT) / 1000); lastT = now;
-  glideTick(dt); thinkTick(now);
+  glideTick(dt); thinkTick(now); fxTick(dt);
   cam.update(dt);
-  if (FLAT) for (const m of PIECES.children) m.rotation.z = cam.cur.yaw;   // flat pictures stay the right way up for the viewer
+  if (!reduceMotion) looksTick(now / 1000);
+  if (FLAT) for (const m of PIECES.children) m.rotation.z = cam.base;   // flat pictures face the side the view is on, and nothing else
   renderer.info.reset();
   renderer.setRenderTarget(rt); renderer.render(scene, camera);
   renderer.setRenderTarget(null); renderer.render(postScene, postCam);
   frames++;
 }
 addEventListener('resize', resize);
-resize(); applyLook(); refit();
+resize(); applyLook(); dress(); refit();
 { const s = loadSaved(); placeAll(s ? s.g : C.newGame()); }   // behind the menu: the game waiting to be resumed, or a fresh set
-menuGo('home');
+menuGo('home'); dailyGift();
 requestAnimationFrame(frame);
 { // opening an invite link joins the room straight away
   const m = /#room=([A-Za-z0-9]+)/.exec(location.hash);
@@ -1245,15 +1705,19 @@ requestAnimationFrame(frame);
 window.__rs = {
   get state() { return state; }, get frames() { return frames; }, get triangles() { return renderer.info.render.triangles; }, S, start: C.START,
   get fen() { return G ? C.toFen(G.pos) : ''; }, get moves() { return G ? G.list.map(x => x.san) : []; }, get result() { return G && G.result; },
-  get sel() { return sel >= 0 ? C.sqName(sel) : ''; }, get view() { return { base: cam.base, yaw: cam.cur.yaw }; },
+  get sel() { return sel >= 0 ? C.sqName(sel) : ''; }, get view() { return { base: cam.base, yaw: cam.cur.yaw, off: cam.yawOff }; }, get flatAngles() { return FLAT ? [...new Set(PIECES.children.map(m => m.rotation.z))] : []; },
   get pieces() { return onSq.filter(Boolean).length; }, get taken() { return PIECES.children.length - onSq.filter(Boolean).length; },
   start2(fen) { startLocal(C.newGame(fen)); },   // a two-player game from a given position
   startCpu(bot, me, fen) { startGame(C.newGame(fen), { bot, me }); },   // a game against a bot, from a given position
   get vs() { return vs; }, set quick(v) { QUICK = !!v; },
   look(set, fin) { setLook(set, fin); }, sets: SETS.LIST.map(x => x.id), finishes: SETS.FINISHES.map(x => x.id), get tris() { return PIECES.children.reduce((n, m) => n + (m.geometry.index || m.geometry.attributes.position).count / 3, 0); }, icon: (k, c, w, h) => pieceIcon(k, c, w, h).toDataURL(),
-  camSet(o) { Object.assign(cam, o); },   // the view in a game: pitch, zoom, yawOff
+  camSet(o) { Object.assign(cam, o); },
+  fx(what, sq) { fx(what, sq === undefined ? undefined : C.sq(sq)); }, get bits() { return BITS.length; }, avatar: id => portrait(AVATARS[id], 4).src, avatars: Object.keys(AVATARS),
+  wear(slot, id) { if (slot === 'set') setLook(id, S.finish); else if (slot === 'finish') setLook(S.set, id); else { W[slot] = id; applyBoard(); applyRoom(); applyMarks(); showMarks(); } }, get worn() { return { set: S.set, finish: S.finish, ...W }; },
+  get lock() { return LOCK; }, lockerEdit, LK, DEVW, get dev() { return DEV; }, get earn() { return EARN; }, day(d) { dailyGift(d); }, get opening() { return OPENING && OPENING.stage; }, showPrize,
+  get lookOf() { return { w: { set: lookOf('w').set, finish: lookOf('w').finish }, b: { set: lookOf('b').set, finish: lookOf('b').finish } }; }, get peerLook() { return NET.peerLook || null; },   // the view in a game: pitch, zoom, yawOff
   get pending() { return pending ? C.sqName(pending.from) + C.sqName(pending.to) + (pending.promo || '') : ''; }, get flat() { return FLAT; },
-  get soundCount() { return sfxCount; }, soundsFrom(n) { return SFX_LOG.slice(Math.max(0, SFX_LOG.length - (sfxCount - n))); }, get coords() { return boardTop.material.map === BOARD_TEX.on; }, get tab() { return SET.tab; }, get pitch() { return cam.cur.pitch; }, get marks() { return MARKS.children.length; },
+  get coords() { return topMat.map === (BOARD_TEX[(BOARDS[W.board] ? W.board : 'standard') + '+'] || {}).map; }, get soundCount() { return sfxCount; }, soundsFrom(n) { return SFX_LOG.slice(Math.max(0, SFX_LOG.length - (sfxCount - n))); }, get tab() { return SET.tab; }, get pitch() { return cam.cur.pitch; }, get marks() { return MARKS.children.length; },
   shape(k) { const b = SETS.geo(S.set, k).boundingBox; return { h: b.max.y, w: Math.max(b.max.x - b.min.x, b.max.z - b.min.z), low: b.min.y }; },   // a kind's size in the set in use, in metres
   mask(k) { const c = pieceIcon(k, 'w', 48, 60, true), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let m = ''; for (let i = 3; i < d.length; i += 4) m += d[i] ? 1 : 0; return m; },   // its outline from the front, filling the height, as filled or empty pixels
   get net() { return { on: NET.on, seat: NET.seat, me: NET.me, cid: NET.cid, code: NET.code, peer: NET.peer, link: NET.link, started: NET.started, peerName: NET.peerName, games: NET.games }; },

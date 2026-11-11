@@ -1,4 +1,4 @@
-// The piece sets and finishes: every set stands on the board, each kind is a different shape and size from the rest (the pawn and the bishop above all), the chooser in the Menu panel, the choice kept through a reload, moves by real taps with another set, the promotion pictures, clean console.
+// The piece sets and finishes: every set stands on the board, each kind is a different shape and size from the rest (the pawn and the bishop above all), moves by real taps with another set, the promotion pictures, the locker's pieces after a reload, clean console.
 const { chromium, SITE, shot, watch, ok } = require('./lib');
 (async () => {
   const b = await chromium.launch();
@@ -45,21 +45,6 @@ const { chromium, SITE, shot, watch, ok } = require('./lib');
   let g = await rs(() => ({ m: window.__rs.moves.join(' '), taken: window.__rs.taken, n: window.__rs.pieces }));
   ok(g.m === 'exd5' && g.taken === 1 && g.n === 3, `it moves and takes as usual (${JSON.stringify(g)})`);
 
-  // the chooser in the Menu panel
-  await p.click('#bMenu'); await p.waitForTimeout(150);
-  let c = await rs(() => [document.querySelector('#setName').textContent, document.querySelector('#finName').textContent]);
-  ok(c[0] === 'Set: Figures' && c[1] === 'Finish: Wood', `the Menu panel shows the set and finish in use (${c.join(', ')})`);
-  await p.click('#pkSet .btn[data-d="1"]'); await p.click('#pkFin .btn[data-d="1"]'); await p.waitForTimeout(150);
-  c = await rs(() => [document.querySelector('#setName').textContent, document.querySelector('#finName').textContent, window.__rs.S.set, window.__rs.S.finish, window.__rs.pieces, window.__rs.taken]);
-  ok(c[0] === 'Set: Sci-fi' && c[2] === 'scifi' && c[3] !== 'wood' && c[4] === 3 && c[5] === 1, `> steps to the next set and finish, and the pieces on the table change at once (${c.join(', ')})`);
-  for (let k = 0; k < 12; k++) await p.click('#pkFin .btn[data-d="1"]');
-  const seen = new Set(); for (let k = 0; k < 12; k++) { await p.click('#pkFin .btn[data-d="-1"]'); seen.add(await rs(() => window.__rs.S.finish)); }
-  ok(seen.size === i.fins.length, `< and > go round every finish (${[...seen].join(', ')})`);
-  await p.click('#pkSet .btn[data-d="-1"]'); await p.click('#pkSet .btn[data-d="-1"]'); await p.click('#pkSet .btn[data-d="-1"]');
-  ok(await rs(() => window.__rs.S.set) === 'minimal', '< steps back through the sets');
-  await p.screenshot({ path: shot('sets-chooser.png') });
-  await p.click('#bResumeGame');
-
   // the promotion pictures are drawn from the set in use
   await rs(() => window.__rs.start2('8/4P3/8/8/8/8/8/k6K w - - 0 1')); await p.waitForTimeout(200);
   await tap('e7'); await tap('e8'); await p.waitForTimeout(200);
@@ -68,11 +53,10 @@ const { chromium, SITE, shot, watch, ok } = require('./lib');
   await p.screenshot({ path: shot('sets-promo.png') });
   await p.keyboard.press('Escape');
 
-  // kept through a reload; an unknown choice becomes Classic
-  const fin = await rs(() => window.__rs.S.finish);
+  // the pieces are the locker's (the locker test covers choosing them): a set tried through the test hook doesn't stick
   await p.reload(); await p.waitForTimeout(1200);
-  c = await rs(() => [window.__rs.S.set, window.__rs.S.finish, window.__rs.pieces]);
-  ok(c[0] === 'minimal' && c[1] === fin && c[2] > 0, `the choice is kept through a reload (${c.join(', ')})`);
+  let c = await rs(() => [window.__rs.S.set, window.__rs.S.finish, window.__rs.pieces]);
+  ok(c[0] === 'classic' && c[1] === 'classic' && c[2] > 0, `after a reload the pieces are the ones the locker says are worn (${c.join(', ')})`);
   await rs(() => localStorage.setItem('retroSet.settings', JSON.stringify({ pixel: 3, levels: 8, set: 'nope', finish: 'gone' })));
   await p.reload(); await p.waitForTimeout(1200);
   c = await rs(() => [window.__rs.S.set, window.__rs.S.finish, window.__rs.pieces]);

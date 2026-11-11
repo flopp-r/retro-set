@@ -163,6 +163,44 @@ test('a saved locker comes back as it was; rubbish comes back as a new one', () 
 });
 test('the test locker has everything', () => { const l = L.full(); assert.strictEqual(L.progress(l).have, 70); assert.ok(L.wear(l, 'room:space')); });
 
+console.log('\nTrading');
+test('an offer is cleaned of anything that isn\'t real: free looks, made-up things, fractions and minus numbers', () => {
+  const o = L.cleanOffer({ items: { 'set:classic': 1, 'set:blocks': 2.9, 'made:up': 3, 'board:ocean': -1 }, cases: { gold: '2', tin: 5 }, keys: { any: 1, nope: 1 }, coins: -50 });
+  assert.deepStrictEqual(o, { items: { 'set:blocks': 2 }, cases: { gold: 2 }, keys: { any: 1 }, coins: 0 });
+  for (const bad of [null, 7, 'x', []]) assert.ok(L.offerEmpty(L.cleanOffer(bad)));
+  assert.ok(!L.offerEmpty(L.cleanOffer({ coins: 1 })));
+});
+test('an offer reads the same however it was put together', () => {
+  const a = L.cleanOffer({ items: { 'fx:dust': 1, 'board:ocean': 2 }, keys: { any: 1 }, coins: 30 }), b = L.cleanOffer({ coins: 30, keys: { any: 1 }, items: { 'board:ocean': 2, 'fx:dust': 1 } });
+  assert.strictEqual(L.offerKey(a), L.offerKey(b));
+  assert.notStrictEqual(L.offerKey(a), L.offerKey(L.cleanOffer({ items: { 'fx:dust': 1, 'board:ocean': 2 }, keys: { any: 1 }, coins: 31 })));
+});
+test('what the other player is shown: the looks, cases and keys that could be traded, never the coins or the free looks', () => {
+  const l = L.fresh(); l.owned['room:park'] = 2; l.coins = 999;
+  assert.deepStrictEqual(L.inventory(l), { items: { 'room:park': 2 }, cases: { silver: 1 }, keys: { any: 1 }, coins: 0 });
+});
+test('a trade swaps looks, cases, keys and coins, and both lockers end up with what the other gave', () => {
+  const a = L.fresh(), b = L.fresh();
+  Object.assign(a.owned, { 'set:blocks': 1, 'board:ocean': 3 }); a.cases.gold = 2; a.coins = 500;
+  Object.assign(b.owned, { 'finish:neon': 1 }); b.keys.room = 1; b.coins = 40;
+  const fromA = L.cleanOffer({ items: { 'set:blocks': 1, 'board:ocean': 2 }, cases: { gold: 1 }, coins: 120 }), fromB = L.cleanOffer({ items: { 'finish:neon': 1 }, keys: { room: 1 } });
+  assert.ok(L.canGive(a, fromA) && L.canGive(b, fromB));
+  assert.ok(L.trade(a, fromA, fromB) && L.trade(b, fromB, fromA));
+  assert.ok(!L.owns(a, 'set:blocks') && L.count(a, 'board:ocean') === 1 && a.cases.gold === 1 && a.coins === 380 && L.owns(a, 'finish:neon') && a.keys.room === 1);
+  assert.ok(L.owns(b, 'set:blocks') && L.count(b, 'board:ocean') === 2 && b.cases.gold === 1 && b.coins === 160 && !L.owns(b, 'finish:neon') && b.keys.room === 0);
+  assert.deepStrictEqual(L.validate(JSON.parse(JSON.stringify(a))), a);
+});
+test('a look traded away to the last copy comes off; with a copy to spare it stays on', () => {
+  const l = L.fresh(); Object.assign(l.owned, { 'set:blocks': 1, 'board:ocean': 2 }); L.wear(l, 'set:blocks'); L.wear(l, 'board:ocean');
+  assert.ok(L.trade(l, L.cleanOffer({ items: { 'set:blocks': 1, 'board:ocean': 1 } }), L.noOffer()));
+  assert.ok(l.wear.set === 'classic' && l.wear.board === 'ocean');
+});
+test('a trade for more than the locker holds is refused, and nothing changes', () => {
+  const l = L.fresh(); l.owned['fx:dust'] = 1; const before = JSON.stringify(l);
+  for (const o of [{ items: { 'fx:dust': 2 } }, { items: { 'fx:sparks': 1 } }, { coins: l.coins + 1 }, { cases: { lucky: 1 } }, { keys: { board: 1 } }]) assert.strictEqual(L.trade(l, L.cleanOffer(o), L.cleanOffer({ coins: 5 })), false);
+  assert.strictEqual(JSON.stringify(l), before);
+});
+
 console.log('\nThe pace');
 test('a regular player (3 or 4 wins a day) fills the locker in about two weeks', () => {
   const log = console.log; console.log = () => {}; process.argv[2] = '150';

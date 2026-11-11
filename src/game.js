@@ -801,6 +801,7 @@ canvas.addEventListener('pointerup', pointerEnd);
 canvas.addEventListener('pointercancel', pointerEnd);
 canvas.addEventListener('wheel', e => { if (state === 'menu' || state === 'lobby') return; e.preventDefault(); cam.zoom = clamp(cam.zoom * Math.pow(1.1, Math.sign(e.deltaY)), 0.6, 2.2); }, { passive: false });
 addEventListener('keydown', e => {
+  if (e.key === 'Escape' && TR.on) { if (TR.count) trBackOut(); else leaveTrade(); return; }
   if (e.key === 'Escape' && OPENING) { if (OPENING.stage === 'spin') showPrize(); else closeOpen(); return; }
   if (e.key === 'Escape' && state === 'menu' && screen === 'cos' && COS.page === 'slot') { cosPage('locker'); return; }
   if (e.key === 'Escape' && state === 'menu' && screen !== 'home') { $('#mBack').click(); return; }
@@ -1061,11 +1062,11 @@ function tile(pic, name, opts = {}) {
   return b;
 }
 const wornKey = slot => LK.key(slot, LOCK.wear[slot]);
-function cosPage(page) { if (COS.page === 'slot' && page !== 'slot' && PRE) { PRE = null; dress(); } COS.page = page; renderCos(); }
+function cosPage(page) { if (COS.page === 'slot' && page !== 'slot' && PRE) { PRE = null; dress(); } COS.page = page; renderCos(); updateLobbyWatch(); }
 function renderCos() {
   $('#coins').textContent = LOCK.coins.toLocaleString('en-GB') + (DEV ? ' (test)' : '');
-  for (const [id, page] of [['#cLocker', 'locker'], ['#cSlot', 'slot'], ['#cShop', 'shop']]) $(id).hidden = COS.page !== page;
-  for (const t of document.querySelectorAll('.cTab')) t.setAttribute('aria-selected', String(t.dataset.c === (COS.page === 'shop' ? 'shop' : 'locker')));
+  for (const [id, page] of [['#cLocker', 'locker'], ['#cSlot', 'slot'], ['#cShop', 'shop'], ['#cTrade', 'trade']]) $(id).hidden = COS.page !== page;
+  for (const t of document.querySelectorAll('.cTab')) t.setAttribute('aria-selected', String(t.dataset.c === (COS.page === 'slot' ? 'locker' : COS.page)));
   if (COS.page === 'locker') {
     const grid = $('#slotGrid'); grid.textContent = '';
     for (const s of LK.SLOTS) { const it = LK.ALL[wornKey(s.id)], p = LK.progress(LOCK, s.id), b = tile(lookPic(it), it.name, { slot: s.name, colour: RARE_COL(it.rarity), num: `${p.have}/${p.of}`, data: { slot: s.id } }); b.onclick = () => { COS.slot = s.id; COS.sel = wornKey(s.id); cosPage('slot'); }; grid.append(b); }
@@ -1073,7 +1074,8 @@ function renderCos() {
     for (const g of LK.GRADE_IDS) if (LOCK.cases[g]) { const c = el('button', 'chip2'); c.type = 'button'; c.dataset.grade = g; c.append(casePic(g), `${LK.GRADES[g].name} ×${LOCK.cases[g]}`); c.onclick = () => openCase(g); held.append(c); }
     for (const k of LK.KEY_IDS) if (LOCK.keys[k]) { const c = el('span', 'chip2'); c.dataset.key = k; c.append(keyPic(k), `${LK.KEYS[k].name} ×${LOCK.keys[k]}`); held.append(c); }
     if (!held.children.length) held.append(el('span', 'note', 'No cases or keys. Beat the computer to win cases; keys are in the Shop.'));
-  } else if (COS.page === 'slot') {
+  } else if (COS.page === 'trade') renderTradePage();
+  else if (COS.page === 'slot') {
     const s = LK.SLOTS.find(x => x.id === COS.slot), p = LK.progress(LOCK, s.id), grid = $('#itemGrid'); grid.textContent = '';
     $('#slotTitle').textContent = `${s.name}: ${p.have} of ${p.of}`;
     for (const it of LK.slotItems(s.id)) if (LK.owns(LOCK, it.key)) {
@@ -1168,7 +1170,7 @@ function dailyGift(day = today()) {
   if (screen === 'cos') renderCos();
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden) dailyGift(); });
-addEventListener('storage', e => { if (e.key === lockKey()) { LOCK = readLocker(); dress(); if (screen === 'cos') renderCos(); } });   // changed in another open page
+addEventListener('storage', e => { if (e.key === lockKey()) { LOCK = readLocker(); dress(); if (screen === 'cos') renderCos(); trFit(); } });   // changed in another open page
 
 // ------------------------------------------------------------------ HUD: the panels' buttons
 // a button that needs a second tap within 3 seconds, for the ones that end the game
@@ -1288,7 +1290,7 @@ function arm() { if (armed) return; try { history.pushState({ rs: 1 }, ''); arme
 addEventListener('popstate', () => {
   armed = false;
   if (state === 'menu') {
-    if (OPENING) { if (OPENING.stage === 'spin') showPrize(); else closeOpen(); arm(); } else if (screen === 'cos' && COS.page === 'slot') { cosPage('locker'); arm(); } else if (screen !== 'home') menuGo(BACK[screen] || 'home');
+    if (TR.on) { if (TR.count) trBackOut(); else leaveTrade(); arm(); } else if (OPENING) { if (OPENING.stage === 'spin') showPrize(); else closeOpen(); arm(); } else if (screen === 'cos' && COS.page === 'slot') { cosPage('locker'); arm(); } else if (screen !== 'home') menuGo(BACK[screen] || 'home');
     return;
   }
   if (state === 'lobby') { clearRejoin(); toMenu('online'); return; }   // going back cancels the waiting room
@@ -1593,7 +1595,7 @@ try { $('#netName').value = localStorage.getItem('retroSet.name') || ''; } catch
 const LW = { ws: null, rooms: [], off: 0, retry: 0, timer: 0, pending: 0, want: false, failed: false, loaded: false };
 const COLOUR_NAME = { white: 'They play White', black: 'They play Black', random: 'Colours at random' };
 function updateLobbyWatch() {
-  const want = state === 'menu' && !NET.on && screen === 'online' && !!relayBase() && document.visibilityState === 'visible';
+  const want = state === 'menu' && !NET.on && !TR.on && (screen === 'online' || (screen === 'cos' && COS.page === 'trade')) && !!relayBase() && document.visibilityState === 'visible';
   LW.want = want;
   // short delay, so opening an invite link (which jumps straight into a room) never starts a list connection
   if (want && !LW.ws && !LW.pending) LW.pending = setTimeout(() => { LW.pending = 0; if (LW.want && !LW.ws) lobbyConnect(); }, 300);
@@ -1624,26 +1626,293 @@ function lobbyConnect() {
 setInterval(() => { if (LW.ws && LW.ws.readyState === 1) LW.ws.send('ping'); }, 25000);
 setInterval(() => { if (LW.want) renderRooms(); }, 30000);
 document.addEventListener('visibilitychange', () => { updateLobbyWatch(); if (!document.hidden && state === 'menu') updateRejoin(); });
+// both lists come from the one watch: game rooms on the Online screen, trade rooms on the Cosmetics tab's Trade page
 function renderRooms() {
-  const el = $('#roomList'), live = $('#roomsLive');
-  const note = t => { el.textContent = ''; const d = document.createElement('div'); d.className = 'note'; d.textContent = t; el.appendChild(d); };
-  if (!relayBase()) { live.textContent = ''; note('Online play isn\'t set up yet: it needs the relay address in config.js (the README explains how).'); return; }
-  live.textContent = LW.ws && LW.ws.readyState === 1 ? 'Live' : LW.failed ? "Can't reach the relay" : 'Connecting…';
-  if (!LW.rooms.length) { note(LW.loaded ? 'No open rooms right now. Create a listed room and it will show up here.' : 'Looking for open rooms…'); return; }
-  el.textContent = '';
-  const now = Date.now() + LW.off;
-  for (const r of LW.rooms) {
-    const row = document.createElement('div'); row.className = 'roomItem';
-    const info = document.createElement('div');
-    const n = document.createElement('div'); n.className = 'rn'; n.textContent = `${cleanName(r.name, 'Player')}'s room`;
-    const mins = Math.max(0, Math.round((now - Number(r.at)) / 60000));
-    const d = document.createElement('div'); d.className = 'rm'; d.textContent = `${COLOUR_NAME[r.mode] || COLOUR_NAME.random}, ${mins < 1 ? 'just opened' : mins + ' min waiting'}`;
-    info.append(n, d);
-    const b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.textContent = 'Join';
-    b.addEventListener('click', () => startOnline(cleanCode(r.code)));
-    row.append(info, b); el.appendChild(row);
+  const live = !relayBase() ? '' : LW.ws && LW.ws.readyState === 1 ? 'Live' : LW.failed ? "Can't reach the relay" : 'Connecting…', now = Date.now() + LW.off;
+  const show = (box, liveEl, rooms, none, title, sub, join) => {
+    const note = t => { box.textContent = ''; box.append(el('div', 'note', t)); };
+    liveEl.textContent = live;
+    if (!relayBase()) { note('Online play isn\'t set up yet: it needs the relay address in config.js (the README explains how).'); return; }
+    if (!rooms.length) { note(LW.loaded ? none : 'Looking for open rooms…'); return; }
+    box.textContent = '';
+    for (const r of rooms) {
+      const row = el('div', 'roomItem'), info = el('div'), mins = Math.max(0, Math.round((now - Number(r.at)) / 60000)), b = el('button', 'btn', 'Join'); b.type = 'button';
+      info.append(el('div', 'rn', title(r)), el('div', 'rm', `${sub(r)}${mins < 1 ? 'just opened' : mins + ' min waiting'}`));
+      b.addEventListener('click', () => join(r)); row.append(info, b); box.append(row);
+    }
+  };
+  show($('#roomList'), $('#roomsLive'), LW.rooms.filter(r => !isTradeRoom(r)), 'No open rooms right now. Create a listed room and it will show up here.',
+    r => `${cleanName(r.name, 'Player')}'s room`, r => `${COLOUR_NAME[r.mode] || COLOUR_NAME.random}, `, r => startOnline(cleanCode(r.code)));
+  show($('#trRooms'), $('#trLive'), LW.rooms.filter(isTradeRoom), 'No open trade rooms right now. Create a listed one and it will show up here.',
+    r => `${cleanName(r.name, 'Player')}'s trade room`, () => '', r => startTrade(cleanCode(String(r.code).slice(TR_PRE.length))));
+}
+
+// ------------------------------------------------------------------ trading
+// Swapping cosmetics with another player, in a trade room: a room of the relay kept apart from the game rooms by its
+// name ('TRADE' + the code; a game's code is never that long, so neither kind of player can walk into the other's
+// room). Each player sees the other's looks, cases and keys (never their coins), puts together what they give, and can
+// ask for things. Both press Ready; changing either offer clears both marks. With both ready a 5-second countdown runs
+// on each screen, and either can back out. At its end each page tells the other it's going ahead ('tdone'), and makes
+// the swap in its own locker once it has both sent that and received the other's. Nothing but the two pages keeps the
+// lockers, so this is an honour system (HANDOVER.md, section 4).
+const TR = { on: false, ws: null, code: '', cid: '', seat: 0, peer: false, seen: false, link: '', peerName: 'Friend', myName: 'Player', list: false, retry: 0, timer: 0,
+  inv: LK.noOffer(), mine: LK.noOffer(), theirs: LK.noOffer(), invKey: '', ready: [false, false],   // ready: [me, them]
+  count: 0, sec: 0, tick: 0, wait: 0, sent: '', got: '', asks: [], marks: [], side: 'mine', filter: 'set', onlyNew: true, verBad: false, flash: '', flashT: 0, trades: 0 };
+const TR_PRE = 'TRADE';
+let TR_SECS = 5;
+const isTradeRoom = r => { const c = String(r && r.code || ''); return c.startsWith(TR_PRE) && c.length > 8; };
+// one thing that can be traded, by its id: a look ('finish:neon'), a case ('case:gold') or a key ('key:any')
+function thing(id) {
+  const [a, b] = String(id).split(':');
+  if (a === 'case') return LK.GRADES[b] ? { kind: 'cases', k: b, name: LK.GRADES[b].name, pic: () => casePic(b) } : null;
+  if (a === 'key') return LK.KEYS[b] ? { kind: 'keys', k: b, name: LK.KEYS[b].name, pic: () => keyPic(b) } : null;
+  const it = LK.ALL[id]; return it && !it.free ? { kind: 'items', k: id, name: it.name, pic: () => lookPic(it), colour: RARE_COL(it.rarity), item: it } : null;
+}
+const held = (o, id) => { const t = thing(id); return t ? o[t.kind][t.k] || 0 : 0; };
+const setHeld = (o, id, n) => { const t = thing(id); if (n > 0) o[t.kind][t.k] = n; else delete o[t.kind][t.k]; };
+const things = o => [...LK.ITEMS.filter(it => o.items[it.key]).map(it => it.key), ...LK.GRADE_IDS.filter(g => o.cases[g]).map(g => 'case:' + g), ...LK.KEY_IDS.filter(k => o.keys[k]).map(k => 'key:' + k)];
+const trClamp = (o, inv) => { for (const id of things(o)) setHeld(o, id, Math.min(held(o, id), held(inv, id))); return o; };
+const trWords = o => { const w = things(o).map(id => (held(o, id) > 1 ? held(o, id) + ' × ' : '') + thing(id).name); if (o.coins) w.push(o.coins + ' coins'); return w.length ? w.join(', ') : 'nothing'; };
+const trHash = (give, get) => LK.offerKey(give) + '|' + LK.offerKey(get);   // a trade as its giver sees it; the other player's is the same two the other way round
+function trSend(o) { if (TR.ws && TR.ws.readyState === 1) TR.ws.send(JSON.stringify(o)); }
+function trHello(re) { const inv = LK.inventory(LOCK); TR.invKey = LK.offerKey(inv); trSend({ t: 'thello', name: TR.myName, v: BUILD, inv, offer: TR.mine, re: !!re }); }
+function trSay(text) { TR.flash = text; clearTimeout(TR.flashT); TR.flashT = setTimeout(() => { TR.flash = ''; renderTrade(); }, 7000); }
+function trMenuNote(t) { $('#trMenuNote').textContent = t; }
+const tradeLink = () => location.href.split('#')[0] + '#trade=' + TR.code;
+// the countdown: 5 seconds on this screen once both are ready, a tick each second
+function trCount(on) {
+  clearInterval(TR.tick); TR.tick = 0; TR.count = 0;
+  if (!on) return;
+  TR.count = performance.now() + TR_SECS * 1000; TR.sec = TR_SECS; sfx('tick');
+  TR.tick = setInterval(() => { const s = Math.ceil((TR.count - performance.now()) / 1000); if (s <= 0) trFinish(); else if (s !== TR.sec) { TR.sec = s; sfx('tick'); renderTrade(); } }, 100);
+}
+function trUnready() { TR.ready = [false, false]; TR.sent = TR.got = ''; clearTimeout(TR.wait); trCount(false); }
+function trBoth() {
+  const both = TR.ready[0] && TR.ready[1] && TR.peer && !TR.verBad;
+  if (both && !TR.count && !TR.sent) trCount(true); else if (!both && TR.count) trCount(false);
+  renderTrade();
+}
+// the countdown has run out here: say so to the other player, and swap once they have said so too
+function trFinish() {
+  trCount(false); LOCK = readLocker();
+  if (!TR.ready[0] || !TR.ready[1] || !LK.canGive(LOCK, TR.mine)) { trUnready(); trFit(true); return; }
+  TR.sent = trHash(TR.mine, TR.theirs); trSend({ t: 'tdone', h: TR.sent }); trSwap(); renderTrade();
+  // the other page has 4 seconds to say it's going ahead too; silent, the trade is off here
+  const h = TR.sent; clearTimeout(TR.wait); TR.wait = setTimeout(() => { if (TR.on && TR.sent === h && TR.got !== h) { trUnready(); trSend({ t: 'tready', on: false }); trSay(`${TR.peerName}'s page didn't answer, so nothing was traded.`); renderTrade(); } }, 4000);
+}
+function trSwap() {
+  if (!TR.sent || TR.sent !== TR.got) return;
+  const give = TR.mine, get = TR.theirs, ok = lockerEdit(l => LK.trade(l, give, get));
+  TR.mine = LK.noOffer(); TR.theirs = LK.noOffer(); TR.asks = []; TR.marks = []; trUnready();
+  if (ok) { TR.trades++; sfx('prize1'); dress(); trSay(LK.offerEmpty(get) ? `Trade done. You gave ${trWords(give)}.` : `Trade done. You got ${trWords(get)}.`); }
+  else trSay("The trade couldn't be made here: something you offered is no longer in your locker.");
+  trHello();
+}
+// my offer changed: both Ready marks go, and the other player is told
+function trChanged() {
+  const was = TR.ready[0] || TR.ready[1]; trUnready(); trSend({ t: 'toffer', offer: TR.mine });
+  if (was) trSay('You changed your offer, so Ready was cleared for both of you.');
+  renderTrade();
+}
+// the locker changed (another open page spent something): the offer keeps to what's really held, and the other player
+// gets the new list. Not once this page has said it's going ahead: the swap itself checks again.
+function trFit(force) {
+  if (!TR.on || TR.sent) return;
+  const inv = LK.inventory(LOCK), was = LK.offerKey(TR.mine);
+  trClamp(TR.mine, inv); TR.mine.coins = Math.min(TR.mine.coins, LOCK.coins);
+  if (force || LK.offerKey(inv) !== TR.invKey || LK.offerKey(TR.mine) !== was) { trUnready(); trHello(); if (LK.offerKey(TR.mine) !== was) trSay('Your locker changed, so your offer was put right.'); }
+  renderTrade();
+}
+function trPut(id, d) {
+  if (TR.sent || !thing(id)) return;
+  setHeld(TR.mine, id, Math.max(0, Math.min(held(LK.inventory(LOCK), id), held(TR.mine, id) + d)));
+  TR.asks = TR.asks.filter(a => a !== id);
+  trChanged();
+}
+function trMark(id) {
+  if (TR.sent) return;
+  if (held(TR.theirs, id) >= held(TR.inv, id)) { trSay('That is already in the trade.'); renderTrade(); return; }
+  TR.marks = TR.marks.includes(id) ? TR.marks.filter(m => m !== id) : [...TR.marks, id].slice(-8);
+  renderTrade();
+}
+function trBackOut() {
+  if (!TR.count) return;
+  trUnready(); trSend({ t: 'tready', on: false }); trSay('You backed out. Nothing was traded.'); renderTrade();
+}
+function onTrade(m) {
+  switch (m.t) {
+    case 'welcome': TR.seat = m.seat === 1 ? 1 : 0; TR.peer = !!m.peer; TR.link = 'online'; if (TR.peer) trHello(); renderTrade(); break;
+    case 'full': leaveTrade('That trade room already has two people in it.'); break;
+    case 'peer':
+      TR.peer = !!m.on; trUnready();
+      if (m.on) trHello(); else if (TR.seen) trSay(`${TR.peerName} disconnected. Nothing was traded.`);
+      renderTrade(); break;
+    case 'thello':
+      TR.peerName = cleanName(m.name); TR.peer = true; TR.seen = true; TR.verBad = m.v !== BUILD;
+      TR.inv = LK.cleanOffer(m.inv); TR.inv.coins = 0; TR.theirs = trClamp(LK.cleanOffer(m.offer), TR.inv);
+      TR.marks = TR.marks.filter(id => held(TR.inv, id) > held(TR.theirs, id)); trUnready();
+      if (m.re) trHello();
+      renderTrade(); break;
+    case 'toffer': {
+      const was = TR.ready[0] || TR.ready[1];
+      TR.theirs = trClamp(LK.cleanOffer(m.offer), TR.inv); TR.marks = TR.marks.filter(id => held(TR.inv, id) > held(TR.theirs, id)); trUnready();
+      if (was) trSay(`${TR.peerName} changed their offer, so Ready was cleared for both of you.`);
+      renderTrade(); break;
+    }
+    case 'task':   // they ask for things of mine: a short notice, with Add and No
+      for (const id of Array.isArray(m.ids) ? m.ids.slice(0, 8) : []) if (typeof id === 'string' && thing(id) && held(LK.inventory(LOCK), id) > held(TR.mine, id) && !TR.asks.includes(id) && TR.asks.length < 8) TR.asks.push(id);
+      if (TR.asks.length) sfx('ui');
+      renderTrade(); break;
+    case 'tno': if (typeof m.id === 'string' && thing(m.id)) { trSay(`${TR.peerName} said no to ${thing(m.id).name}.`); renderTrade(); } break;
+    case 'tready':
+      if (TR.verBad || !TR.seen) break;
+      if (m.on && m.h !== trHash(TR.theirs, TR.mine)) { trUnready(); trHello(true); trSay("Your two screens didn't show the same trade, so they were put back in step. Check it, then press Ready again."); renderTrade(); break; }
+      if (!m.on && (TR.count || TR.sent)) { trUnready(); trSay(`${TR.peerName} backed out. Nothing was traded.`); }   // out of the countdown: both start again
+      else TR.ready[1] = !!m.on;
+      trBoth(); break;
+    case 'tdone':
+      if (!TR.verBad && TR.ready[0] && TR.ready[1] && m.h === trHash(TR.theirs, TR.mine)) { TR.got = trHash(TR.mine, TR.theirs); trSwap(); renderTrade(); }
+      break;
+    case 'tbye':
+      TR.peer = false; TR.seen = false; TR.inv = LK.noOffer(); TR.theirs = LK.noOffer(); TR.asks = []; TR.marks = []; trUnready();
+      trSay(`${TR.peerName} left the trade room.`); renderTrade(); break;
   }
 }
+function trConnect() {
+  let ws;
+  const listQ = TR.list ? `&list=1&name=${encodeURIComponent(TR.myName)}` : '';
+  try { ws = new WebSocket(`${relayBase()}/room/${TR_PRE}${TR.code}?cid=${TR.cid}${listQ}`); }
+  catch (e) { leaveTrade("Couldn't reach the relay. Check the relay address in config.js."); return; }
+  TR.ws = ws; TR.link = 'connecting'; renderTrade();
+  ws.onopen = () => { TR.retry = 0; };
+  ws.onmessage = e => { if (e.data === 'pong' || !TR.on || TR.ws !== ws) return; let m; try { m = JSON.parse(e.data); } catch (err) { return; } if (m && typeof m.t === 'string') onTrade(m); };
+  ws.onclose = ev => {
+    if (TR.ws === ws) TR.ws = null;
+    if (!TR.on || ev.code === 4000 || ev.code === 4001) return;
+    TR.link = 'reconnecting'; TR.peer = false; trUnready(); renderTrade();
+    clearTimeout(TR.timer); TR.timer = setTimeout(() => { if (TR.on && !TR.ws) trConnect(); }, Math.min(8000, 600 * Math.pow(2, TR.retry++)));
+  };
+}
+setInterval(() => { if (TR.ws && TR.ws.readyState === 1) TR.ws.send('ping'); }, 20000);
+function startTrade(code, listed = false) {
+  if (NET.on || TR.on) return;
+  if (!relayBase()) { trMenuNote('Trading needs online play set up first: the relay address goes into config.js (the README explains how).'); return; }
+  if (!code || code.length < 4) { trMenuNote('Trade room codes are 5 letters and numbers.'); return; }
+  Object.assign(TR, { on: true, code, cid: getCid(), myName: cleanName($('#netName').value, 'Player'), peerName: 'Friend', list: listed, retry: 0, peer: false, seen: false, link: 'connecting',
+    inv: LK.noOffer(), mine: LK.noOffer(), theirs: LK.noOffer(), asks: [], marks: [], side: 'mine', verBad: false, flash: '' });
+  trUnready(); trMenuNote(''); LOCK = readLocker();
+  try { history.replaceState(history.state, '', '#trade=' + code); } catch (e) {}
+  $('#tradeBox').hidden = false; arm(); updateLobbyWatch(); trConnect();
+}
+function leaveTrade(note = '') {
+  if (!TR.on) return;
+  trSend({ t: 'tbye' }); TR.on = false; clearTimeout(TR.timer); clearTimeout(TR.flashT); trUnready();
+  const ws = TR.ws; TR.ws = null; if (ws) { try { ws.close(1000, 'bye'); } catch (e) {} }
+  try { history.replaceState(history.state, '', location.href.split('#')[0]); } catch (e) {}
+  $('#tradeBox').hidden = true; trMenuNote(note); updateLobbyWatch(); if (screen === 'cos') renderCos();
+}
+// what the grid shows: one side's things in one slot (or its cases and keys); for theirs, perhaps only the looks I lack
+const TR_FILTERS = [...LK.SLOTS.map(s => [s.id, s.name.replace('Square marks', 'Marks')]), ['cases', 'Cases & keys']];
+function trList(side, f) {
+  const inv = side === 'mine' ? LK.inventory(LOCK) : TR.inv;
+  if (f === 'cases') return things({ items: {}, cases: inv.cases, keys: inv.keys });
+  return LK.slotItems(f).filter(it => inv.items[it.key] && !(side === 'theirs' && TR.onlyNew && LK.owns(LOCK, it.key))).map(it => it.key);
+}
+for (const [f, name] of TR_FILTERS) { const b = el('button', 'btn', name); b.type = 'button'; b.dataset.f = f; b.onclick = () => { TR.filter = f; renderTrade(); }; $('#trFilter').append(b); }
+function renderTrade() {
+  if (!TR.on) return;
+  const name = TR.peerName, wait = !TR.seen, mine = TR.side === 'mine', inv = mine ? LK.inventory(LOCK) : TR.inv, offer = mine ? TR.mine : TR.theirs;
+  $('#trTitle').textContent = wait ? 'Trade room' : `Trade with ${name}`;
+  for (const id of ['#trOffers', '#trBar', '#trGrid', '#trSideSeg']) $(id).hidden = wait;
+  $('#trWait').hidden = !wait;
+  if (wait) { $('#trCodeBig').textContent = TR.code; $('#trLink').value = tradeLink(); }
+  // the two offers
+  const strip = (box, o, own) => {
+    const ids = things(o), few = ids.length <= 2; box.textContent = '';   // more than two things: pictures only, so they all show
+    for (const id of ids) {
+      const t = thing(id), n = held(o, id), c = el(own ? 'button' : 'span', 'chip2'); c.dataset.id = id; c.title = own ? `${t.name}: take it out of the trade` : t.name; c.setAttribute('aria-label', n > 1 ? `${t.name} ×${n}` : t.name);
+      if (own) { c.type = 'button'; c.disabled = !!TR.sent; c.onclick = () => trPut(id, -1); }
+      c.append(t.pic(), few ? (n > 1 ? `${t.name} ×${n}` : t.name) : n > 1 ? `×${n}` : ''); box.append(c);
+    }
+  };
+  strip($('#trMine'), TR.mine, true); strip($('#trTheirs'), TR.theirs, false);
+  $('#trMineH').textContent = 'You give' + (TR.ready[0] ? ': ready' : ''); $('#trTheirsH').textContent = `${name} gives` + (TR.ready[1] ? ': ready' : '');
+  $('#trMine').parentNode.classList.toggle('ready', TR.ready[0]); $('#trTheirs').parentNode.classList.toggle('ready', TR.ready[1]);
+  const ci = $('#trCoins'); ci.max = LOCK.coins; ci.disabled = !!TR.sent;
+  if (document.activeElement !== ci || (Math.floor(+ci.value) || 0) !== TR.mine.coins) ci.value = TR.mine.coins || '';
+  $('#trTheirCoins').textContent = TR.theirs.coins ? `+ ${TR.theirs.coins.toLocaleString('en-GB')} coins` : '';
+  // whose things, which slot
+  for (const b of document.querySelectorAll('#trSideSeg .btn')) b.setAttribute('aria-pressed', String(b.dataset.side === TR.side));
+  for (const b of document.querySelectorAll('#trFilter .btn')) { b.setAttribute('aria-pressed', String(b.dataset.f === TR.filter)); b.classList.toggle('none', !trList(TR.side, b.dataset.f).length); }
+  $('#bTrNew').hidden = mine; $('#bTrNew').setAttribute('aria-pressed', String(TR.onlyNew));
+  const grid = $('#trGrid'), ids = trList(TR.side, TR.filter); grid.textContent = '';
+  for (const id of ids) {
+    const t = thing(id), have = held(inv, id), off = held(offer, id);
+    const b = tile(t.pic(), t.name, { colour: t.colour, worn: mine && t.item && t.k === wornKey(t.item.slot), num: off && have > 1 ? `${off}/${have}` : have > 1 ? '×' + have : '', data: { id } });
+    if (off) b.classList.add('inOffer');
+    if (!mine && TR.marks.includes(id)) b.classList.add('marked');
+    if (!mine && t.item && LK.owns(LOCK, id)) b.classList.add('have');
+    b.disabled = !!TR.sent; b.onclick = () => mine ? trPut(id, off < have ? 1 : -off) : trMark(id);
+    grid.append(b);
+  }
+  if (!ids.length) grid.append(el('div', 'note', mine ? "Nothing of yours to trade here. The looks everyone starts with can't be traded." : TR.filter !== 'cases' && TR.onlyNew ? `${name} has nothing here that you don't have.` : `${name} has nothing here.`));
+  // the foot: what's going on, something asked for, and Ready
+  const ask = TR.asks[0], asks = $('#trAsks'), note = $('#trNote'); asks.textContent = '';
+  if (ask && !TR.count && !TR.sent) {
+    const yes = el('button', 'btn', 'Add'), no = el('button', 'btn', 'No'); yes.type = no.type = 'button'; yes.id = 'bTrAdd'; no.id = 'bTrNo';
+    yes.onclick = () => trPut(ask, 1); no.onclick = () => { TR.asks.shift(); trSend({ t: 'tno', id: ask }); renderTrade(); };
+    asks.append(yes, no);
+  }
+  note.classList.toggle('count', !!TR.count);
+  note.textContent = TR.link !== 'online' ? 'Connecting to the relay…'
+    : wait ? TR.flash || (TR.list ? 'Waiting for someone to join. Your room is listed under Open trade rooms.' : 'Waiting for your friend. Send them the link or the code.')
+    : TR.verBad ? `You and ${name} have different versions of Retro Set. Both of you reload it (Ctrl+F5 on a computer), then come back to trade.`
+    : !TR.peer ? TR.flash || `${name} isn't connected. Waiting for them to come back.`
+    : TR.sent ? 'Finishing the trade…'
+    : TR.count ? `Trading in ${TR.sec}…`
+    : ask ? `${name} asks for ${thing(ask).name}${TR.asks.length > 1 ? ` (and ${TR.asks.length - 1} more)` : ''}.`
+    : TR.flash ? TR.flash
+    : TR.ready[0] ? `Waiting for ${name} to press Ready.`
+    : TR.ready[1] ? `${name} is ready. Press Ready when you're happy with the trade.`
+    : mine ? 'Tap your things to put them in the trade.' : "Tap what you'd like, then Ask for it.";
+  const live = !wait && TR.peer && !TR.verBad && TR.link === 'online';
+  $('#bTrAsk').hidden = wait || mine || !!TR.count || !!TR.sent; $('#bTrAsk').disabled = !TR.marks.length || !live; $('#bTrAsk').textContent = TR.marks.length > 1 ? `Ask for ${TR.marks.length}` : 'Ask for it';
+  $('#bTrBack').hidden = !TR.count;
+  $('#bTrReady').hidden = wait || !!TR.count || !!TR.sent; $('#bTrReady').disabled = !live || (LK.offerEmpty(TR.mine) && LK.offerEmpty(TR.theirs));
+  $('#bTrReady').setAttribute('aria-pressed', String(TR.ready[0])); $('#bTrReady').textContent = TR.ready[0] ? 'Not ready' : 'Ready';
+}
+for (const b of document.querySelectorAll('#trSideSeg .btn')) b.onclick = () => { TR.side = b.dataset.side; renderTrade(); };
+$('#bTrNew').onclick = () => { TR.onlyNew = !TR.onlyNew; renderTrade(); };
+$('#trCoins').addEventListener('input', () => { const n = Math.max(0, Math.min(LOCK.coins, Math.floor(+$('#trCoins').value) || 0)); if (n !== TR.mine.coins && !TR.sent) { TR.mine.coins = n; trChanged(); } });
+$('#bTrAsk').onclick = () => {
+  if (!TR.marks.length) return;
+  trSend({ t: 'task', ids: TR.marks }); trSay(`Asked ${TR.peerName} for ${TR.marks.map(id => thing(id).name).join(', ')}.`); TR.marks = []; renderTrade();
+};
+$('#bTrReady').onclick = () => {
+  if (TR.count || TR.sent) return;
+  LOCK = readLocker();
+  if (!TR.ready[0] && !LK.canGive(LOCK, TR.mine)) { trFit(true); return; }
+  TR.ready[0] = !TR.ready[0]; TR.flash = '';
+  trSend({ t: 'tready', on: TR.ready[0], h: trHash(TR.mine, TR.theirs) }); trBoth();
+};
+$('#bTrBack').onclick = trBackOut;
+$('#bTrLeave').onclick = () => leaveTrade();
+$('#bTrCopy').onclick = async () => {
+  const link = tradeLink(), say = t => { TR.flash = t; renderTrade(); };
+  try {
+    if (navigator.share && matchMedia('(pointer: coarse)').matches) { await navigator.share({ title: 'Retro Set', text: 'Trade with me', url: link }); return; }
+    await navigator.clipboard.writeText(link); say('Invite link copied. Send it to your friend.');
+  } catch (e) { const i = $('#trLink'); i.focus(); i.select(); try { document.execCommand('copy'); say('Invite link copied.'); } catch (e2) { say('Copy the link and send it to your friend.'); } }
+};
+// the Trade page of the Cosmetics tab: the open trade rooms, join with a code, and make a room
+function renderTradePage() {
+  for (const b of document.querySelectorAll('#trListed .btn')) b.setAttribute('aria-pressed', String(!!+b.dataset.v === (M.trListed !== false)));
+  renderRooms();
+}
+for (const b of document.querySelectorAll('#trListed .btn')) b.onclick = () => { M.trListed = !!+b.dataset.v; saveM(); renderTradePage(); };
+$('#bTrCreate').onclick = () => startTrade(newCode(), M.trListed !== false);
+$('#bTrJoin').onclick = () => startTrade(cleanCode($('#trCode').value));
+$('#trCode').addEventListener('keydown', e => { if (e.key === 'Enter') $('#bTrJoin').click(); });
 
 // ------------------------------------------------------------------ saving
 // The game on the board is saved after every move (the starting position, the moves as e2e4 and so on, and against the
@@ -1701,6 +1970,10 @@ requestAnimationFrame(frame);
   const m = /#room=([A-Za-z0-9]+)/.exec(location.hash);
   if (m) { const code = cleanCode(m[1]); $('#netCode').value = code; if (relayBase()) startOnline(code); else { menuGo('online'); menuNote('This is an invite link, but online play needs the relay address in config.js first.'); } }
 }
+{ // and a trade room's link opens the room
+  const m = /#trade=([A-Za-z0-9]+)/.exec(location.hash);
+  if (m) { const code = cleanCode(m[1]); COS.page = 'trade'; menuGo('cos'); $('#trCode').value = code; startTrade(code); }
+}
 // for the browser tests: what the page is doing, without reaching into its internals
 window.__rs = {
   get state() { return state; }, get frames() { return frames; }, get triangles() { return renderer.info.render.triangles; }, S, start: C.START,
@@ -1722,6 +1995,9 @@ window.__rs = {
   mask(k) { const c = pieceIcon(k, 'w', 48, 60, true), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let m = ''; for (let i = 3; i < d.length; i += 4) m += d[i] ? 1 : 0; return m; },   // its outline from the front, filling the height, as filled or empty pixels
   get net() { return { on: NET.on, seat: NET.seat, me: NET.me, cid: NET.cid, code: NET.code, peer: NET.peer, link: NET.link, started: NET.started, peerName: NET.peerName, games: NET.games }; },
   send(o) { netSend(o); },   // a raw message, as a modified copy of the game could send
+  get trade() { return { on: TR.on, code: TR.code, seat: TR.seat, peer: TR.peer, seen: TR.seen, link: TR.link, peerName: TR.peerName, inv: TR.inv, mine: TR.mine, theirs: TR.theirs, ready: TR.ready.slice(), counting: !!TR.count, sec: TR.sec, sent: !!TR.sent,
+    asks: TR.asks.slice(), marks: TR.marks.slice(), side: TR.side, filter: TR.filter, onlyNew: TR.onlyNew, verBad: TR.verBad, flash: TR.flash, trades: TR.trades }; },
+  set tradeSecs(n) { TR_SECS = n; }, tradeSend(o) { trSend(o); }, startTrade,
   squareScreen(name) {   // where a square's middle is on the screen, in page pixels
     const s = C.sq(name), v = new THREE.Vector3(sqX(s), 0.004, sqZ(s)).project(camera), r = canvas.getBoundingClientRect();
     return [r.left + (v.x + 1) / 2 * r.width, r.top + (1 - v.y) / 2 * r.height];

@@ -1,4 +1,4 @@
-// Every screen fits without scrolling at phone, tablet and computer sizes, including a phone on its side (762x341): the home screen (with and without a game to resume), every Settings tab, the Cosmetics tab (the locker, opening a case, the shop, a full slot), Vs computer, Online, New room, the waiting room, the game's bar and buttons, the Confirm bar, and every tab of the game's Menu panels (menu, promotion, result, a draw offer, quick chat).
+// Every screen fits without scrolling at phone, tablet and computer sizes, including a phone on its side (762x341): the home screen (with and without a game to resume), every Settings tab, the Cosmetics tab (the locker, opening a case, the shop, a full slot, the Trade page and a trade room), Vs computer, Online, New room, the waiting room, the game's bar and buttons, the Confirm bar, and every tab of the game's Menu panels (menu, promotion, result, a draw offer, quick chat).
 const { chromium, SITE, RELAY, shot, watch, ok } = require('./lib');   // over http: the checks reload the page, and storage must carry over
 const overlap = (a, b) => a && b && a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1;
 (async () => {
@@ -49,6 +49,31 @@ const overlap = (a, b) => a && b && a.left < b.right - 1 && b.left < a.right - 1
     r = await fits('#mStage'); r2 = await fits('#menuPanel');
     ok(good(r) && good(r2) && (await p.evaluate(() => document.querySelectorAll('#itemGrid .tile').length)) === 16, say({ ...r, on: r2.on }, 'a slot with all sixteen of its looks'));
     if (w === 762) await p.screenshot({ path: shot('fit-slot-phone.png') });
+    // Trade: its page, the trade room waiting, then with someone in it: your things, theirs, something asked for, the countdown
+    await p.click('#bSlotBack'); await p.click('.cTab[data-c="trade"]'); await p.waitForTimeout(350);
+    r = await fits('#mStage'); r2 = await fits('#menuPanel');
+    ok(good(r) && good(r2), say({ ...r, on: r2.on }, 'Cosmetics, the Trade page'));
+    if (w === 762) await p.screenshot({ path: shot('fit-trade-page-phone.png') });
+    await p.evaluate(() => window.__rs.lockerEdit(l => { l.cases.gold = 3; l.keys.any = 2; l.coins = 900; }));
+    await p.click('#trListed .btn[data-v="0"]'); await p.click('#bTrCreate'); await p.waitForFunction(() => window.__rs.trade.link === 'online');
+    r = await fits('#tradePanel'); ok(good(r) && await p.isVisible('#trWait'), say(r, 'a trade room, waiting'));
+    const q = await b.newPage({ viewport: { width: 500, height: 400 }, reducedMotion: 'reduce' }); watch(q, log);
+    await q.goto(SITE.new + RELAY); await q.waitForTimeout(500); await q.evaluate(() => { localStorage.setItem('retroSet.name', 'Wolfeschlegels'); window.__rs.lockerEdit(l => { for (const it of window.__rs.LK.ITEMS) l.owned[it.key] = 2; }); });
+    await q.goto(SITE.new + RELAY + '#trade=' + await p.evaluate(() => window.__rs.trade.code)); await q.reload();
+    await p.waitForFunction(() => window.__rs.trade.seen); await q.waitForFunction(() => window.__rs.trade.seen);
+    await p.click('#trFilter .btn[data-f="finish"]'); for (const id of ['finish:neon', 'finish:molten', 'finish:ice']) await p.click(`#trGrid .tile[data-id="${id}"]`);
+    await p.click('#trFilter .btn[data-f="cases"]'); await p.click('#trGrid .tile[data-id="case:gold"]'); await p.fill('#trCoins', '120'); await p.click('#trFilter .btn[data-f="finish"]');
+    r = await fits('#tradePanel'); ok(good(r) && (await p.evaluate(() => document.querySelectorAll('#trGrid .tile').length)) === 15, say(r, 'a trade room, your fifteen finishes and an offer of four things and coins'));
+    if (w === 762) await p.screenshot({ path: shot('fit-trade-phone.png') });
+    await q.click('#trSideSeg .btn[data-side="theirs"]'); await q.click('#bTrNew'); await q.click('#trFilter .btn[data-f="board"]'); await q.click('#trGrid .tile[data-id="board:lava"]'); await q.click('#bTrAsk');
+    await p.waitForFunction(() => window.__rs.trade.asks.length === 1);
+    await p.click('#trSideSeg .btn[data-side="theirs"]'); await p.click('#bTrNew'); await p.waitForTimeout(60);
+    r = await fits('#tradePanel'); ok(good(r) && (await p.evaluate(() => document.querySelectorAll('#trGrid .tile').length)) === 15 && await p.isVisible('#bTrAdd') && await p.isVisible('#bTrNew'), say(r, 'a trade room, their things, with something asked for'));
+    if (w === 762) await p.screenshot({ path: shot('fit-trade-theirs-phone.png') });
+    if (w === 375) await p.screenshot({ path: shot('fit-trade-theirs-upright.png') });
+    await p.click('#bTrNo'); await p.click('#bTrReady'); await q.waitForFunction(() => window.__rs.trade.ready[1]); await q.click('#bTrReady'); await p.waitForFunction(() => window.__rs.trade.counting);
+    r = await fits('#tradePanel'); ok(good(r) && await p.isVisible('#bTrBack'), say(r, 'a trade room, counting down'));
+    await p.click('#bTrBack'); await p.click('#bTrLeave'); await q.close();
     await p.click('.hTab[data-go="home"]'); await p.waitForTimeout(150);
     // Vs computer: the eight bots, the line about the one picked, your colour and Play
     await p.click('#bCpu'); await p.waitForTimeout(200);

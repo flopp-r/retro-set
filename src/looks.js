@@ -158,12 +158,47 @@ function daily(l, day) {
   l.coins += out.coins; if (out.lucky) l.cases.lucky++;
   return out;
 }
+// ------------------------------------------------------------------ trading
+// An offer is what one player puts into a trade: { items: { 'slot:id': how many }, cases: { grade: n }, keys: { key: n },
+// coins }. The free looks can't be traded: everyone has them. cleanOffer() makes a safe offer of anything (what the
+// other player sent, say): only things that exist, in whole numbers.
+const noOffer = () => ({ items: {}, cases: {}, keys: {}, coins: 0 });
+function cleanOffer(o) {
+  const out = noOffer();
+  if (!o || typeof o !== 'object') return out;
+  for (const it of ITEMS) { const n = whole(o.items && o.items[it.key], 999); if (n && !it.free) out.items[it.key] = n; }
+  for (const g of GRADE_IDS) { const n = whole(o.cases && o.cases[g], 9999); if (n) out.cases[g] = n; }
+  for (const k of KEY_IDS) { const n = whole(o.keys && o.keys[k], 9999); if (n) out.keys[k] = n; }
+  out.coins = whole(o.coins);
+  return out;
+}
+const offerEmpty = o => !o.coins && !Object.keys(o.items).length && !Object.keys(o.cases).length && !Object.keys(o.keys).length;
+// an offer as one string, the same however it was put together, so two players can check they mean the same trade
+const offerKey = o => JSON.stringify([Object.keys(o.items).sort().map(k => [k, o.items[k]]), GRADE_IDS.map(g => o.cases[g] || 0), KEY_IDS.map(k => o.keys[k] || 0), o.coins]);
+// whether a locker holds everything in an offer
+const canGive = (l, o) => l.coins >= o.coins && Object.keys(o.items).every(k => !ALL[k].free && count(l, k) >= o.items[k]) && Object.keys(o.cases).every(g => l.cases[g] >= o.cases[g]) && Object.keys(o.keys).every(k => l.keys[k] >= o.keys[k]);
+// what a locker shows the other player in a trade: the looks, cases and keys that could be offered, never the coins
+function inventory(l) { const items = {}; for (const it of ITEMS) if (!it.free && owns(l, it.key)) items[it.key] = count(l, it.key); return cleanOffer({ items, cases: l.cases, keys: l.keys }); }
+// One side of a trade: the locker gives `give` and takes `get`. A look given away to the last copy comes off (its slot
+// goes back to the free look). False, with nothing changed, if the locker doesn't hold what it's to give.
+function trade(l, give, get) {
+  if (!canGive(l, give)) return false;
+  for (const k in give.items) { l.owned[k] -= give.items[k]; if (!l.owned[k]) { delete l.owned[k]; const it = ALL[k]; if (l.wear[it.slot] === it.id) l.wear[it.slot] = slotItems(it.slot)[0].id; } }
+  for (const g in give.cases) l.cases[g] -= give.cases[g];
+  for (const k in give.keys) l.keys[k] -= give.keys[k];
+  for (const k in get.items) l.owned[k] = count(l, k) + get.items[k];
+  for (const g in get.cases) l.cases[g] += get.cases[g];
+  for (const k in get.keys) l.keys[k] += get.keys[k];
+  l.coins += get.coins - give.coins;
+  return true;
+}
 // how much of the catalogue a locker holds: { have, of } overall, or for one slot
 function progress(l, slot) { const its = slot ? slotItems(slot) : ITEMS; return { have: its.filter(it => owns(l, it.key)).length, of: its.length }; }
 // a locker with every look, plenty of coins, cases and keys (dev mode's test locker)
 function full() { const l = fresh(); for (const it of ITEMS) l.owned[it.key] = 1; l.coins = 100000; for (const g of GRADE_IDS) l.cases[g] = 50; for (const k of KEY_IDS) l.keys[k] = 50; return l; }
 
 return { SLOTS, RARITIES, RARITY, ITEMS, ALL, FREE, GRADES, GRADE_IDS, KEYS, KEY_IDS, OWNED_WEIGHT, PITY, LUCKY_FULL, DAILY, START,
-  key, slotItems, winCoins, gradeFor, count, owns, fresh, validate, wear, buyCase, buyKey, open, gameOver, daily, nextDay, progress, full };
+  key, slotItems, winCoins, gradeFor, count, owns, fresh, validate, wear, buyCase, buyKey, open, gameOver, daily, nextDay, progress, full,
+  noOffer, cleanOffer, offerEmpty, offerKey, canGive, inventory, trade };
 })();
 if (typeof module !== 'undefined') module.exports = LOOKS;

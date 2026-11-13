@@ -33,24 +33,32 @@ button:focus-visible{outline:3px dashed var(--chalk);outline-offset:2px}
 .seg{display:flex;flex-wrap:wrap;gap:6px}
 .note{font-size:20px;opacity:.82;max-width:46ch}
 .actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:20px}
-/* menu: a panel on the left with a stack of screens (one for now), the board in view beside it */
-#menu{position:fixed;inset:0;display:flex;align-items:center;justify-content:flex-start;padding:3vh 4vw;pointer-events:none;overflow:hidden}
-#menuPanel{pointer-events:auto;width:min(560px,94vw);max-height:94vh;display:flex;flex-direction:column;overflow:hidden;padding:0}
-#mStage{display:grid;overflow:auto;min-height:0;padding:16px 20px 14px}
-/* tabs: Play and Settings along the top of the menu (#hTabs), and the settings' own tabs (#sTabs), in the menu and in a game */
-#hTabs,#sTabs{display:flex;flex:none;border-bottom:3px solid var(--plum2)}
-#hTabs{padding:0 12px}
+/* The menus, laid out as the big games' lobbies are (Fortnite, Valorant): a bar along the top of every menu screen with
+   the game's name, its sections as tabs (Play, Locker, Store, Trade), the coins and Settings. Below it, the Play screen
+   is the board with the ways to play as large tiles along the bottom (#sc-home); every other screen is a panel on the
+   left (#menuPanel) with the board in view beside it, so a look tried on in the locker shows at once. */
+:root{--tb:58px}
+#menu{position:fixed;inset:0;pointer-events:none;overflow:hidden}
+#topBar{pointer-events:auto;position:absolute;left:0;right:0;top:0;height:var(--tb);display:flex;align-items:stretch;gap:22px;padding:0 20px;background:rgba(13,10,28,.9);border-bottom:3px solid var(--plum2);box-shadow:0 3px 0 var(--ink)}
+#brand{align-self:center;margin:0;font-family:'Press Start 2P',monospace;font-weight:400;font-size:15px;line-height:1;color:var(--lamp);text-shadow:2px 2px 0 var(--rose),4px 4px 0 var(--ink);white-space:nowrap}
+#barRight{margin-left:auto;display:flex;align-items:center;gap:12px}
+#coins{display:flex;align-items:center;gap:7px;padding:3px 10px 3px 8px;font-size:22px;line-height:1;color:var(--lamp);background:var(--ink);border:3px solid var(--plum2);white-space:nowrap}
+#coins::before{content:'';width:12px;height:12px;flex:none;background:#ffd76a;box-shadow:inset -3px -3px 0 #c9902e,0 0 0 2px var(--ink)}
+.iconBtn{display:grid;place-items:center;width:40px;height:40px;padding:0;color:var(--paper);background:var(--plum);border:3px solid var(--ink);border-radius:0;cursor:pointer;box-shadow:inset -3px -3px 0 rgba(0,0,0,.35),inset 3px 3px 0 rgba(255,255,255,.1)}
+.iconBtn:hover{background:var(--plum2)}.iconBtn[aria-pressed="true"]{background:var(--lamp);color:var(--ink)}
+.iconBtn svg{width:20px;height:20px;shape-rendering:crispEdges}
+#menuPanel{pointer-events:auto;position:absolute;left:4vw;top:calc(var(--tb) + 3vh);width:min(600px,92vw);max-height:calc(100% - var(--tb) - 6vh);display:flex;flex-direction:column;overflow:hidden;padding:0}
+#mStage{display:grid;overflow:auto;min-height:0;padding:14px 20px 16px}
+/* tabs: the sections along the top bar (#hTabs), and the settings' own tabs (#sTabs), in the menu and in a game */
+#hTabs{display:flex;align-items:stretch}#sTabs{display:flex;flex:none;border-bottom:3px solid var(--plum2)}
 .hTab,.sTab{font-family:'Press Start 2P',monospace;line-height:1;color:var(--paper);opacity:.6;background:none;border:0;border-bottom:4px solid transparent;border-radius:0;margin-bottom:-3px;cursor:pointer;white-space:nowrap}
-.hTab{font-size:12px;padding:15px 14px 11px}.sTab{font-size:9px;padding:10px 10px 8px}
+.hTab{font-size:11px;letter-spacing:1px;text-transform:uppercase;padding:4px 15px 0}.sTab{font-size:9px;padding:10px 10px 8px}
 .hTab:hover,.sTab:hover{opacity:.9}
 .hTab[aria-selected="true"],.sTab[aria-selected="true"]{color:var(--lamp);opacity:1;border-bottom-color:var(--lamp)}
 .hTab:focus-visible,.sTab:focus-visible{outline:3px dashed var(--chalk);outline-offset:-5px}
 #sPages{display:grid;padding-top:12px}
 .sPage{grid-area:1 / 1;min-width:0}.sPage.off{visibility:hidden}
 /* cosmetics: the locker (what's worn in each slot, the cases and keys in hand), one slot's looks, and the shop */
-#cTabs{display:flex;align-items:flex-end;border-bottom:3px solid var(--plum2)}
-#coins{margin-left:auto;padding:0 2px 6px;font-size:22px;color:var(--lamp);white-space:nowrap}#coins::before{content:'\25CF  ';color:#ffd76a}
-#cPages{padding-top:10px}
 .cHead{font-family:'Press Start 2P',monospace;font-size:8px;color:var(--lamp);opacity:.8;margin:8px 0 5px}
 #slotGrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
 #itemGrid{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:6px;min-height:156px;align-content:start}
@@ -78,6 +86,7 @@ button.chip2:disabled{cursor:default}
 #trRooms{display:flex;flex-direction:column;gap:6px;max-height:112px;overflow:auto;padding:6px;margin:4px 0 8px;background:rgba(13,10,28,.55);border:3px solid var(--plum2)}
 #trRooms .note{margin:2px 4px}#trCode{width:130px;text-transform:uppercase;letter-spacing:2px}
 #cTrade .onlRow{gap:6px}#bTrCreate{background:var(--rose);color:var(--ink)}
+.pageHead{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:0 0 8px}.pageHead h3{font-family:'Press Start 2P',monospace;font-weight:400;font-size:11px;color:var(--lamp);margin:0}.pageHead span{font-size:19px;opacity:.75}
 #tradeBox{background:rgba(13,10,28,.82)}#tradePanel{background:#16112c;width:min(780px,96vw);max-height:94vh;display:flex;flex-direction:column;gap:7px;padding:12px 16px 12px;overflow:hidden}
 #trHead{display:flex;align-items:center;gap:12px}#trTitle{flex:1;font-size:21px;color:var(--lamp);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #trSideSeg{flex-wrap:nowrap}#bTrNew{flex:none;font-size:8px;padding:7px 8px}#tradePanel .seg .btn{font-size:8px;padding:7px 8px}
@@ -85,7 +94,7 @@ button.chip2:disabled{cursor:default}
 .trSide{display:grid;grid-template-columns:1fr auto;gap:2px 8px;align-items:center;min-width:0;padding:5px 7px;background:rgba(13,10,28,.55);border:3px solid var(--plum2)}
 .trSide.ready{border-color:#7dffb0}.trSide .cHead{grid-column:1 / 3;margin:0}
 .trStrip{display:flex;gap:4px;min-height:34px;overflow-x:auto;scrollbar-width:thin;align-items:center}
-.trStrip:empty::before{content:'Nothing yet';opacity:.5;font-size:18px}
+.trStrip:empty::before{content:'Empty';opacity:.5;font-size:18px}
 .trStrip .chip2{flex:none;font-size:16px;padding:1px 5px 1px 2px}#trFoot .btn{white-space:nowrap;flex:none}
 .trCoins{font-size:18px;white-space:nowrap;color:var(--lamp)}#trCoins{width:74px;font-size:18px;padding:2px 5px}
 #trBar{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
@@ -123,7 +132,7 @@ button.chip2:disabled{cursor:default}
 #setBox .row{grid-template-columns:136px 1fr;gap:2px 12px;margin:0 0 9px}#setBox .note{grid-column:2;font-size:18px;margin:0;max-width:none}#setBox .lbl{padding-top:4px}
 #setBox .seg .btn{padding:7px 9px}
 .mTop{display:flex;align-items:center;gap:14px;padding:14px 20px 0;flex:none}
-#mTitle{font-family:'Press Start 2P',monospace;font-weight:400;font-size:12px;line-height:1.4;color:var(--lamp);margin:0}
+#mTitle{font-family:'Press Start 2P',monospace;font-weight:400;font-size:11px;line-height:1.4;color:var(--lamp);margin:0;text-transform:uppercase;letter-spacing:1px}#mTitle .crumb{opacity:.55}
 /* Vs computer: the bots, the one picked, your colour */
 .botGrid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
 .botCard{display:flex;flex-direction:column;align-items:center;gap:4px;padding:7px 4px 6px;font:inherit;color:var(--paper);background:var(--plum);border:3px solid var(--ink);border-radius:0;cursor:pointer;box-shadow:inset -3px -3px 0 rgba(0,0,0,.35),inset 3px 3px 0 rgba(255,255,255,.1)}
@@ -159,17 +168,20 @@ input:focus{border-color:var(--chalk)}
 #lobbyLink{width:100%;font-size:17px}
 #lobbyPanel .note{margin:12px 0 0}
 .mScreen{grid-area:1 / 1;min-width:0}
-.title{font-family:'Press Start 2P',monospace;font-weight:400;font-size:clamp(26px,4.2vw,42px);line-height:1.15;color:var(--lamp);margin:0 0 16px;text-shadow:3px 3px 0 var(--rose),6px 6px 0 var(--plum2),9px 9px 0 var(--ink)}
-.quickRow{display:flex;flex-wrap:wrap;gap:8px}.quickRow>.btn{margin-bottom:12px;text-align:left}
-#bResume{font-size:12px;padding:12px 16px;background:var(--lamp);color:var(--ink)}#bResume:hover{background:#ffd48e}
-.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
-.card{display:flex;flex-direction:column;gap:6px;text-align:left;padding:10px 12px;font:inherit;color:var(--paper);background:var(--plum);border:3px solid var(--ink);border-radius:0;cursor:pointer;box-shadow:inset -3px -3px 0 rgba(0,0,0,.35),inset 3px 3px 0 rgba(255,255,255,.1),4px 4px 0 var(--ink);transition:transform .12s,background .12s,border-color .12s}
+#sc-home{pointer-events:auto;position:absolute;left:0;right:0;bottom:0;display:flex;flex-direction:column;gap:10px;padding:40px 4vw 18px;background:linear-gradient(rgba(13,10,28,0),rgba(13,10,28,.78) 46%)}
+.quickRow{display:flex;flex-wrap:wrap;gap:10px}.quickRow:not(:has(.btn:not([hidden]))){display:none}
+#bResume,#bRejoin{font-size:11px;padding:11px 16px;background:var(--lamp);color:var(--ink);text-align:left}#bResume:hover,#bRejoin:hover{background:#ffd48e}
+.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.card{display:flex;align-items:center;gap:14px;min-height:88px;text-align:left;padding:12px 16px;font:inherit;color:var(--paper);background:rgba(58,36,82,.94);border:3px solid var(--ink);border-radius:0;cursor:pointer;box-shadow:inset -3px -3px 0 rgba(0,0,0,.35),inset 3px 3px 0 rgba(255,255,255,.1),5px 5px 0 var(--ink);transition:transform .12s,background .12s,border-color .12s}
 .card:hover:not(:disabled){background:var(--plum2);border-color:var(--lamp);transform:translate(-1px,-2px)}
 .card:active:not(:disabled){transform:translate(2px,2px)}
 .card:disabled{opacity:.5;cursor:default}
-.cardName{font-family:'Press Start 2P',monospace;font-size:11px;line-height:1.3;color:var(--lamp);white-space:nowrap}
-.cardTxt{font-size:18px;line-height:1;opacity:.72}
-#homeFoot{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:0 14px;margin:12px 0 0}
+.cardIcon{flex:none;width:56px;height:56px;display:grid;place-items:center;background:rgba(13,10,28,.6);border:3px solid var(--ink)}
+.cardIcon canvas,.cardIcon img{display:block;width:44px;height:44px;object-fit:contain;image-rendering:pixelated}
+.cardBody{display:flex;flex-direction:column;gap:8px;min-width:0}
+.cardName{font-family:'Press Start 2P',monospace;font-size:13px;line-height:1.2;color:var(--lamp);white-space:nowrap;text-transform:uppercase}
+.cardTxt{font-size:19px;line-height:1;opacity:.8}
+#homeFoot{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:0 14px;margin:0}
 #ver{margin:0;font-size:16px;opacity:.5}
 /* in a game: the players and whose move it is along the top, the moves on the right, the buttons bottom left */
 #hud{position:fixed;inset:0;pointer-events:none}
@@ -195,7 +207,7 @@ input:focus{border-color:var(--chalk)}
 #movesBox{position:fixed;top:8px;right:8px;width:164px;max-height:calc(100vh - 80px);display:flex;flex-direction:column;pointer-events:auto}
 #movesBox h3{font-family:'Press Start 2P',monospace;font-weight:400;font-size:8px;color:var(--lamp);margin:0;padding:7px 9px 5px}
 #moveList{overflow-y:auto;padding:0 9px 7px;font-size:19px;line-height:1.1;scrollbar-color:var(--plum2) transparent;-webkit-user-select:text;user-select:text}
-#moveList:empty::before{content:'No moves yet';opacity:.6}
+#moveList:empty::before{content:'No moves';opacity:.6}
 .mvRow{display:grid;grid-template-columns:28px 1fr 1fr;gap:4px}.mvN{opacity:.55}
 .mvRow span.now{color:var(--lamp)}
 #tools{position:fixed;left:8px;bottom:8px;display:flex;gap:6px;pointer-events:auto}
@@ -221,14 +233,17 @@ input:focus{border-color:var(--chalk)}
 #overMoves{font-size:19px;opacity:.75;margin:0}
 /* phones held sideways (and other short screens): smaller everything, so every screen fits without scrolling */
 @media (max-height:500px){
-  #menu{padding:2vh 3vw}
-  .title{font-size:22px;margin-bottom:10px}
-  #mStage{padding:10px 14px 8px}
-  .cards{grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:7px}
-  .card{padding:6px 9px;gap:4px}.cardName{font-size:9px}.cardTxt{font-size:16px}
-  #bResume{font-size:10px;padding:9px 12px}.quickRow>.btn{margin-bottom:8px}
+  :root{--tb:40px}
+  #topBar{gap:14px;padding:0 12px}#brand{font-size:10px}.hTab{font-size:9px;padding:3px 10px 0}
+  #coins{font-size:18px;padding:1px 8px 1px 6px}#coins::before{width:10px;height:10px}.iconBtn{width:30px;height:30px}.iconBtn svg{width:16px;height:16px}
+  #menuPanel{left:3vw;top:calc(var(--tb) + 7px);max-height:calc(100% - var(--tb) - 14px)}
+  #mStage{padding:8px 14px 8px}
+  #sc-home{gap:6px;padding:24px 3vw 8px}
+  .cards{gap:8px}.card{min-height:0;padding:7px 10px;gap:9px}.cardIcon{width:40px;height:40px}.cardIcon canvas,.cardIcon img{width:32px;height:32px}
+  .cardBody{gap:5px}.cardName{font-size:10px}.cardTxt{font-size:16px}
+  #bResume,#bRejoin{font-size:9px;padding:8px 12px}
   .note{font-size:18px}
-  #homeFoot{margin-top:6px}#ver{font-size:15px}
+  #ver{font-size:15px}
   .mTop{padding:8px 14px 0}
   .botGrid{gap:5px}.botCard{padding:4px 3px;gap:2px;flex-direction:row;justify-content:center}.botCard .portrait{height:22px;width:auto}.botName{font-size:7px}.botElo{font-size:15px}
   #botBlurb{font-size:16px;margin:5px 0 4px;min-height:0}
@@ -240,12 +255,12 @@ input:focus{border-color:var(--chalk)}
   #lobbyPanel{padding:12px 16px}#lobbyCode{font-size:22px;margin:2px 0 6px}#lobbyStatus{font-size:18px;margin-bottom:6px}#lobbyPanel .note{margin-top:6px;font-size:16px}#lobbyPanel .actions{margin-top:8px}
   #chatPop{bottom:44px}
   .ovPanel{padding:12px 16px 12px}.ovPanel h2{font-size:12px;margin-bottom:8px}.ovPanel .row{margin-bottom:6px}
-  #pausePanel{padding:2px 14px 10px}.hTab{font-size:10px;padding:10px 12px 7px}.sTab{font-size:8px;padding:8px 9px 6px}#sPages{padding-top:7px}
+  #pausePanel{padding:2px 14px 10px}.sTab{font-size:8px;padding:8px 9px 6px}#sPages{padding-top:7px}
   #setBox .row{grid-template-columns:118px 1fr;margin-bottom:5px}#setBox .lbl{font-size:19px;padding-top:2px}#setBox .note{font-size:16px}#setBox .seg .btn{font-size:8px;padding:5px 7px}
   #confirm{bottom:44px;font-size:19px;padding:5px 9px}
   #cPages{padding-top:6px}.cHead{margin:5px 0 3px}.tile{padding:3px 2px 2px;gap:1px}.tile canvas,.tile img{width:40px;height:37px}.tile .tName{font-size:14px}
   #itemGrid{min-height:126px}.chip2{font-size:16px;padding:2px 5px 2px 2px}.chip2 canvas{width:20px;height:20px}.cFoot{margin-top:5px;min-height:28px}#itemInfo,#shopInfo{font-size:16px}
-  .cBar{margin-bottom:5px}#slotTitle{font-size:18px}#gift{font-size:15px}#coins{font-size:18px;padding-bottom:4px}
+  .cBar{margin-bottom:5px}#slotTitle{font-size:18px}#gift{font-size:15px}.pageHead{margin-bottom:5px}.pageHead h3{font-size:9px}.pageHead span{font-size:16px}
   #trRooms{max-height:62px;margin:2px 0 5px}#trCode{font-size:18px;padding:2px 6px}
   #tradePanel{padding:6px 12px 8px;gap:4px}#trTitle{font-size:17px}.trSide{padding:2px 6px}.trStrip{min-height:26px}.trCoins,#trCoins{font-size:16px}
   #trGrid{min-height:120px;gap:4px}#trWait{min-height:120px;gap:3px}#trCodeBig{font-size:18px}#trNote{font-size:16px}#trFoot{min-height:28px}#tradePanel .btn{font-size:8px;padding:5px 7px}
@@ -259,6 +274,14 @@ input:focus{border-color:var(--chalk)}
   #mid{min-width:130px;padding:3px 7px}#turnLine{font-size:17px}#lastMove{font-size:14px}
   #tools .btn{font-size:8px;padding:7px 8px}
 }
+@media (max-width:560px){
+  :root{--tb:88px}
+  #topBar{flex-wrap:wrap;gap:0 10px;padding:0 10px;align-content:stretch}
+  #brand{font-size:12px;height:44px;display:flex;align-items:center}#barRight{height:44px}
+  #hTabs{order:3;flex:1 0 100%;justify-content:space-between;height:41px}.hTab{font-size:10px;padding:3px 6px 0;letter-spacing:0}
+  #menuPanel{left:3vw;width:94vw;top:calc(var(--tb) + 8px);max-height:calc(100% - var(--tb) - 16px)}
+  .cards{grid-template-columns:1fr;gap:8px}.card{min-height:0;padding:9px 12px}
+}
 @media (max-width:440px){
   .pl .plName{display:none}#mid{min-width:0}   /* upright phones: the colour chips say who's who */
   .row{grid-template-columns:1fr}
@@ -266,8 +289,7 @@ input:focus{border-color:var(--chalk)}
   #trOffers{grid-template-columns:1fr;gap:5px}#trHead{flex-wrap:wrap;gap:6px;justify-content:space-between}#trTitle{display:none}#tradePanel{padding:10px 12px;gap:6px}.trSide{padding:3px 6px}
   #trFilter{gap:4px}#tradePanel .seg .btn{padding:6px 6px}#trFoot{flex-wrap:wrap;justify-content:flex-end;gap:5px 8px}#trNote{flex-basis:100%}
   #slotGrid{grid-template-columns:repeat(4,minmax(0,1fr))}#itemGrid{grid-template-columns:repeat(4,minmax(0,1fr))}#shopCases{grid-template-columns:repeat(3,minmax(0,1fr))}#shopKeys{grid-template-columns:repeat(4,minmax(0,1fr))}
-  .hTab{font-size:10px;padding:13px 8px 10px}
-  #setBox .row{grid-template-columns:1fr}#setBox .note{grid-column:1}.sTab{padding:10px 7px 8px}#pausePanel{padding:6px 12px 14px}
+  #setBox .row{grid-template-columns:1fr}#setBox .note{grid-column:1}.sTab{font-size:8px;padding:10px 6px 8px}#pausePanel{padding:6px 12px 14px}
 }
 @media (prefers-reduced-motion:reduce){.card{transition:none}.card:hover:not(:disabled){transform:none}}
 </style>
@@ -275,38 +297,41 @@ input:focus{border-color:var(--chalk)}
 <body>
 <canvas id="view" aria-label="3D chess board"></canvas>
 <div id="menu">
-  <div id="menuPanel" class="panel">
-    <div id="hTabs" role="tablist" aria-label="Main menu"><button class="hTab" type="button" role="tab" data-go="home" aria-selected="true">Play</button><button class="hTab" type="button" role="tab" data-go="cos" aria-selected="false">Cosmetics</button><button class="hTab" type="button" role="tab" data-go="settings" aria-selected="false">Settings</button></div>
+  <header id="topBar">
+    <h1 id="brand">Retro Set</h1>
+    <nav id="hTabs" role="tablist" aria-label="Main menu"><button class="hTab" type="button" role="tab" data-go="home" aria-selected="true">Play</button><button class="hTab" type="button" role="tab" data-go="locker" aria-selected="false">Locker</button><button class="hTab" type="button" role="tab" data-go="store" aria-selected="false">Store</button><button class="hTab" type="button" role="tab" data-go="trade" aria-selected="false">Trade</button></nav>
+    <div id="barRight"><span id="coins" title="Coins" aria-label="Coins"></span><button class="iconBtn" id="bSettings" type="button" aria-label="Settings" title="Settings" aria-pressed="false"><svg viewBox="0 0 10 10" aria-hidden="true" fill="currentColor"><path d="M4 0h2v1h1v1h1v-1h1v1h-1v1h1v1h1v2h-1v1h-1v1h1v1h-1v-1h-1v1h-1v1h-2v-1h-1v-1h-1v1h-1v-1h1v-1h-1v-1h-1v-2h1v-1h1v-1h-1v-1h1v1h1v-1h1zM4 3v1h-1v2h1v1h2v-1h1v-2h-1v-1z"/></svg></button></div>
+  </header>
+  <section class="mScreen" id="sc-home">
+    <div class="quickRow"><button class="btn" id="bRejoin" type="button" hidden></button><button class="btn" id="bResume" type="button" hidden></button></div>
+    <div class="cards">
+      <button class="card" type="button" id="bCpu"><span class="cardIcon"></span><span class="cardBody"><span class="cardName">Vs Computer</span><span class="cardTxt"></span></span></button>
+      <button class="card" type="button" id="bOnline"><span class="cardIcon"></span><span class="cardBody"><span class="cardName">Online</span><span class="cardTxt"></span></span></button>
+      <button class="card" type="button" id="bLocal"><span class="cardIcon"></span><span class="cardBody"><span class="cardName">Local Match</span><span class="cardTxt"></span></span></button>
+    </div>
+    <div id="homeFoot"><p id="ver"></p><p id="gift" role="status" hidden></p></div>
+  </section>
+  <div id="menuPanel" class="panel" hidden>
     <div class="mTop" id="mTop" hidden><button class="btn" id="mBack" type="button" aria-label="Back">&lt; Back</button><h2 id="mTitle"></h2></div>
     <div id="mStage">
-      <section class="mScreen" id="sc-home">
-        <h1 class="title">Retro Set</h1>
-        <div class="quickRow"><button class="btn" id="bRejoin" type="button" hidden></button><button class="btn" id="bResume" type="button" hidden></button></div>
-        <div class="cards">
-          <button class="card" type="button" id="bLocal"><span class="cardName">Two players</span><span class="cardTxt">One device, take turns</span></button>
-          <button class="card" type="button" id="bCpu"><span class="cardName">Vs computer</span><span class="cardTxt">Ten opponents</span></button>
-          <button class="card" type="button" id="bOnline"><span class="cardName">Online</span><span class="cardTxt">Rooms and invite links</span></button>
-        </div>
-        <div id="homeFoot"><p id="ver"></p><p id="gift" role="status" hidden></p></div>
-      </section>
       <section class="mScreen" id="sc-cos" hidden>
-        <div id="cTabs"><button class="sTab cTab" type="button" data-c="locker" aria-selected="true">Locker</button><button class="sTab cTab" type="button" data-c="shop" aria-selected="false">Shop</button><button class="sTab cTab" type="button" data-c="trade" aria-selected="false">Trade</button><span id="coins" title="Coins"></span></div>
         <div id="cPages">
           <div class="cPage" id="cLocker">
+            <div class="pageHead"><h3>Equipped</h3><span id="lockTotal"></span></div>
             <div id="slotGrid"></div>
             <div class="cHead">Unopened</div>
             <div id="held"></div>
           </div>
           <div class="cPage" id="cSlot" hidden>
-            <div class="cBar"><button class="btn" id="bSlotBack" type="button">&lt; Locker</button><span id="slotTitle"></span></div>
+            <div class="cBar"><button class="btn" id="bSlotBack" type="button">&lt; Back</button><span id="slotTitle"></span></div>
             <div id="itemGrid"></div>
             <div class="cFoot"><span id="itemInfo"></span><button class="btn" id="bEquip" type="button">Equip</button></div>
           </div>
           <div class="cPage" id="cTrade" hidden>
-            <div class="roomsHead"><span>Open trade rooms</span><span id="trLive"></span></div>
+            <div class="roomsHead"><span>Open Trade Rooms</span><span id="trLive"></span></div>
             <div id="trRooms"></div>
-            <div class="onlRow"><div class="seg"><input id="trCode" maxlength="8" placeholder="Room code" autocomplete="off" spellcheck="false" aria-label="Trade room code"><button class="btn" id="bTrJoin" type="button">Join with code</button></div>
-              <div class="seg" id="trListed"><button class="btn" type="button" data-v="1">Listed</button><button class="btn" type="button" data-v="0">Private</button></div><button class="btn" id="bTrCreate" type="button">Create trade room</button></div>
+            <div class="onlRow"><div class="seg"><input id="trCode" maxlength="8" placeholder="Room Code" autocomplete="off" spellcheck="false" aria-label="Trade room code"><button class="btn" id="bTrJoin" type="button">Join</button></div>
+              <div class="seg" id="trListed"><button class="btn" type="button" data-v="1">Listed</button><button class="btn" type="button" data-v="0">Private</button></div><button class="btn" id="bTrCreate" type="button">Create Room</button></div>
             <div class="note warn" id="trMenuNote" role="status"></div>
           </div>
           <div class="cPage" id="cShop" hidden>
@@ -319,24 +344,24 @@ input:focus{border-color:var(--chalk)}
         </div>
       </section>
       <section class="mScreen" id="sc-settings" hidden><div id="setHome"></div></section>
-      <section class="mScreen" id="sc-online" data-title="Online" hidden>
+      <section class="mScreen" id="sc-online" hidden>
         <div class="onl">
-          <label class="field">Your name <input id="netName" maxlength="14" placeholder="Player" autocomplete="nickname"></label>
-          <div class="roomsHead"><span>Open rooms</span><span id="roomsLive"></span></div>
+          <label class="field">Display Name <input id="netName" maxlength="14" placeholder="Player" autocomplete="nickname"></label>
+          <div class="roomsHead"><span>Open Rooms</span><span id="roomsLive"></span></div>
           <div id="roomList"></div>
-          <div class="onlRow"><div class="seg"><input id="netCode" maxlength="8" placeholder="Room code" autocomplete="off" spellcheck="false" aria-label="Room code"><button class="btn" id="bJoin" type="button">Join with code</button></div><button class="btn" id="bCreate" type="button">Create a room</button></div>
+          <div class="onlRow"><div class="seg"><input id="netCode" maxlength="8" placeholder="Room Code" autocomplete="off" spellcheck="false" aria-label="Room code"><button class="btn" id="bJoin" type="button">Join</button></div><button class="btn" id="bCreate" type="button">Create Room</button></div>
           <div class="note warn" id="netNote" role="status"></div>
         </div>
       </section>
-      <section class="mScreen" id="sc-room" data-title="New room" hidden>
-        <div class="row"><span class="lbl">You play</span><div class="seg" id="sNetColour"><button class="btn" type="button" data-v="white">White</button><button class="btn" type="button" data-v="random">Random</button><button class="btn" type="button" data-v="black">Black</button></div></div>
-        <div class="row"><span class="lbl">Room</span><div class="seg" id="sListed"><button class="btn" type="button" data-v="1">Listed</button><button class="btn" type="button" data-v="0">Private</button></div><p class="note" id="listedTxt"></p></div>
-        <div class="actions"><button class="btn" id="bStart" type="button">Create room</button></div>
+      <section class="mScreen" id="sc-room" hidden>
+        <div class="row"><span class="lbl">Your Colour</span><div class="seg" id="sNetColour"><button class="btn" type="button" data-v="white">White</button><button class="btn" type="button" data-v="random">Random</button><button class="btn" type="button" data-v="black">Black</button></div></div>
+        <div class="row"><span class="lbl">Visibility</span><div class="seg" id="sListed"><button class="btn" type="button" data-v="1">Listed</button><button class="btn" type="button" data-v="0">Private</button></div><p class="note" id="listedTxt"></p></div>
+        <div class="actions"><button class="btn" id="bStart" type="button">Create Room</button></div>
       </section>
-      <section class="mScreen" id="sc-cpu" data-title="Vs computer" hidden>
+      <section class="mScreen" id="sc-cpu" hidden>
         <div class="botGrid" id="botGrid"></div>
         <p id="botBlurb"></p>
-        <div class="cpuRow"><span class="lbl">You play</span><div class="seg" id="sColour"><button class="btn" type="button" data-v="white">White</button><button class="btn" type="button" data-v="random">Random</button><button class="btn" type="button" data-v="black">Black</button></div><button class="btn" id="bPlay" type="button">Play</button></div>
+        <div class="cpuRow"><span class="lbl">Your Colour</span><div class="seg" id="sColour"><button class="btn" type="button" data-v="white">White</button><button class="btn" type="button" data-v="random">Random</button><button class="btn" type="button" data-v="black">Black</button></div><button class="btn" id="bPlay" type="button">Play</button></div>
       </section>
     </div>
   </div>
@@ -352,9 +377,9 @@ input:focus{border-color:var(--chalk)}
   <div id="movesBox"><h3>Moves</h3><div id="moveList"></div></div>
   <div id="tools">
     <button class="btn" id="bMenu" type="button">Menu</button>
-    <button class="btn" id="bUndo" type="button">Take back</button>
-    <button class="btn" id="bFlip" type="button" title="Turn the board round">Turn</button>
-    <button class="btn" id="bView" type="button" title="Flat view, like a diagram">2D</button>
+    <button class="btn" id="bUndo" type="button">Take Back</button>
+    <button class="btn" id="bFlip" type="button" title="Flip the board">Flip</button>
+    <button class="btn" id="bView" type="button" title="Switch between the 3D and 2D views">2D</button>
     <button class="btn" id="bChat" type="button" title="Quick chat" hidden>Chat</button>
   </div>
 </div>
@@ -362,44 +387,44 @@ input:focus{border-color:var(--chalk)}
   <div class="panel ovPanel" id="pausePanel" role="dialog" aria-label="Menu"><div id="setGame"></div></div>
 </div>
 <div id="setBox" hidden>
-  <div id="sTabs" role="tablist" aria-label="Settings"><button class="sTab" type="button" role="tab" data-tab="match" aria-selected="false">Match</button><button class="sTab" type="button" role="tab" data-tab="game" aria-selected="false">Game</button><button class="sTab" type="button" role="tab" data-tab="board" aria-selected="false">Board</button><button class="sTab" type="button" role="tab" data-tab="display" aria-selected="false">Display</button><button class="sTab" type="button" role="tab" data-tab="device" aria-selected="false">Device</button></div>
+  <div id="sTabs" role="tablist" aria-label="Settings"><button class="sTab" type="button" role="tab" data-tab="match" aria-selected="false">Match</button><button class="sTab" type="button" role="tab" data-tab="game" aria-selected="false">Gameplay</button><button class="sTab" type="button" role="tab" data-tab="board" aria-selected="false">Board</button><button class="sTab" type="button" role="tab" data-tab="display" aria-selected="false">Display</button><button class="sTab" type="button" role="tab" data-tab="device" aria-selected="false">Device</button></div>
   <div id="sPages">
     <div class="sPage" data-tab="match">
       <div id="pauseBtns">
         <button class="btn" id="bResumeGame" type="button">Resume</button>
-        <button class="btn" id="bDraw" type="button">Agree a draw</button>
+        <button class="btn" id="bDraw" type="button">Agree Draw</button>
         <button class="btn" id="bResign" type="button">Resign</button>
-        <button class="btn" id="bQuit" type="button">Quit to menu</button>
+        <button class="btn" id="bQuit" type="button">Quit to Menu</button>
       </div>
     </div>
     <div class="sPage" data-tab="game">
-        <div class="row onlyLocal"><span class="lbl">Turn the board</span><div class="seg" data-key="turn" id="sTurn"><button class="btn" type="button" data-v="1">On</button><button class="btn" type="button" data-v="0">Off</button></div><p class="note">The view turns to whoever moves next.</p></div>
-        <div class="row"><span class="lbl">Move hints</span><div class="seg" data-key="hints"><button class="btn" type="button" data-v="1">On</button><button class="btn" type="button" data-v="0">Off</button></div><p class="note">Dots and rings show where a piece can go.</p></div>
-        <div class="row"><span class="lbl">Always queen</span><div class="seg" data-key="autoQueen"><button class="btn" type="button" data-v="1">On</button><button class="btn" type="button" data-v="0">Off</button></div><p class="note">A pawn reaching the end becomes a queen at once.</p></div>
-        <div class="row"><span class="lbl">Confirm moves</span><div class="seg" data-key="confirm"><button class="btn" type="button" data-v="1">On</button><button class="btn" type="button" data-v="0">Off</button></div><p class="note">Each move waits for a tap on Confirm.</p></div>
+        <div class="row onlyLocal"><span class="lbl">Auto-Rotate</span><div class="seg" data-key="turn" id="sTurn"><button class="btn" type="button" data-v="1">On</button><button class="btn" type="button" data-v="0">Off</button></div><p class="note">Rotates the view to the side to move.</p></div>
+        <div class="row"><span class="lbl">Move Hints</span><div class="seg" data-key="hints"><button class="btn" type="button" data-v="1">On</button><button class="btn" type="button" data-v="0">Off</button></div><p class="note">Shows the legal moves of the selected piece.</p></div>
+        <div class="row"><span class="lbl">Auto-Queen</span><div class="seg" data-key="autoQueen"><button class="btn" type="button" data-v="1">On</button><button class="btn" type="button" data-v="0">Off</button></div><p class="note">Promotes pawns to a queen automatically.</p></div>
+        <div class="row"><span class="lbl">Confirm Moves</span><div class="seg" data-key="confirm"><button class="btn" type="button" data-v="1">On</button><button class="btn" type="button" data-v="0">Off</button></div><p class="note">Requires confirmation before each move.</p></div>
     </div>
     <div class="sPage" data-tab="board">
-        <div class="row"><span class="lbl">Flat view</span><div class="seg" data-key="flat"><button class="btn" type="button" data-v="1">On</button><button class="btn" type="button" data-v="0">Off</button></div><p class="note">Straight down at flat pictures, like a diagram.</p></div>
-        <div class="row"><span class="lbl">Coordinates</span><div class="seg" data-key="coords"><button class="btn" type="button" data-v="1">On</button><button class="btn" type="button" data-v="0">Off</button></div><p class="note">The letters and numbers round the board.</p></div>
-        <div class="row"><span class="lbl">My set only</span><div class="seg" data-key="mySet"><button class="btn" type="button" data-v="1">On</button><button class="btn" type="button" data-v="0">Off</button></div><p class="note">Online, both sides wear your pieces, not each their own.</p></div>
-        <div class="row"><span class="lbl">Last move</span><div class="seg" data-key="lastMove"><button class="btn" type="button" data-v="1">On</button><button class="btn" type="button" data-v="0">Off</button></div><p class="note">The last move's two squares are tinted.</p></div>
+        <div class="row"><span class="lbl">2D View</span><div class="seg" data-key="flat"><button class="btn" type="button" data-v="1">On</button><button class="btn" type="button" data-v="0">Off</button></div><p class="note">Top-down board with flat pieces.</p></div>
+        <div class="row"><span class="lbl">Coordinates</span><div class="seg" data-key="coords"><button class="btn" type="button" data-v="1">On</button><button class="btn" type="button" data-v="0">Off</button></div><p class="note">Shows file and rank labels.</p></div>
+        <div class="row"><span class="lbl">My Set Only</span><div class="seg" data-key="mySet"><button class="btn" type="button" data-v="1">On</button><button class="btn" type="button" data-v="0">Off</button></div><p class="note">Online: both sides use your piece set.</p></div>
+        <div class="row"><span class="lbl">Last Move</span><div class="seg" data-key="lastMove"><button class="btn" type="button" data-v="1">On</button><button class="btn" type="button" data-v="0">Off</button></div><p class="note">Highlights the previous move.</p></div>
     </div>
     <div class="sPage" data-tab="display">
-        <div class="row"><span class="lbl">Pixel size</span><div class="seg" data-key="pixel"><button class="btn" type="button" data-v="0">Max</button><button class="btn" type="button" data-v="1">1x</button><button class="btn" type="button" data-v="2">2x</button><button class="btn" type="button" data-v="3">3x</button><button class="btn" type="button" data-v="4">4x</button></div><p class="note">Bigger pixels look chunkier. Max is sharpest.</p></div>
-        <div class="row"><span class="lbl">Colours</span><div class="seg" data-key="levels"><button class="btn" type="button" data-v="256">Full</button><button class="btn" type="button" data-v="32">32</button><button class="btn" type="button" data-v="16">16</button><button class="btn" type="button" data-v="8">8</button></div><p class="note">Shades of each colour. Fewer looks older.</p></div>
-        <div class="row"><span class="lbl">Dithering</span><div class="seg" data-key="dither"><button class="btn" type="button" data-v="1">On</button><button class="btn" type="button" data-v="0">Off</button></div><p class="note">A dot pattern that smooths between few colours.</p></div>
-        <div class="row"><span class="lbl">Outlines</span><div class="seg" data-key="outline"><button class="btn" type="button" data-v="1">On</button><button class="btn" type="button" data-v="0">Off</button></div><p class="note">A dark line round the pieces and the board.</p></div>
+        <div class="row"><span class="lbl">Pixel Size</span><div class="seg" data-key="pixel"><button class="btn" type="button" data-v="0">Max</button><button class="btn" type="button" data-v="1">1x</button><button class="btn" type="button" data-v="2">2x</button><button class="btn" type="button" data-v="3">3x</button><button class="btn" type="button" data-v="4">4x</button></div><p class="note">Rendering resolution. Max is sharpest.</p></div>
+        <div class="row"><span class="lbl">Colour Depth</span><div class="seg" data-key="levels"><button class="btn" type="button" data-v="256">Full</button><button class="btn" type="button" data-v="32">32</button><button class="btn" type="button" data-v="16">16</button><button class="btn" type="button" data-v="8">8</button></div><p class="note">Shades per colour channel.</p></div>
+        <div class="row"><span class="lbl">Dithering</span><div class="seg" data-key="dither"><button class="btn" type="button" data-v="1">On</button><button class="btn" type="button" data-v="0">Off</button></div><p class="note">Blends colour steps with a dot pattern.</p></div>
+        <div class="row"><span class="lbl">Outlines</span><div class="seg" data-key="outline"><button class="btn" type="button" data-v="1">On</button><button class="btn" type="button" data-v="0">Off</button></div><p class="note">Draws edges around pieces and the board.</p></div>
     </div>
     <div class="sPage" data-tab="device">
-        <div class="row"><span class="lbl">Sound</span><div class="seg" data-key="volume"><button class="btn" type="button" data-v="0">Off</button><button class="btn" type="button" data-v="0.25">25%</button><button class="btn" type="button" data-v="0.5">50%</button><button class="btn" type="button" data-v="0.75">75%</button><button class="btn" type="button" data-v="1">100%</button></div><p class="note">Moves, captures, check and the end of a game.</p></div>
-        <div class="row" id="rowVibrate"><span class="lbl">Vibration</span><div class="seg" data-key="vibrate"><button class="btn" type="button" data-v="1">On</button><button class="btn" type="button" data-v="0">Off</button></div><p class="note">A short buzz for a capture and for check.</p></div>
-        <div class="row" id="rowFull"><span class="lbl">Fullscreen</span><div class="seg" id="sFull"><button class="btn" type="button" data-v="1">On</button><button class="btn" type="button" data-v="0">Off</button></div><p class="note">Hides the browser's bars.</p></div>
+        <div class="row"><span class="lbl">Volume</span><div class="seg" data-key="volume"><button class="btn" type="button" data-v="0">Off</button><button class="btn" type="button" data-v="0.25">25%</button><button class="btn" type="button" data-v="0.5">50%</button><button class="btn" type="button" data-v="0.75">75%</button><button class="btn" type="button" data-v="1">100%</button></div><p class="note">Sound effects volume.</p></div>
+        <div class="row" id="rowVibrate"><span class="lbl">Vibration</span><div class="seg" data-key="vibrate"><button class="btn" type="button" data-v="1">On</button><button class="btn" type="button" data-v="0">Off</button></div><p class="note">Haptic feedback on captures and check.</p></div>
+        <div class="row" id="rowFull"><span class="lbl">Fullscreen</span><div class="seg" id="sFull"><button class="btn" type="button" data-v="1">On</button><button class="btn" type="button" data-v="0">Off</button></div><p class="note">Hides the browser interface.</p></div>
     </div>
   </div>
 </div>
 <div id="promo" class="overlay" hidden>
   <div class="panel ovPanel" role="dialog" aria-labelledby="promoTitle">
-    <h2 id="promoTitle">Promote to</h2>
+    <h2 id="promoTitle">Promote Pawn</h2>
     <div id="promoBtns"></div>
     <div class="actions"><button class="btn" id="bPromoCancel" type="button">Cancel</button></div>
   </div>
@@ -413,12 +438,12 @@ input:focus{border-color:var(--chalk)}
 </div>
 <div id="lobby" class="overlay" hidden>
   <div id="lobbyPanel" class="panel" role="dialog" aria-labelledby="lobbyTitle">
-    <h2 id="lobbyTitle">Online game</h2>
-    <div class="lbl">Room code</div>
+    <h2 id="lobbyTitle">Online Match</h2>
+    <div class="lbl">Room Code</div>
     <div id="lobbyCode">-----</div>
     <p id="lobbyStatus" role="status">Connecting…</p>
     <input id="lobbyLink" readonly aria-label="Invite link">
-    <div class="actions"><button class="btn" id="bCopyLink" type="button">Copy invite link</button><button class="btn" id="bLobbyCancel" type="button">Cancel</button></div>
+    <div class="actions"><button class="btn" id="bCopyLink" type="button">Copy Invite Link</button><button class="btn" id="bLobbyCancel" type="button">Cancel</button></div>
     <p class="note" id="lobbyNote"></p>
   </div>
 </div>
@@ -428,7 +453,7 @@ input:focus{border-color:var(--chalk)}
     <p id="overWhy"></p>
     <p id="overMoves"></p>
     <p id="overEarn" hidden></p>
-    <div class="actions"><button class="btn" id="bAgain" type="button">Play again</button><button class="btn" id="bLook" type="button">See the board</button><button class="btn" id="bOverMenu" type="button">Main menu</button></div>
+    <div class="actions"><button class="btn" id="bAgain" type="button">Rematch</button><button class="btn" id="bLook" type="button">View Board</button><button class="btn" id="bOverMenu" type="button">Main Menu</button></div>
   </div>
 </div>
 <div id="openBox" class="overlay" hidden>
@@ -440,15 +465,15 @@ input:focus{border-color:var(--chalk)}
 </div>
 <div id="tradeBox" class="overlay" hidden>
   <div class="panel" id="tradePanel" role="dialog" aria-labelledby="trTitle">
-    <div id="trHead"><div class="seg" id="trSideSeg"><button class="btn" type="button" data-side="mine">Your items</button><button class="btn" type="button" data-side="theirs">Their items</button></div><span id="trTitle"></span><button class="btn" id="bTrNew" type="button" aria-pressed="true">Only what I don't have</button><button class="btn" id="bTrLeave" type="button">Leave</button></div>
+    <div id="trHead"><div class="seg" id="trSideSeg"><button class="btn" type="button" data-side="mine">Your Items</button><button class="btn" type="button" data-side="theirs">Their Items</button></div><span id="trTitle"></span><button class="btn" id="bTrNew" type="button" aria-pressed="true">Hide Owned</button><button class="btn" id="bTrLeave" type="button">Leave</button></div>
     <div id="trOffers">
-      <div class="trSide"><div class="cHead" id="trMineH">You give</div><div class="trStrip" id="trMine"></div><label class="trCoins">Coins <input id="trCoins" type="number" min="0" step="10" inputmode="numeric" aria-label="Coins you give"></label></div>
-      <div class="trSide"><div class="cHead" id="trTheirsH">You get</div><div class="trStrip" id="trTheirs"></div><span class="trCoins" id="trTheirCoins"></span></div>
+      <div class="trSide"><div class="cHead" id="trMineH">Your Offer</div><div class="trStrip" id="trMine"></div><label class="trCoins">Coins <input id="trCoins" type="number" min="0" step="10" inputmode="numeric" aria-label="Coins you give"></label></div>
+      <div class="trSide"><div class="cHead" id="trTheirsH">Their Offer</div><div class="trStrip" id="trTheirs"></div><span class="trCoins" id="trTheirCoins"></span></div>
     </div>
     <div id="trBar"><div class="seg" id="trFilter"></div></div>
     <div id="trGrid"></div>
-    <div id="trWait" hidden><div class="lbl">Trade room code</div><div id="trCodeBig"></div><input id="trLink" readonly aria-label="Invite link"><button class="btn" id="bTrCopy" type="button">Copy invite link</button></div>
-    <div id="trFoot"><div id="trNote" role="status"></div><div id="trAsks"></div><button class="btn" id="bTrAsk" type="button">Ask for it</button><button class="btn" id="bTrBack" type="button" hidden>Back out</button><button class="btn" id="bTrReady" type="button">Ready</button></div>
+    <div id="trWait" hidden><div class="lbl">Room Code</div><div id="trCodeBig"></div><input id="trLink" readonly aria-label="Invite link"><button class="btn" id="bTrCopy" type="button">Copy Invite Link</button></div>
+    <div id="trFoot"><div id="trNote" role="status"></div><div id="trAsks"></div><button class="btn" id="bTrAsk" type="button">Request</button><button class="btn" id="bTrBack" type="button" hidden>Back Out</button><button class="btn" id="bTrReady" type="button">Ready</button></div>
   </div>
 </div>
 <div id="reelScreen" role="dialog" aria-labelledby="rsTitle" hidden>
@@ -456,11 +481,11 @@ input:focus{border-color:var(--chalk)}
   <div id="reel"><div id="reelStrip"></div><div id="reelMark"></div></div>
   <div id="prizeBox">
     <div id="prizeName"></div><div id="prizeNote"></div>
-    <div class="actions" id="prizeBtns"><button class="btn" id="bPrizeEquip" type="button">Equip</button><button class="btn" id="bOpenMore" type="button">Open another</button><button class="btn" id="bPrizeClose" type="button">Close</button></div>
+    <div class="actions" id="prizeBtns"><button class="btn" id="bPrizeEquip" type="button">Equip</button><button class="btn" id="bOpenMore" type="button">Open Another</button><button class="btn" id="bPrizeClose" type="button">Close</button></div>
     <div id="rsHint">Tap to skip</div>
   </div>
 </div>
-<div id="rotate" class="panel" role="status" hidden><p>Turn your phone sideways for a bigger board.</p><button class="btn" id="bRotateOk" type="button">OK</button></div>
+<div id="rotate" class="panel" role="status" hidden><p>Rotate your device to landscape for a larger board.</p><button class="btn" id="bRotateOk" type="button">OK</button></div>
 <script type="module">__BUNDLE__</script>
 </body>
 </html>

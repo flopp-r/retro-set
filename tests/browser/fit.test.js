@@ -13,15 +13,18 @@ const overlap = (a, b) => a && b && a.left < b.right - 1 && b.left < a.right - 1
     const good = r => r.down <= 1 && r.across <= 1 && r.on;
     await p.goto(SITE.new + RELAY); await p.waitForTimeout(700);
     await p.evaluate(() => localStorage.removeItem('retroSet.game')); await p.reload(); await p.waitForTimeout(500);
-    let r = await fits('#mStage'), r2 = await fits('#menuPanel');
-    ok(good(r) && good(r2), say({ ...r, on: r2.on }, 'the home screen'));
+    // the Play screen: the top bar, and the tiles along the bottom, apart and on the screen
+    const homeFits = () => p.evaluate(() => { const b = document.querySelector('#topBar').getBoundingClientRect(), h = document.querySelector('#sc-home').getBoundingClientRect(), tabs = [...document.querySelectorAll('#topBar .hTab, #coins, #bSettings')].map(e => e.getBoundingClientRect());
+      return { down: 0, across: Math.max(document.querySelector('#topBar').scrollWidth - document.querySelector('#topBar').clientWidth, document.querySelector('#sc-home').scrollWidth - document.querySelector('#sc-home').clientWidth), on: h.top >= b.bottom - 1 && h.bottom <= innerHeight + 1 && tabs.every(r => r.right <= innerWidth + 1 && r.bottom <= b.bottom + 1) }; });
+    let r = await homeFits(), r2;
+    ok(good(r), say(r, 'the Play screen'));
     // with a game to resume, the home screen has its Resume button too
     await p.evaluate(() => localStorage.setItem('retroSet.game', JSON.stringify({ v: 1, start: window.__rs.start, moves: ['e2e4', 'e7e5'] }))); await p.reload(); await p.waitForTimeout(500);
-    r = await fits('#mStage'); r2 = await fits('#menuPanel');
-    ok(good(r) && good(r2) && await p.isVisible('#bResume'), say({ ...r, on: r2.on }, 'the home screen with Resume'));
+    r = await homeFits();
+    ok(good(r) && await p.isVisible('#bResume'), say(r, 'the Play screen with Continue'));
     if (w === 762) await p.screenshot({ path: shot('fit-home-phone.png') });
     // Settings: each of its tabs, in the menu
-    await p.click('.hTab[data-go="settings"]'); await p.waitForTimeout(150);
+    await p.click('#bSettings'); await p.waitForTimeout(150);
     for (const t of ['game', 'board', 'display', 'device']) {
       await p.click(`.sTab[data-tab="${t}"]`); await p.waitForTimeout(60);
       r = await fits('#mStage'); r2 = await fits('#menuPanel');
@@ -30,7 +33,7 @@ const overlap = (a, b) => a && b && a.left < b.right - 1 && b.left < a.right - 1
     if (w === 762) await p.screenshot({ path: shot('fit-settings-phone.png') });
     await p.click('.hTab[data-go="home"]'); await p.waitForTimeout(150);
     // Cosmetics: the locker, the case-opening panel and its prize, the shop, and a slot with every look in it
-    await p.click('.hTab[data-go="cos"]'); await p.waitForTimeout(150);
+    await p.click('.hTab[data-go="locker"]'); await p.waitForTimeout(150);
     r = await fits('#mStage'); r2 = await fits('#menuPanel');
     ok(good(r) && good(r2), say({ ...r, on: r2.on }, 'Cosmetics, the locker'));
     if (w === 762) await p.screenshot({ path: shot('fit-locker-phone.png') });
@@ -41,16 +44,16 @@ const overlap = (a, b) => a && b && a.left < b.right - 1 && b.left < a.right - 1
       return { full: rs.left <= 0 && rs.top <= 0 && rs.width >= innerWidth && rs.height >= innerHeight, on: ['#rsTitle', '.reelTile.won', '#prizeName', '#prizeNote', '#prizeBtns'].every(on) }; });
     ok(pz.full && pz.on, `${w}x${h}: a case's reel and prize take up the whole screen, the look, its name and the buttons all on it (${JSON.stringify(pz)})`);
     await p.click('#bPrizeClose');
-    await p.click('.cTab[data-c="shop"]'); await p.waitForTimeout(100);
+    await p.click('.hTab[data-go="store"]'); await p.waitForTimeout(100);
     for (const buy of ['case:bronze', 'case:lucky', 'key:marks']) { await p.click(`.tile[data-buy="${buy}"]`); r = await fits('#mStage'); r2 = await fits('#menuPanel'); ok(good(r) && good(r2), say({ ...r, on: r2.on }, `the shop, ${buy}`)); }
     if (w === 762) await p.screenshot({ path: shot('fit-shop-phone.png') });
     await p.evaluate(() => window.__rs.lockerEdit(l => { for (const it of window.__rs.LK.ITEMS) l.owned[it.key] = 2; }));
-    await p.click('.cTab[data-c="locker"]'); await p.click('#slotGrid .tile[data-slot="finish"]'); await p.waitForTimeout(100);
+    await p.click('.hTab[data-go="locker"]'); await p.click('#slotGrid .tile[data-slot="finish"]'); await p.waitForTimeout(100);
     r = await fits('#mStage'); r2 = await fits('#menuPanel');
     ok(good(r) && good(r2) && (await p.evaluate(() => document.querySelectorAll('#itemGrid .tile').length)) === 16, say({ ...r, on: r2.on }, 'a slot with all sixteen of its looks'));
     if (w === 762) await p.screenshot({ path: shot('fit-slot-phone.png') });
     // Trade: its page, the trade room waiting, then with someone in it: your things, theirs, something asked for, the countdown
-    await p.click('#bSlotBack'); await p.click('.cTab[data-c="trade"]'); await p.waitForTimeout(350);
+    await p.click('#bSlotBack'); await p.click('.hTab[data-go="trade"]'); await p.waitForTimeout(350);
     r = await fits('#mStage'); r2 = await fits('#menuPanel');
     ok(good(r) && good(r2), say({ ...r, on: r2.on }, 'Cosmetics, the Trade page'));
     if (w === 762) await p.screenshot({ path: shot('fit-trade-page-phone.png') });

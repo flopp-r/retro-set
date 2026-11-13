@@ -11,9 +11,9 @@ const { chromium, SITE, shot, watch, ok } = require('./lib');
   await p.goto(SITE.new); await p.waitForTimeout(1000);
   await p.click('#bCpu'); await p.waitForTimeout(200);
   let i = await rs(() => ({ cards: [...document.querySelectorAll('.botCard')].map(c => c.textContent), title: document.querySelector('#mTitle').textContent }));
-  ok(i.cards.length === 10 && i.cards[0] === 'Torben100' && i.cards[9] === 'Ted1500' && i.title === 'Vs computer', `Vs computer shows the ten bots (${i.cards.join(', ')})`);
+  ok(i.cards.length === 10 && i.cards[0] === 'Torben100' && i.cards[9] === 'Ted1500' && i.title === 'Play / Vs Computer', `Vs Computer shows the ten bots (${i.cards.join(', ')})`);
   await p.click('[data-bot="daws"]'); await p.click('#sColour [data-v="white"]');
-  ok(await rs(() => document.querySelector('#botBlurb').textContent.startsWith('Daws, 1300:')), 'picking a bot shows its line');
+  ok(await rs(() => document.querySelector('#botBlurb').textContent.startsWith('Daws · 1300: Tactical.')), 'picking a bot shows its line');
   await p.screenshot({ path: shot('cpu-picker.png') });
   await p.click('#bPlay'); await p.waitForTimeout(300);
   await rs(() => { window.__rs.quick = true; });
@@ -32,7 +32,7 @@ const { chromium, SITE, shot, watch, ok } = require('./lib');
 
   // a draw offer at the start is declined; in a position the bot is losing, it's accepted
   await p.click('#bMenu'); await p.waitForTimeout(100);
-  ok(await rs(() => document.querySelector('#bDraw').textContent === 'Offer a draw' && document.querySelector('#bResign').textContent === 'Resign' && document.querySelector('.onlyLocal').hidden), 'the menu panel offers a draw and resigning, without Turn the board');
+  ok(await rs(() => document.querySelector('#bDraw').textContent === 'Offer Draw' && document.querySelector('#bResign').textContent === 'Resign' && document.querySelector('.onlyLocal').hidden), 'the menu panel offers a draw and resigning, without Turn the board');
   await p.click('#bDraw'); await p.waitForTimeout(150);
   i = await rs(() => ({ toast: document.querySelector('#toast').textContent, shown: !document.querySelector('#toast').hidden, r: window.__rs.result }));
   ok(i.shown && /declines/.test(i.toast) && !i.r, `a level game: "${i.toast}"`);

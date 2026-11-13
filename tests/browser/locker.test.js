@@ -16,26 +16,26 @@ async function until(fn, ms = 15000) { const t = Date.now(); while (Date.now() -
   await p.goto(SITE.new); await p.waitForTimeout(1200);
   // --- a new player
   let l = await lock();
-  ok((await rs(() => [...document.querySelectorAll('.hTab')].map(t => t.textContent))).join() === 'Play,Cosmetics,Settings', 'the menu has a Cosmetics tab between Play and Settings');
+  ok((await rs(() => [...document.querySelectorAll('.hTab')].map(t => t.textContent))).join() === 'Play,Locker,Store,Trade' && /^\d/.test(await txt('#coins')), 'the top bar has Play, Locker, Store and Trade, and the coins on every menu screen');
   ok(l.coins === 290 && l.cases.silver === 1 && l.keys.any === 1 && Object.keys(l.owned).length === 7, `a new locker: the starter kit (250 coins, a Silver case, a standard key) and the seven free looks, plus the day's gift (${l.coins} coins)`);
-  ok(/\+40 coins/.test(await txt('#gift')) && /day 1 of 7/.test(await txt('#gift')) && await p.isVisible('#gift'), `the home screen says what today's gift was ("${await txt('#gift')}")`);
-  await p.click('.hTab[data-go="cos"]'); await p.waitForTimeout(150);
+  ok(/\+40 coins/.test(await txt('#gift')) && /Day 1 of 7/.test(await txt('#gift')) && await p.isVisible('#gift'), `the home screen says what today's gift was ("${await txt('#gift')}")`);
+  await p.click('.hTab[data-go="locker"]'); await p.waitForTimeout(150);
   let ov = await rs(() => ({ slots: [...document.querySelectorAll('#slotGrid .tile')].map(t => `${t.querySelector('.tSlot').textContent}=${t.querySelector('.tName').textContent} ${t.querySelector('.tNum').textContent}`), held: [...document.querySelectorAll('#held .chip2')].map(c => c.textContent), coins: document.querySelector('#coins').textContent }));
   ok(ov.slots.join('; ') === 'Pieces=Classic 1/7; Finish=Classic 1/16; Board=Standard 1/12; Room=Parlour 1/6; Effects=None 1/8; Avatar=Player 1/12; Square marks=Standard 1/9', `the locker shows what is worn in all seven slots at once, and how much of each is owned (${ov.slots.join('; ')})`);
-  ok(ov.held.join('; ') === 'Silver case ×1; Standard key ×1' && ov.coins === '290', `and the cases and keys in hand, unopened (${ov.held.join('; ')})`);
+  ok(ov.held.join('; ') === 'Silver Case ×1; Standard Key ×1' && ov.coins === '290', `and the cases and keys in hand, unopened (${ov.held.join('; ')})`);
   await p.screenshot({ path: shot('locker-new.png') });
   // --- a slot shows only what's owned
   await p.click('#slotGrid .tile[data-slot="set"]'); await p.waitForTimeout(100);
-  ok((await tiles('#itemGrid .tile')).join() === 'Classic' && await txt('#slotTitle') === 'Pieces: 1 of 7' && await rs(() => document.querySelector('#bEquip').disabled && document.querySelector('#bEquip').textContent === 'Equipped'), 'a slot lists only the looks owned, with the one worn marked Equipped');
+  ok((await tiles('#itemGrid .tile')).join() === 'Classic' && await txt('#slotTitle') === 'Pieces · 1/7' && await rs(() => document.querySelector('#bEquip').disabled && document.querySelector('#bEquip').textContent === 'Equipped'), 'a slot lists only the looks owned, with the one worn marked Equipped');
   await p.click('#bSlotBack');
 
   // --- opening a case: it needs a key; the prize is new, and can be put on
   await p.click('#held .chip2[data-grade="silver"]'); await p.waitForTimeout(100);
-  ok(await p.isVisible('#openBox') && await txt('#openTitle') === 'Open a Silver case' && (await rs(() => [...document.querySelectorAll('#openKeys .btn')].map(k => k.textContent))).join() === 'Standard key ×1', 'tapping a case offers the keys in hand to open it with');
+  ok(await p.isVisible('#openBox') && await txt('#openTitle') === 'Open Silver Case' && (await rs(() => [...document.querySelectorAll('#openKeys .btn')].map(k => k.textContent))).join() === 'Standard Key ×1', 'tapping a case offers the keys in hand to open it with');
   await p.click('#bOpen'); await p.waitForTimeout(150);
   l = await lock();
   const won = Object.keys(l.owned).find(k => !['set:classic', 'finish:classic', 'board:standard', 'room:parlour', 'fx:none', 'avatar:plain', 'marks:standard'].includes(k));
-  ok(await rs(() => window.__rs.opening) === 'prize' && l.cases.silver === 0 && l.keys.any === 0 && l.opened === 1 && won && /New!/.test(await txt('#prizeNote')), `opening takes the case and the key and gives a new look (${won}: "${await txt('#prizeName')}", "${await txt('#prizeNote')}")`);
+  ok(await rs(() => window.__rs.opening) === 'prize' && l.cases.silver === 0 && l.keys.any === 0 && l.opened === 1 && won && /New$/.test(await txt('#prizeNote')), `opening takes the case and the key and gives a new look (${won}: "${await txt('#prizeName')}", "${await txt('#prizeNote')}")`);
   await p.screenshot({ path: shot('locker-prize.png') });
   await p.click('#bPrizeEquip'); l = await lock();
   ok(l.wear[won.split(':')[0]] === won.split(':')[1] && !(await p.isVisible('#bPrizeEquip')) && !(await p.isVisible('#bOpenMore')), 'Equip on the prize puts it on; with no case or key left there is nothing more to open');
@@ -45,12 +45,12 @@ async function until(fn, ms = 15000) { const t = Date.now(); while (Date.now() -
   // --- trying a look on, and Equip
   await rs(() => window.__rs.lockerEdit(x => { for (const k in x.owned) if (k.startsWith('board:') && k !== 'board:standard') delete x.owned[k];   // a board the case above may have given
     for (const k of ['board:ocean', 'board:lava', 'set:blocks', 'marks:arrow', 'fx:sparks', 'room:library']) x.owned[k] = 1; x.owned['board:ocean'] = 3; x.wear = { set: 'classic', finish: 'classic', board: 'standard', room: 'parlour', fx: 'none', avatar: 'plain', marks: 'standard' }; }));
-  await p.click('.hTab[data-go="home"]'); await p.click('.hTab[data-go="cos"]');
+  await p.click('.hTab[data-go="home"]'); await p.click('.hTab[data-go="locker"]');
   await p.click('#slotGrid .tile[data-slot="board"]'); await p.waitForTimeout(100);
   ok((await tiles('#itemGrid .tile')).join() === 'Standard,Ocean,Lava' && await rs(() => document.querySelector('.tile[data-item="board:ocean"] .tNum').textContent) === '×3', 'the looks owned are listed in the catalogue\'s order, a duplicate with its count');
   await p.click('.tile[data-item="board:ocean"]'); await p.waitForTimeout(150);
   let w = await rs(() => ({ worn: window.__rs.worn.board, saved: window.__rs.lock.wear.board, info: document.querySelector('#itemInfo').textContent, equip: document.querySelector('#bEquip').textContent, off: document.querySelector('#bEquip').disabled }));
-  ok(w.worn === 'ocean' && w.saved === 'standard' && w.equip === 'Equip' && !w.off && /Ocean, common/.test(w.info), `tapping a look shows it on the board behind the menu without wearing it yet (${JSON.stringify(w)})`);
+  ok(w.worn === 'ocean' && w.saved === 'standard' && w.equip === 'Equip' && !w.off && /^Ocean · Common$/.test(w.info), `tapping a look shows it on the board behind the menu without wearing it yet (${JSON.stringify(w)})`);
   await p.screenshot({ path: shot('locker-try.png') });
   await p.click('#bSlotBack'); await p.waitForTimeout(100);
   ok(await rs(() => window.__rs.worn.board === 'standard' && window.__rs.lock.wear.board === 'standard'), 'going back without Equip takes it off again');
@@ -73,18 +73,18 @@ async function until(fn, ms = 15000) { const t = Date.now(); while (Date.now() -
 
   // --- the shop
   await rs(() => window.__rs.lockerEdit(x => { x.coins = 200; }));
-  await p.click('.hTab[data-go="cos"]'); await p.click('.cTab[data-c="shop"]'); await p.waitForTimeout(100);
+  await p.click('.hTab[data-go="store"]'); await p.waitForTimeout(100);
   ok((await rs(() => [...document.querySelectorAll('#shopCases .tile')].map(t => t.querySelector('.tSlot').textContent + ' ' + t.querySelector('.tName').textContent))).join() === 'Bronze 40,Silver 90,Gold 200,Diamond 420,Lucky Box 1500' && (await rs(() => document.querySelectorAll('#shopKeys .tile').length)) === 8, 'the shop sells the five cases and the eight keys');
-  ok(/Bronze case: 62% common, 28% rare, 8% epic, 1.6% legendary, 0.4% mythic\./.test(await txt('#shopInfo')) && await txt('#bBuy') === 'Buy for 40', `a case says its chances before you buy ("${await txt('#shopInfo')}")`);
+  ok(/Bronze Case: 62% common, 28% rare, 8% epic, 1.6% legendary, 0.4% mythic\./.test(await txt('#shopInfo')) && await txt('#bBuy') === 'Buy · 40', `a case says its chances before you buy ("${await txt('#shopInfo')}")`);
   await p.click('#bBuy'); await p.click('.tile[data-buy="key:finish"]');
-  ok(/Finish key: opens any case, and the look is always for Finish\./.test(await txt('#shopInfo')), `a slot's key says what it guarantees ("${await txt('#shopInfo')}")`);
+  ok(/Finish Key: opens any case\. Item guaranteed from Finish\./.test(await txt('#shopInfo')), `a slot's key says what it guarantees ("${await txt('#shopInfo')}")`);
   await p.click('#bBuy'); l = await lock();
   ok(l.coins === 50 && l.cases.bronze === 1 && l.keys.finish === 1 && await txt('#coins') === '50', `buying takes the coins (${l.coins} left)`);
   await p.click('.tile[data-buy="case:lucky"]');
-  ok(await txt('#bBuy') === 'Need 1500' && await rs(() => document.querySelector('#bBuy').disabled) && /Never a duplicate/.test(await txt('#shopInfo')), 'a Super Lucky Box says it never gives a duplicate, and can\'t be bought without the coins');
+  ok(await txt('#bBuy') === 'Not Enough Coins' && await rs(() => document.querySelector('#bBuy').disabled) && /No duplicates/.test(await txt('#shopInfo')), 'a Super Lucky Box says it never gives a duplicate, and can\'t be bought without the coins');
   await p.screenshot({ path: shot('locker-shop.png') });
-  await p.click('.cTab[data-c="locker"]'); await p.click('#held .chip2[data-grade="bronze"]'); await p.waitForTimeout(100);
-  ok(/The look will be for Finish/.test(await txt('#openNote')), 'with a Finish key the case says the look will be a finish');
+  await p.click('.hTab[data-go="locker"]'); await p.click('#held .chip2[data-grade="bronze"]'); await p.waitForTimeout(100);
+  ok(/Item guaranteed from Finish/.test(await txt('#openNote')), 'with a Finish key the case says the look will be a finish');
   const before = Object.keys((await lock()).owned);
   await p.click('#bOpen'); await p.waitForTimeout(150);
   const got = Object.keys((await lock()).owned).find(k => !before.includes(k));
@@ -95,7 +95,7 @@ async function until(fn, ms = 15000) { const t = Date.now(); while (Date.now() -
   const ctx2 = await b.newContext({ viewport: { width: 700, height: 440 } });
   const q = await ctx2.newPage(); watch(q, log);
   await q.goto(SITE.new); await q.waitForTimeout(1200);
-  await q.click('.hTab[data-go="cos"]'); await q.click('#held .chip2[data-grade="silver"]'); await q.click('#bOpen'); await q.waitForTimeout(400);
+  await q.click('.hTab[data-go="locker"]'); await q.click('#held .chip2[data-grade="silver"]'); await q.click('#bOpen'); await q.waitForTimeout(400);
   const spin = await q.evaluate(() => { const r = document.querySelector('#reelScreen').getBoundingClientRect(), t = document.querySelector('.reelTile').getBoundingClientRect();
     return { stage: window.__rs.opening, tiles: document.querySelectorAll('#reelStrip .reelTile').length, full: !document.querySelector('#reelScreen').hidden && r.left <= 0 && r.top <= 0 && r.width >= innerWidth && r.height >= innerHeight, tile: Math.round(t.height), h: innerHeight, pick: document.querySelector('#openBox').hidden, lit: document.querySelector('#reelScreen').classList.contains('lit') }; });
   ok(spin.stage === 'spin' && spin.tiles > 20 && spin.pick && !spin.lit, `with motion allowed the reel spins first (${spin.tiles} looks on it)`);
@@ -115,14 +115,14 @@ async function until(fn, ms = 15000) { const t = Date.now(); while (Date.now() -
   await tap('d8'); await tap('h4'); await p.waitForTimeout(300);
   l = await lock(); let e = await rs(() => window.__rs.earn);
   ok(l.coins === c0 + 80 && e.coins === 80 && e.cases.join() === 'bronze,bronze,bronze,silver' && l.cases.bronze >= 3 && l.beaten.join() === 'torben', `beating Torben pays 80 coins and three Bronze cases, and for the first win a Silver case too (${JSON.stringify(e)})`);
-  ok(await p.isVisible('#overEarn') && await txt('#overEarn') === '+80 coins, 3 Bronze cases, first win: a Silver case' && await txt('#overMoves') === '1 move', `the result says so, and "1 move", not "1 moves" ("${await txt('#overEarn')}")`);
+  ok(await p.isVisible('#overEarn') && await txt('#overEarn') === '+80 coins · 3 Bronze Cases · First-win bonus: Silver Case' && await txt('#overMoves') === '1 move', `the result says so, and "1 move", not "1 moves" ("${await txt('#overEarn')}")`);
   await p.screenshot({ path: shot('locker-earn.png') });
   await p.click('#bLook'); await p.click('#bUndo'); await p.waitForTimeout(150); await tap('d8'); await tap('h4'); await p.waitForTimeout(300);
   ok((await lock()).coins === c0 + 80, 'taking the mate back and playing it again pays nothing more: a game pays once');
   await p.click('#bAgain'); await p.waitForTimeout(200);
   await rs(f => window.__rs.startCpu('torben', 'b', f), MATE); await p.waitForTimeout(200); await tap('d8'); await tap('h4'); await p.waitForTimeout(300);
   e = await rs(() => window.__rs.earn);
-  ok(e.coins === 80 && e.cases.join() === 'bronze,bronze,bronze' && !e.first && await txt('#overEarn') === '+80 coins, 3 Bronze cases', 'a second win against the same bot pays the coins and three cases ("+80 coins, 3 Bronze cases")');
+  ok(e.coins === 80 && e.cases.join() === 'bronze,bronze,bronze' && !e.first && await txt('#overEarn') === '+80 coins · 3 Bronze Cases', 'a second win against the same bot pays the coins and three cases ("+80 coins · 3 Bronze Cases")');
   await rs(() => window.__rs.startCpu('ted', 'w')); await p.waitForTimeout(200);
   const c1 = (await lock()).coins;
   await p.click('#bMenu'); await p.click('#bResign'); await p.click('#bResign'); await p.waitForTimeout(250);
@@ -134,7 +134,7 @@ async function until(fn, ms = 15000) { const t = Date.now(); while (Date.now() -
   // --- the day's gift over days running
   const c2 = (await lock()).coins;
   const days = await rs(() => { const r = []; for (const d of ['2031-03-01', '2031-03-02', '2031-03-02', '2031-03-03']) { const c = window.__rs.lock.coins; window.__rs.day(d); r.push(window.__rs.lock.coins - c); } return r; });
-  ok(days.join() === '40,50,0,60' && /day 3 of 7/.test(await txt('#gift')), `the gift grows over days running and comes once a day (${days.join(', ')} coins)`);
+  ok(days.join() === '40,50,0,60' && /Day 3 of 7/.test(await txt('#gift')), `the gift grows over days running and comes once a day (${days.join(', ')} coins)`);
 
   // --- dev mode, with a stand-in word
   const real = await lock();
@@ -142,7 +142,7 @@ async function until(fn, ms = 15000) { const t = Date.now(); while (Date.now() -
   await p.click('#bOnline'); await p.fill('#netName', 'testword'); await until(() => rs(() => window.__rs.dev));
   l = await lock();
   ok(await rs(() => window.__rs.dev) && Object.keys(l.owned).length === 70 && l.coins === 100000 && / DEV$/.test(await txt('#ver')) && await rs(() => document.querySelector('#netName').value) === '', 'typing the dev word as the online name switches on a test locker with every look (and clears the box)');
-  await p.click('#mBack'); await p.click('.hTab[data-go="cos"]'); await p.click('#slotGrid .tile[data-slot="finish"]'); await p.waitForTimeout(100);
+  await p.click('#mBack'); await p.click('.hTab[data-go="locker"]'); await p.click('#slotGrid .tile[data-slot="finish"]'); await p.waitForTimeout(100);
   ok((await tiles('#itemGrid .tile')).length === 16 && /\(test\)/.test(await txt('#coins')), 'in dev mode a slot shows every look, and the coins say they are the test locker\'s');
   await p.screenshot({ path: shot('locker-dev.png') });
   await p.click('.tile[data-item="finish:rainbow"]'); await p.click('#bEquip');
@@ -155,7 +155,7 @@ async function until(fn, ms = 15000) { const t = Date.now(); while (Date.now() -
   const p2 = await ctx.newPage(); watch(p2, log);
   await p2.goto(SITE.new); await p2.waitForTimeout(1000);
   await rs(() => window.__rs.day());   // today's gift now, so it can't arrive in the middle of the check
-  await p.click('.hTab[data-go="cos"]'); const cBefore = await txt('#coins'), c3 = (await lock()).coins;
+  await p.click('.hTab[data-go="locker"]'); const cBefore = await txt('#coins'), c3 = (await lock()).coins;
   await p2.evaluate(() => window.__rs.lockerEdit(x => { x.coins += 1000; }));
   ok(await until(async () => (await txt('#coins')) !== cBefore) && (await lock()).coins === c3 + 1000, 'coins earned in another open page show here at once, and neither page undoes the other');
   await p2.close(); await ctx.close();

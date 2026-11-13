@@ -892,7 +892,7 @@ function resultText(r) {
 function showOver() {
   const [title, why] = resultText(G.result);
   $('#overTitle').textContent = title; $('#overWhy').textContent = why;
-  $('#overMoves').textContent = `${Math.ceil(G.list.length / 2)} moves`;
+  { const n = Math.ceil(G.list.length / 2); $('#overMoves').textContent = `${n} move${n === 1 ? '' : 's'}`; }
   $('#overEarn').textContent = earnText(EARN); $('#overEarn').hidden = !earnText(EARN);
   $('#pause').hidden = true; $('#over').hidden = false; updateAgainBtn();
 }
@@ -1162,7 +1162,15 @@ function gamePaid() {
   const bot = botOf(), won = G.result.score === '1-0' ? 'w' : G.result.score === '0-1' ? 'b' : '';
   EARN = lockerEdit(l => LK.gameOver(l, { id: bot.id, rating: bot.rating, top: BT.LIST.indexOf(bot) >= BT.LIST.length - 3 }, !won ? 'draw' : won === vs.me ? 'win' : 'loss'));
 }
-const earnText = e => !e || (!e.coins && !e.cases.length) ? '' : [`+${e.coins} coins`, ...e.cases.map((g, i) => (i && e.first ? 'first win: ' : '') + (g === 'lucky' ? 'a Super Lucky Box' : `a ${LK.GRADES[g].name}`))].join(', ');
+// what a game paid, in words: "+80 coins, 3 Bronze cases, first win: a Silver case"
+const caseWords = (g, n) => g === 'lucky' ? (n > 1 ? `${n} Super Lucky Boxes` : 'a Super Lucky Box') : n > 1 ? `${n} ${LK.GRADES[g].name}s` : `a ${LK.GRADES[g].name}`;
+const earnText = e => {
+  if (!e || (!e.coins && !e.cases.length)) return '';
+  const won = e.first ? e.cases.slice(0, -1) : e.cases, out = [`+${e.coins} coins`];
+  for (const g of [...new Set(won)]) out.push(caseWords(g, won.filter(x => x === g).length));
+  if (e.first) out.push('first win: ' + caseWords(e.cases[e.cases.length - 1], 1));
+  return out.join(', ');
+};
 const today = () => { const d = new Date(), p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; };
 function dailyGift(day = today()) {
   const g = lockerEdit(l => LK.daily(l, day)); if (!g) return;

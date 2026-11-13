@@ -111,20 +111,20 @@ test('buying: a case or a key costs its price, and not without the coins', () =>
 });
 
 console.log('\nEarning');
-test('a win pays more the stronger the bot and drops a case of its grade; a draw a quarter and no case; a loss nothing', () => {
+test('a win pays more the stronger the bot and drops three cases of its grade; a draw a quarter and no case; a loss nothing', () => {
   const l = L.fresh(); l.beaten = ['torben', 'barney', 'ted'];
   const a = L.gameOver(l, { id: 'torben', rating: 100 }, 'win'), b = L.gameOver(l, { id: 'barney', rating: 850 }, 'win'), c = L.gameOver(l, { id: 'ted', rating: 1500, top: true }, 'win');
   assert.ok(a.coins < b.coins && b.coins < c.coins);
-  assert.deepStrictEqual([a.cases, b.cases, c.cases], [['bronze'], ['silver'], ['diamond']]);
+  assert.deepStrictEqual([a.cases, b.cases, c.cases], [['bronze', 'bronze', 'bronze'], ['silver', 'silver', 'silver'], ['diamond', 'diamond', 'diamond']]);
   const d = L.gameOver(l, { id: 'ted', rating: 1500, top: true }, 'draw'), e = L.gameOver(l, { id: 'ted', rating: 1500, top: true }, 'loss');
   assert.ok(d.coins === Math.round(c.coins / 4) && !d.cases.length && e.coins === 0 && !e.cases.length);
 });
-test('the first win against a bot brings a second, better case: a Super Lucky Box for the three strongest', () => {
+test('the first win against a bot brings one more, better case: a Super Lucky Box for the three strongest', () => {
   const l = L.fresh();
   const a = L.gameOver(l, { id: 'torben', rating: 100 }, 'win'), b = L.gameOver(l, { id: 'torben', rating: 100 }, 'win'), c = L.gameOver(l, { id: 'jake', rating: 1150, top: true }, 'win');
-  assert.deepStrictEqual(a.cases, ['bronze', 'silver']); assert.ok(a.first && !b.first); assert.deepStrictEqual(b.cases, ['bronze']);
-  assert.deepStrictEqual(c.cases, ['gold', 'lucky']);
-  assert.ok(l.cases.bronze === 2 && l.cases.silver === 2 && l.cases.gold === 1 && l.cases.lucky === 1);   // a new locker starts with one silver case
+  assert.deepStrictEqual(a.cases, ['bronze', 'bronze', 'bronze', 'silver']); assert.ok(a.first && !b.first); assert.deepStrictEqual(b.cases, ['bronze', 'bronze', 'bronze']);
+  assert.deepStrictEqual(c.cases, ['gold', 'gold', 'gold', 'lucky']);
+  assert.ok(l.cases.bronze === 6 && l.cases.silver === 2 && l.cases.gold === 3 && l.cases.lucky === 1);   // a new locker starts with one silver case
 });
 test('the day\'s gift comes once a day, grows over days running, and the seventh brings a Super Lucky Box', () => {
   const l = L.fresh(); let day = '2026-02-26'; const got = [];

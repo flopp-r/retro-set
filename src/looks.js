@@ -66,11 +66,12 @@ const KEY_IDS = Object.keys(KEYS);
 const OWNED_WEIGHT = 0.3, PITY = 6, LUCKY_FULL = 1000;
 
 // ------------------------------------------------------------------ earning
-// A win against the computer pays coins by the bot's rating and drops a case, the grade by how strong the bot is; the
-// first win against each bot brings a second case, one grade better (a Super Lucky Box for the three strongest). A draw
+// A win against the computer pays coins by the bot's rating and drops WIN_CASES cases (three, since a game of chess
+// takes a while: the owner's choice), the grade by how strong the bot is; the first win against each bot brings one
+// more case, one grade better (a Super Lucky Box for the three strongest). A draw
 // pays a quarter and drops nothing. Opening the game on a new day pays a gift that grows over a week of days running;
 // the seventh day in a row brings a Super Lucky Box, and the week starts again.
-const winCoins = rating => 60 + Math.round(rating / 5);
+const winCoins = rating => 60 + Math.round(rating / 5), WIN_CASES = 3;
 const gradeFor = rating => rating < 500 ? 'bronze' : rating < 950 ? 'silver' : rating < 1250 ? 'gold' : 'diamond';
 const better = g => GRADE_IDS[Math.min(GRADE_IDS.indexOf(g) + 1, GRADE_IDS.indexOf('diamond'))];
 const DAILY = [40, 50, 60, 70, 80, 90, 120];
@@ -142,7 +143,7 @@ function gameOver(l, bot, result) {
   const out = { coins: 0, cases: [] };
   if (result === 'draw') out.coins = Math.round(winCoins(bot.rating) / 4);
   if (result === 'win') {
-    out.coins = winCoins(bot.rating); out.cases.push(gradeFor(bot.rating));
+    out.coins = winCoins(bot.rating); for (let i = 0; i < WIN_CASES; i++) out.cases.push(gradeFor(bot.rating));
     if (!l.beaten.includes(bot.id)) { l.beaten.push(bot.id); out.cases.push(bot.top ? 'lucky' : better(gradeFor(bot.rating))); out.first = true; }
   }
   l.coins += out.coins; for (const g of out.cases) l.cases[g]++;
@@ -198,7 +199,7 @@ function progress(l, slot) { const its = slot ? slotItems(slot) : ITEMS; return 
 function full() { const l = fresh(); for (const it of ITEMS) l.owned[it.key] = 1; l.coins = 100000; for (const g of GRADE_IDS) l.cases[g] = 50; for (const k of KEY_IDS) l.keys[k] = 50; return l; }
 
 return { SLOTS, RARITIES, RARITY, ITEMS, ALL, FREE, GRADES, GRADE_IDS, KEYS, KEY_IDS, OWNED_WEIGHT, PITY, LUCKY_FULL, DAILY, START,
-  key, slotItems, winCoins, gradeFor, count, owns, fresh, validate, wear, buyCase, buyKey, open, gameOver, daily, nextDay, progress, full,
+  key, slotItems, winCoins, WIN_CASES, gradeFor, count, owns, fresh, validate, wear, buyCase, buyKey, open, gameOver, daily, nextDay, progress, full,
   noOffer, cleanOffer, offerEmpty, offerKey, canGive, inventory, trade };
 })();
 if (typeof module !== 'undefined') module.exports = LOOKS;

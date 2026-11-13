@@ -508,7 +508,7 @@ function sfx(kind) {
   } catch (e) {}
 }
 addEventListener('pointerdown', ensureAudio, true); addEventListener('keydown', ensureAudio, true);
-addEventListener('click', e => { if (e.target.closest && e.target.closest('.btn, .card, .botCard, .hTab, .sTab')) sfx('ui'); }, true);
+addEventListener('click', e => { if (e.target.closest && e.target.closest('.btn, .card, .botCard, .hTab, .sTab, .iconBtn')) sfx('ui'); }, true);
 
 // ------------------------------------------------------------------ phone and screen comforts
 // Vibration: only Android lets web pages vibrate, so its setting only shows on touch screens that offer it.
@@ -820,12 +820,18 @@ addEventListener('keydown', e => {
 const cam = {
   mode: 'menu', a: 0.5, base: 0, yawOff: 0, pitch: 0.95, zoom: 1,
   cur: { yaw: 0.5, pitch: 0.53, dist: 1.22, offX: 0, offY: 0, ty: -0.02 },
+  // the space the menu leaves free: below the top bar, beside the panel (or below it on an upright phone), above the
+  // Play screen's tiles; the picture is centred in it, and drawn smaller if it's much less than the whole screen
   shift() {
-    const r = $('#menuPanel').getBoundingClientRect(), tall = innerWidth <= 560;
-    return [tall ? 0 : clamp((r.right + innerWidth) / 2 / innerWidth - 0.5, 0, 0.25), tall ? clamp((r.bottom + innerHeight) / 2 / innerHeight - 0.5, 0, 0.3) : 0];
+    let l = 0, t = $('#topBar').getBoundingClientRect().bottom, b = innerHeight;
+    const p = $('#menuPanel').getBoundingClientRect(), h = $('#sc-home').getBoundingClientRect();
+    if (p.width) { if (innerWidth <= 560) t = Math.max(t, p.bottom); else l = p.right; }
+    if (h.height) b = Math.max(t + 40, h.top + 30);
+    const fit = clamp(Math.min(innerWidth / Math.max(80, innerWidth - l), innerHeight / Math.max(80, b - t)), 1, 1.9);
+    return [clamp((l + innerWidth) / 2 / innerWidth - 0.5, 0, 0.3), clamp((t + b) / 2 / innerHeight - 0.5, -0.1, 0.35), fit];
   },
   goal() {
-    if (this.mode === 'menu') { const [offX, offY] = this.shift(); return { yaw: this.a, pitch: 0.53, dist: 1.22 * Math.max(1, 0.9 / camera.aspect), offX, offY, ty: -0.02 }; }
+    if (this.mode === 'menu') { const [offX, offY, fit] = this.shift(); return { yaw: this.a, pitch: 0.53, dist: 1.22 * Math.max(1, 0.9 / camera.aspect) * fit, offX, offY, ty: -0.02 }; }
     const short = innerHeight < 500;   // a phone on its side: more room for the bar along the top and the buttons
     return { yaw: this.base + (FLAT ? 0 : this.yawOff), pitch: FLAT ? 1.54 : this.pitch, dist: this.playDist(), offX: 0, offY: short ? 0.03 : 0.02, ty: 0.01 };
   },
@@ -881,11 +887,11 @@ addEventListener('resize', () => requestAnimationFrame(barEdge));
 function resultText(r) {
   const me = meCol(), who = c => !me ? turnName(c) : c === me ? 'You' : NET.on ? NET.peerName : botOf().name;
   const winner = r.score === '1-0' ? 'w' : r.score === '0-1' ? 'b' : '', loser = winner && C.other(winner);
-  const win = !winner ? 'A draw' : me && winner === me ? 'You win' : `${who(winner)} wins`;
+  const win = !winner ? 'Draw' : me && winner === me ? 'You win' : `${who(winner)} wins`;
   return {
-    checkmate: ['Checkmate', win], stalemate: ['Stalemate', 'A draw: no legal move, but not in check'],
-    repetition: ['Draw', 'The same position three times'], fifty: ['Draw', 'Fifty moves each with no capture or pawn move'],
-    material: ['Draw', 'Not enough pieces left to checkmate'], agreed: ['Draw', vs ? 'Agreed' : 'Agreed by both players'],
+    checkmate: ['Checkmate', win], stalemate: ['Stalemate', 'Draw: no legal moves'],
+    repetition: ['Draw', 'Threefold repetition'], fifty: ['Draw', 'Fifty-move rule'],
+    material: ['Draw', 'Insufficient material'], agreed: ['Draw', 'By agreement'],
     resigned: [me && loser === me ? 'You resign' : `${who(loser)} resigns`, win],
   }[r.why] || ['Game over', win];
 }
@@ -903,8 +909,8 @@ function togglePause(open = $('#pause').hidden) {
   $('#pause').hidden = !open;
   if (open) {
     disarm();
-    $('#bResign').textContent = meCol() ? 'Resign' : `${turnName(G.pos.turn)} resigns`;
-    $('#bDraw').textContent = meCol() ? 'Offer a draw' : 'Agree a draw';
+    $('#bResign').textContent = meCol() ? 'Resign' : `${turnName(G.pos.turn)} Resigns`;
+    $('#bDraw').textContent = meCol() ? 'Offer Draw' : 'Agree Draw';
     showSettings($('#setGame'), true);
   }
 }
@@ -972,7 +978,8 @@ function readLocker() {
   return DEV ? LK.full() : LK.fresh();
 }
 let LOCK = readLocker();
-function lockerEdit(fn) { const l = readLocker(), out = fn(l); LOCK = l; try { localStorage.setItem(lockKey(), JSON.stringify(l)); } catch (e) {} return out; }
+function lockerEdit(fn) { const l = readLocker(), out = fn(l); LOCK = l; try { localStorage.setItem(lockKey(), JSON.stringify(l)); } catch (e) {} showCoins(); return out; }
+function showCoins() { $('#coins').textContent = LOCK.coins.toLocaleString('en-GB') + (DEV ? ' (test)' : ''); }
 async function isDevWord(v) {
   if (!v || v.length > 40 || !(window.crypto && crypto.subtle)) return false;
   try { const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('retroRack:' + v.trim().toLowerCase())); return [...new Uint8Array(h)].map(b => b.toString(16).padStart(2, '0')).join('') === DEVW.print; }
@@ -980,9 +987,9 @@ async function isDevWord(v) {
 }
 function setDev(on) {
   DEV = !!on; try { if (DEV) localStorage.setItem('retroSet.dev', '1'); else { localStorage.removeItem('retroSet.dev'); localStorage.removeItem('retroSet.lockerDev'); } } catch (e) {}
-  LOCK = readLocker(); PRE = null; dress(); $('#ver').textContent = `Version ${BUILD}${DEV ? ' DEV' : ''}`; if (screen === 'cos') renderCos();
+  LOCK = readLocker(); PRE = null; dress(); showCoins(); $('#ver').textContent = `Version ${BUILD}${DEV ? ' DEV' : ''}`; if (screen === 'cos') renderCos();
 }
-$('#netName').addEventListener('input', async () => { const v = $('#netName').value; if (!(await isDevWord(v)) || $('#netName').value !== v) return; $('#netName').value = ''; setDev(!DEV); menuNote(DEV ? 'Dev mode on: a test locker with every look.' : 'Dev mode off: your own locker is back.'); });
+$('#netName').addEventListener('input', async () => { const v = $('#netName').value; if (!(await isDevWord(v)) || $('#netName').value !== v) return; $('#netName').value = ''; setDev(!DEV); menuNote(DEV ? 'Developer mode enabled: test locker active.' : 'Developer mode disabled: your locker is restored.'); });
 // PRE: a look being tried on in the locker ({ slot, id }), shown on the board but not worn. dress() puts on what the
 // locker says is worn, with the look being tried in its place.
 let PRE = null;
@@ -1064,40 +1071,40 @@ function tile(pic, name, opts = {}) {
 const wornKey = slot => LK.key(slot, LOCK.wear[slot]);
 function cosPage(page) { if (COS.page === 'slot' && page !== 'slot' && PRE) { PRE = null; dress(); } COS.page = page; renderCos(); updateLobbyWatch(); }
 function renderCos() {
-  $('#coins').textContent = LOCK.coins.toLocaleString('en-GB') + (DEV ? ' (test)' : '');
+  showCoins();
   for (const [id, page] of [['#cLocker', 'locker'], ['#cSlot', 'slot'], ['#cShop', 'shop'], ['#cTrade', 'trade']]) $(id).hidden = COS.page !== page;
-  for (const t of document.querySelectorAll('.cTab')) t.setAttribute('aria-selected', String(t.dataset.c === (COS.page === 'slot' ? 'locker' : COS.page)));
+  navTabs();
   if (COS.page === 'locker') {
+    const all = LK.progress(LOCK); $('#lockTotal').textContent = `Collection ${all.have}/${all.of}`;
     const grid = $('#slotGrid'); grid.textContent = '';
     for (const s of LK.SLOTS) { const it = LK.ALL[wornKey(s.id)], p = LK.progress(LOCK, s.id), b = tile(lookPic(it), it.name, { slot: s.name, colour: RARE_COL(it.rarity), num: `${p.have}/${p.of}`, data: { slot: s.id } }); b.onclick = () => { COS.slot = s.id; COS.sel = wornKey(s.id); cosPage('slot'); }; grid.append(b); }
     const held = $('#held'); held.textContent = '';
     for (const g of LK.GRADE_IDS) if (LOCK.cases[g]) { const c = el('button', 'chip2'); c.type = 'button'; c.dataset.grade = g; c.append(casePic(g), `${LK.GRADES[g].name} ×${LOCK.cases[g]}`); c.onclick = () => openCase(g); held.append(c); }
     for (const k of LK.KEY_IDS) if (LOCK.keys[k]) { const c = el('span', 'chip2'); c.dataset.key = k; c.append(keyPic(k), `${LK.KEYS[k].name} ×${LOCK.keys[k]}`); held.append(c); }
-    if (!held.children.length) held.append(el('span', 'note', 'No cases or keys. Beat the computer to win cases; keys are in the Shop.'));
+    if (!held.children.length) held.append(el('span', 'note', 'No cases or keys. Cases are earned against the computer; keys are sold in the Store.'));
   } else if (COS.page === 'trade') renderTradePage();
   else if (COS.page === 'slot') {
     const s = LK.SLOTS.find(x => x.id === COS.slot), p = LK.progress(LOCK, s.id), grid = $('#itemGrid'); grid.textContent = '';
-    $('#slotTitle').textContent = `${s.name}: ${p.have} of ${p.of}`;
+    $('#slotTitle').textContent = `${s.name} · ${p.have}/${p.of}`;
     for (const it of LK.slotItems(s.id)) if (LK.owns(LOCK, it.key)) {
       const n = LK.count(LOCK, it.key), b = tile(lookPic(it), it.name, { colour: RARE_COL(it.rarity), worn: it.key === wornKey(s.id), pressed: it.key === COS.sel, num: n > 1 ? '×' + n : '', data: { item: it.key } });
       b.onclick = () => { COS.sel = it.key; PRE = { slot: it.slot, id: it.id }; dress(); if (it.slot === 'fx') { fx('cap', 28); LATER.push([0.9, () => fx('check', 60)], [1.8, () => fx('mate')]); } renderCos(); };
       grid.append(b);
     }
     const it = LK.ALL[COS.sel] || LK.ALL[wornKey(s.id)], worn = it.key === wornKey(s.id);
-    $('#itemInfo').textContent = `${it.name}, ${LK.RARITY[it.rarity].name.toLowerCase()}${it.free ? ' (everyone has it)' : ''}`; $('#itemInfo').style.color = RARE_COL(it.rarity);
+    $('#itemInfo').textContent = `${it.name} · ${LK.RARITY[it.rarity].name}${it.free ? ' · Default' : ''}`; $('#itemInfo').style.color = RARE_COL(it.rarity);
     $('#bEquip').textContent = worn ? 'Equipped' : 'Equip'; $('#bEquip').disabled = worn;
   } else {
     const cases = $('#shopCases'), keys = $('#shopKeys'); cases.textContent = ''; keys.textContent = '';
-    for (const g of LK.GRADE_IDS) { const b = tile(casePic(g), `${LK.GRADES[g].price}`, { slot: g === 'lucky' ? 'Lucky Box' : LK.GRADES[g].name.replace(' case', ''), pressed: COS.shop === 'case:' + g, num: LOCK.cases[g] ? '×' + LOCK.cases[g] : '', data: { buy: 'case:' + g } }); b.onclick = () => { COS.shop = 'case:' + g; renderCos(); }; cases.append(b); }
-    for (const k of LK.KEY_IDS) { const b = tile(keyPic(k), `${LK.KEYS[k].price}`, { slot: k === 'any' ? 'Standard' : LK.KEYS[k].name.replace(' key', '').replace('Square marks', 'Marks'), pressed: COS.shop === 'key:' + k, num: LOCK.keys[k] ? '×' + LOCK.keys[k] : '', data: { buy: 'key:' + k } }); b.onclick = () => { COS.shop = 'key:' + k; renderCos(); }; keys.append(b); }
+    for (const g of LK.GRADE_IDS) { const b = tile(casePic(g), `${LK.GRADES[g].price}`, { slot: g === 'lucky' ? 'Lucky Box' : LK.GRADES[g].name.replace(' Case', ''), pressed: COS.shop === 'case:' + g, num: LOCK.cases[g] ? '×' + LOCK.cases[g] : '', data: { buy: 'case:' + g } }); b.onclick = () => { COS.shop = 'case:' + g; renderCos(); }; cases.append(b); }
+    for (const k of LK.KEY_IDS) { const b = tile(keyPic(k), `${LK.KEYS[k].price}`, { slot: k === 'any' ? 'Standard' : LK.KEYS[k].name.replace(' Key', '').replace('Square marks', 'Marks'), pressed: COS.shop === 'key:' + k, num: LOCK.keys[k] ? '×' + LOCK.keys[k] : '', data: { buy: 'key:' + k } }); b.onclick = () => { COS.shop = 'key:' + k; renderCos(); }; keys.append(b); }
     const [kind, id] = COS.shop.split(':'), price = kind === 'case' ? LK.GRADES[id].price : LK.KEYS[id].price;
     $('#shopInfo').textContent = kind === 'case'
-      ? `${LK.GRADES[id].name}: ${LK.GRADES[id].odds.map((o, i) => o ? `${o}% ${LK.RARITIES[i]}` : '').filter(Boolean).join(', ')}.${LK.GRADES[id].fresh ? ' Never a duplicate.' : ''}`
-      : `${LK.KEYS[id].name}: opens any case, ${id === 'any' ? 'for a look from any slot' : `and the look is always for ${LK.SLOTS.find(s => s.id === id).name}`}.`;
-    $('#bBuy').textContent = LOCK.coins >= price ? `Buy for ${price}` : `Need ${price}`; $('#bBuy').disabled = LOCK.coins < price;
+      ? `${LK.GRADES[id].name}: ${LK.GRADES[id].odds.map((o, i) => o ? `${o}% ${LK.RARITIES[i]}` : '').filter(Boolean).join(', ')}.${LK.GRADES[id].fresh ? ' No duplicates.' : ''}`
+      : `${LK.KEYS[id].name}: opens any case. ${id === 'any' ? 'Item from any category.' : `Item guaranteed from ${LK.SLOTS.find(s => s.id === id).name}.`}`;
+    $('#bBuy').textContent = LOCK.coins >= price ? `Buy · ${price}` : 'Not Enough Coins'; $('#bBuy').disabled = LOCK.coins < price;
   }
 }
-for (const t of document.querySelectorAll('.cTab')) t.onclick = () => cosPage(t.dataset.c);
 $('#bSlotBack').onclick = () => cosPage('locker');
 $('#bEquip').onclick = () => { const k = COS.sel; if (!LK.ALL[k] || !lockerEdit(l => LK.wear(l, k))) return; PRE = null; dress(); renderCos(); };
 $('#bBuy').onclick = () => { const [kind, id] = COS.shop.split(':'); lockerEdit(l => kind === 'case' ? LK.buyCase(l, id) : LK.buyKey(l, id)); renderCos(); };
@@ -1109,11 +1116,11 @@ function renderOpen() {
   const o = OPENING, g = LK.GRADES[o.grade], pick = o.stage === 'pick', rs = $('#reelScreen');
   $('#openBox').hidden = !pick; rs.hidden = pick;
   if (pick) {
-    $('#openTitle').textContent = `Open a ${g.name}`;
+    $('#openTitle').textContent = `Open ${g.name}`;
     const keys = $('#openKeys'); keys.textContent = '';
     for (const k of LK.KEY_IDS) if (LOCK.keys[k]) { const b = el('button', 'btn', `${LK.KEYS[k].name} ×${LOCK.keys[k]}`); b.type = 'button'; b.dataset.key = k; b.setAttribute('aria-pressed', String(k === o.key)); b.onclick = () => { o.key = k; renderOpen(); }; keys.append(b); }
-    $('#openNote').textContent = !LOCK.cases[o.grade] ? 'None of these left.' : !o.key ? 'A case needs a key. Keys are in the Shop.' : o.key === 'any' ? 'A standard key: the look can be for any slot.' : `The look will be for ${LK.SLOTS.find(s => s.id === o.key).name}.`;
-    $('#bOpen').textContent = o.res ? 'Open another' : 'Open'; $('#bOpen').disabled = !o.key || !LOCK.cases[o.grade];
+    $('#openNote').textContent = !LOCK.cases[o.grade] ? 'None remaining.' : !o.key ? 'A key is required. Keys are sold in the Store.' : o.key === 'any' ? 'Standard Key: item from any category.' : `Item guaranteed from ${LK.SLOTS.find(s => s.id === o.key).name}.`;
+    $('#bOpen').textContent = o.res ? 'Open Another' : 'Open'; $('#bOpen').disabled = !o.key || !LOCK.cases[o.grade];
     return;
   }
   const r = o.res, won = o.stage === 'prize', tier = r.item ? LK.RARITIES.indexOf(r.item.rarity) : 0;
@@ -1122,8 +1129,8 @@ function renderOpen() {
   rs.classList.toggle('lit', won); rs.classList.toggle('rays', won && tier >= 2);   // rays for an epic or better
   $('#reelStrip').classList.toggle('done', won);
   if (!won) return;
-  $('#prizeName').textContent = r.item ? r.item.name : 'Nothing left to win';
-  $('#prizeNote').textContent = !r.item ? `You have every look: +${r.coins} coins.` : `${LK.RARITY[r.item.rarity].name} ${LK.SLOTS.find(s => s.id === r.item.slot).name.toLowerCase()}. ${r.dupe ? `A duplicate: +${r.coins} coins.` : 'New!'}`;
+  $('#prizeName').textContent = r.item ? r.item.name : 'Collection Complete';
+  $('#prizeNote').textContent = !r.item ? `Every item owned: +${r.coins} coins` : `${LK.RARITY[r.item.rarity].name} · ${LK.SLOTS.find(s => s.id === r.item.slot).name} · ${r.dupe ? `Duplicate: +${r.coins} coins` : 'New'}`;
   $('#bPrizeEquip').hidden = !r.item || r.item.key === wornKey(r.item.slot);
   $('#bOpenMore').hidden = !LOCK.cases[o.grade] || !LK.KEY_IDS.some(k => LOCK.keys[k]);
 }
@@ -1162,23 +1169,23 @@ function gamePaid() {
   const bot = botOf(), won = G.result.score === '1-0' ? 'w' : G.result.score === '0-1' ? 'b' : '';
   EARN = lockerEdit(l => LK.gameOver(l, { id: bot.id, rating: bot.rating, top: BT.LIST.indexOf(bot) >= BT.LIST.length - 3 }, !won ? 'draw' : won === vs.me ? 'win' : 'loss'));
 }
-// what a game paid, in words: "+80 coins, 3 Bronze cases, first win: a Silver case"
-const caseWords = (g, n) => g === 'lucky' ? (n > 1 ? `${n} Super Lucky Boxes` : 'a Super Lucky Box') : n > 1 ? `${n} ${LK.GRADES[g].name}s` : `a ${LK.GRADES[g].name}`;
+// what a game paid, in words: "+80 coins · 3 Bronze Cases · First-win bonus: Silver Case"
+const caseWords = (g, n) => g === 'lucky' ? (n > 1 ? `${n} Super Lucky Boxes` : '1 Super Lucky Box') : `${n} ${LK.GRADES[g].name}${n > 1 ? 's' : ''}`;
 const earnText = e => {
   if (!e || (!e.coins && !e.cases.length)) return '';
   const won = e.first ? e.cases.slice(0, -1) : e.cases, out = [`+${e.coins} coins`];
   for (const g of [...new Set(won)]) out.push(caseWords(g, won.filter(x => x === g).length));
-  if (e.first) out.push('first win: ' + caseWords(e.cases[e.cases.length - 1], 1));
-  return out.join(', ');
+  if (e.first) { const g = e.cases[e.cases.length - 1]; out.push('First-win bonus: ' + (g === 'lucky' ? 'Super Lucky Box' : LK.GRADES[g].name)); }
+  return out.join(' · ');
 };
 const today = () => { const d = new Date(), p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; };
 function dailyGift(day = today()) {
   const g = lockerEdit(l => LK.daily(l, day)); if (!g) return;
-  $('#gift').textContent = `Today's gift: +${g.coins} coins${g.lucky ? ' and a Super Lucky Box' : ''} (day ${g.streak} of 7).`; $('#gift').hidden = false;
+  $('#gift').textContent = `Daily reward: +${g.coins} coins${g.lucky ? ' + Super Lucky Box' : ''} · Day ${g.streak} of 7`; $('#gift').hidden = false;
   if (screen === 'cos') renderCos();
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden) dailyGift(); });
-addEventListener('storage', e => { if (e.key === lockKey()) { LOCK = readLocker(); dress(); if (screen === 'cos') renderCos(); trFit(); } });   // changed in another open page
+addEventListener('storage', e => { if (e.key === lockKey()) { LOCK = readLocker(); dress(); showCoins(); if (screen === 'cos') renderCos(); trFit(); } });   // changed in another open page
 
 // ------------------------------------------------------------------ HUD: the panels' buttons
 // a button that needs a second tap within 3 seconds, for the ones that end the game
@@ -1224,14 +1231,24 @@ M.bot = (BT.byId(M.bot) || BT.byId('barney')).id;   // a bot from before the ren
 const saveM = () => { try { localStorage.setItem('retroSet.menu', JSON.stringify(M)); } catch (e) {} };
 let screen = 'home';
 const BACK = { cpu: 'home', online: 'home', room: 'online', settings: 'home', cos: 'home' };   // where Back goes from each screen
+// The screens with a Back bar, and where they sit (shown as a path, so you always know where you are); the sections
+// along the top bar (Play, Locker, Store, Trade) are tabs instead. Settings opens from the cog at the right of the bar,
+// lit while it's open, and closes with it (or Esc, or the back gesture).
+const PATH = { cpu: ['Play', 'Vs Computer'], online: ['Play', 'Online'], room: ['Play', 'Online', 'New Room'] };
+const TAB_PAGE = { locker: 'locker', store: 'shop', trade: 'trade' };   // a top-bar tab, and the Cosmetics page it shows
+function navTabs() {
+  const on = screen === 'cos' ? (COS.page === 'shop' ? 'store' : COS.page === 'trade' ? 'trade' : 'locker') : screen === 'settings' ? '' : 'home';
+  for (const t of document.querySelectorAll('.hTab')) t.setAttribute('aria-selected', String(t.dataset.go === on));
+  $('#bSettings').setAttribute('aria-pressed', String(screen === 'settings'));
+}
 function menuGo(name) {
-  screen = name;
-  for (const sc of document.querySelectorAll('#menuPanel .mScreen')) sc.hidden = sc.id !== 'sc-' + name;
-  const sc = $('#sc-' + name);
   if (screen === 'cos' && name !== 'cos' && PRE) { PRE = null; dress(); }   // a look being tried on comes off
-  const top = name === 'home' || name === 'settings' || name === 'cos';   // the tabs along the top; the other screens have a Back bar
-  $('#hTabs').hidden = !top; $('#mTop').hidden = top; $('#mTitle').textContent = sc.dataset.title || '';
-  for (const t of document.querySelectorAll('.hTab')) t.setAttribute('aria-selected', String(t.dataset.go === name));
+  screen = name;
+  for (const sc of document.querySelectorAll('#menu .mScreen')) sc.hidden = sc.id !== 'sc-' + name;
+  $('#menuPanel').hidden = name === 'home';
+  const path = PATH[name], t = $('#mTitle'); $('#mTop').hidden = !path; t.textContent = '';
+  if (path) path.forEach((p, i) => { if (i) t.append(' / '); t.append(i < path.length - 1 ? el('span', 'crumb', p) : p); });
+  navTabs();
   if (name === 'settings') showSettings($('#setHome'), false);
   if (name === 'cos') { if (COS.page === 'slot') COS.page = 'locker'; renderCos(); }
   if (name === 'cpu') renderCpu();
@@ -1242,16 +1259,26 @@ function menuGo(name) {
 function refreshHome() {
   const saved = loadSaved(), b = $('#bResume');
   b.hidden = !saved;
-  $('#bLocal .cardTxt').textContent = saved && !saved.vs ? 'New game (replaces the saved one)' : 'One device, take turns';
-  $('#bCpu .cardTxt').textContent = saved && saved.vs ? 'New game (replaces the saved one)' : `${BT.LIST.length === 10 ? 'Ten' : BT.LIST.length} opponents, ${BT.LIST[0].rating} to ${BT.LIST[BT.LIST.length - 1].rating}`;
-  if (saved) { const bot = saved.vs && BT.byId(saved.vs.bot); b.textContent = `Resume: ${bot ? 'vs ' + bot.name : 'two players'}, move ${Math.ceil((saved.g.list.length + 1) / 2)}`; }
-  $('#bOnline .cardTxt').textContent = relayBase() ? 'Rooms and invite links' : 'Not set up yet';
-  updateRejoin();
+  $('#bLocal .cardTxt').textContent = saved && !saved.vs ? 'New match replaces saved match' : '2 players · 1 device';
+  $('#bCpu .cardTxt').textContent = saved && saved.vs ? 'New match replaces saved match' : `${BT.LIST.length} opponents · ${BT.LIST[0].rating}–${BT.LIST[BT.LIST.length - 1].rating}`;
+  if (saved) { const bot = saved.vs && BT.byId(saved.vs.bot); b.textContent = `Continue: ${bot ? 'vs ' + bot.name : 'Local Match'} · Move ${Math.ceil((saved.g.list.length + 1) / 2)}`; }
+  $('#bOnline .cardTxt').textContent = relayBase() ? 'Public and private rooms' : 'Unavailable';
+  cardIcons(); updateRejoin();
+}
+// the tiles' pictures: the opponent picked, a globe, and a pawn of each side in the finish worn
+const GLOBE = ['...aaaaa...', '..abbabba..', '.abbbabbba.', 'abbbbabbbba', 'aaaaaaaaaaa', 'abbbbabbbba', 'aaaaaaaaaaa', 'abbbbabbbba', '.abbbabbba.', '..abbabba..', '...aaaaa...'];
+const ICONS = {};
+function cardIcons() {
+  const put = (id, key, make) => { const box = $(id + ' .cardIcon'); if (ICONS[id] === key) return; ICONS[id] = key; box.textContent = ''; box.append(make()); };
+  const bot = BT.byId(M.bot);
+  put('#bCpu', bot.id, () => portrait(bot.look, 4));
+  put('#bOnline', 'globe', () => rowsPic(GLOBE, { a: '#6cb8ff', b: '#1d2f5c' }));
+  put('#bLocal', LOCK.wear.finish, () => lookPic(LK.ALL[LK.key('finish', LOCK.wear.finish)]));
 }
 function renderRoom() {
   for (const b of document.querySelectorAll('#sNetColour .btn')) b.setAttribute('aria-pressed', String(b.dataset.v === M.netColour));
   for (const b of document.querySelectorAll('#sListed .btn')) b.setAttribute('aria-pressed', String(!!+b.dataset.v === (M.listed !== false)));
-  $('#listedTxt').textContent = M.listed !== false ? 'Shown in Open rooms.' : 'Code or link only.';
+  $('#listedTxt').textContent = M.listed !== false ? 'Shown in Open Rooms.' : 'Joinable by code or invite link only.';
 }
 for (const b of document.querySelectorAll('#sNetColour .btn')) b.onclick = () => { M.netColour = b.dataset.v; saveM(); renderRoom(); };
 for (const b of document.querySelectorAll('#sListed .btn')) b.onclick = () => { M.listed = !!+b.dataset.v; saveM(); renderRoom(); };
@@ -1266,7 +1293,7 @@ function renderCpu() {
     grid.append(b);
   }
   const bot = BT.byId(M.bot);
-  $('#botBlurb').textContent = `${bot.name}, ${bot.rating}: ${bot.blurb}`;
+  $('#botBlurb').textContent = `${bot.name} · ${bot.rating}: ${bot.blurb}`;
   for (const b of document.querySelectorAll('#sColour .btn')) b.setAttribute('aria-pressed', String(b.dataset.v === M.colour));
 }
 for (const b of document.querySelectorAll('#sColour .btn')) b.onclick = () => { M.colour = b.dataset.v; saveM(); renderCpu(); };
@@ -1281,10 +1308,13 @@ function toMenu(to = 'home') {
   menuGo(to); showMarks();
 }
 for (const t of document.querySelectorAll('.hTab')) t.onclick = () => {
-  if (t.dataset.go === screen) return;
-  if (t.dataset.go === 'home' && armed) { armed = false; history.back(); }
-  menuGo(t.dataset.go);
+  const go = t.dataset.go, page = TAB_PAGE[go];
+  if (go === 'home') { if (screen === 'home') return; if (armed) { armed = false; history.back(); } menuGo('home'); return; }
+  if (screen === 'cos' && (COS.page === page || (page === 'locker' && COS.page === 'slot'))) return;
+  if (PRE) { PRE = null; dress(); }
+  COS.page = page; menuGo('cos');
 };
+$('#bSettings').onclick = () => { if (screen === 'settings') $('#mBack').click(); else menuGo('settings'); };
 $('#bLocal').onclick = () => startLocal();
 $('#bCpu').onclick = () => menuGo('cpu');
 $('#bOnline').onclick = () => menuGo('online');
@@ -1350,7 +1380,7 @@ function netConnect() {
   let ws;
   const listQ = NET.list && !NET.started ? `&list=1&name=${encodeURIComponent(NET.myName)}&mode=${encodeURIComponent(M.netColour)}` : '';
   try { ws = new WebSocket(`${relayBase()}/room/${NET.code}?cid=${NET.cid}${listQ}`); }
-  catch (e) { lobbyStatus("Couldn't reach the relay. Check the relay address in config.js."); return; }
+  catch (e) { lobbyStatus('Unable to reach the server. Check the relay address in config.js.'); return; }
   NET.ws = ws; NET.link = 'connecting'; netBadge();
   ws.onopen = () => { NET.retry = 0; };
   ws.onmessage = e => { if (e.data === 'pong') return; let m; try { m = JSON.parse(e.data); } catch (err) { return; } onNet(m); };
@@ -1358,7 +1388,7 @@ function netConnect() {
     if (NET.ws === ws) NET.ws = null;
     if (!NET.on || ev.code === 4000 || ev.code === 4001) return;
     NET.link = 'reconnecting'; netBadge();
-    lobbyStatus(NET.retry > 2 ? "Still can't reach the relay. Check your connection and the relay address." : 'Connecting…');
+    lobbyStatus(NET.retry > 2 ? 'Unable to reach the server. Check your connection.' : 'Connecting…');
     const d = Math.min(8000, 600 * Math.pow(2, NET.retry++));
     clearTimeout(NET.timer); NET.timer = setTimeout(() => { if (NET.on && !NET.ws) netConnect(); }, d);
   };
@@ -1370,16 +1400,16 @@ function onNet(m) {
   switch (m.t) {
     case 'welcome':
       NET.seat = m.seat === 1 ? 1 : 0; NET.peer = !!m.peer; NET.link = 'online'; netBadge();
-      lobbyStatus(NET.peer ? 'Connected. Starting…' : waitText());
+      lobbyStatus(NET.peer ? 'Connected. Starting match…' : waitText());
       if (NET.peer) sendHello();
       if (NET.started) hud();
       break;
     case 'full':
-      clearRejoin(); toMenu('online'); menuNote('That room already has two players in it.'); break;
+      clearRejoin(); toMenu('online'); menuNote('That room is full.'); break;
     case 'peer':
       NET.peer = !!m.on; netBadge();
       if (m.on) sendHello();
-      else if (NET.started) toast(`${NET.peerName} disconnected. Waiting for them to come back`);
+      else if (NET.started) toast(`${NET.peerName} disconnected. Waiting to reconnect…`);
       else lobbyStatus(waitText());
       break;
     case 'hello':
@@ -1388,18 +1418,18 @@ function onNet(m) {
       NET.peerVer = typeof m.v === 'string' ? m.v.slice(0, 16) : '';
       NET.verWarn = '';
       if (NET.peerVer !== BUILD) {
-        const why = `You and ${NET.peerName} have different versions of Retro Set.`;
+        const why = `Version mismatch with ${NET.peerName}.`;
         if (!NET.started && !m.started) {   // nothing to lose yet, so don't start a game that might not match
-          lobbyStatus(`${why} Both of you reload it to get the latest (Ctrl+F5 on a computer, or close and reopen it on a phone), then come back to room ${NET.code}.`);
+          lobbyStatus(`${why} Both players must update (Ctrl+F5 on a computer; close and reopen on a phone), then rejoin room ${NET.code}.`);
           break;
         }
         // mid-game: carry on (each move is checked, and a mismatch fetches the whole game) but say so
-        NET.verWarn = `${why} If the games stop matching, reload it (Ctrl+F5 on a computer, or close and reopen it on a phone) and come back to room ${NET.code}.`;
+        NET.verWarn = `${why} If the games go out of sync, update (Ctrl+F5 on a computer; close and reopen on a phone) and rejoin room ${NET.code}.`;
         if (NET.started) toast(NET.verWarn);
       }
       if (NET.started) netSendState();
       else if (NET.seat === 0 && !m.started) hostStart();
-      else lobbyStatus(`Connected to ${NET.peerName}. Starting…`);
+      else lobbyStatus(`Connected to ${NET.peerName}. Starting match…`);
       if (NET.started) hud();
       break;
     case 'setup': if (NET.seat === 1 && (NET.started || NET.peerVer === BUILD)) startOnlineGame(m); break;
@@ -1419,8 +1449,8 @@ function menuNote(t) { $('#netNote').textContent = t; }
 function lobbyStatus(t) { $('#lobbyStatus').textContent = t; }
 function inviteLink() { return location.href.split('#')[0] + '#room=' + NET.code; }
 function startOnline(code, listed = false, rejoin = null) {
-  if (!relayBase()) { menuNote('Online play needs the relay address first: it goes into config.js, next to this file (the README explains how).'); return; }
-  if (!code || code.length < 4) { menuNote('Room codes are 5 letters and numbers.'); return; }
+  if (!relayBase()) { menuNote('Online play is unavailable: no relay address is set in config.js.'); return; }
+  if (!code || code.length < 4) { menuNote('Enter a valid room code (5 characters).'); return; }
   NET.on = true; NET.code = code; NET.cid = getCid(); NET.myName = cleanName($('#netName').value, 'Player'); NET.peerName = 'Friend'; NET.peerLook = null;
   try { localStorage.setItem('retroSet.name', NET.myName); } catch (e) {}
   holdSeat();
@@ -1430,8 +1460,8 @@ function startOnline(code, listed = false, rejoin = null) {
   state = 'lobby'; $('#menu').hidden = true; $('#lobby').hidden = false; arm(); refit();
   $('#lobbyCode').textContent = code; $('#lobbyLink').value = inviteLink();
   $('#lobbyNote').textContent = listed
-    ? 'Your room is listed under Open rooms, so friends can join from there. They can also use the link or the code.'
-    : 'This room is private. Your friend can open the link, or type the code into Join with code.';
+    ? 'Listed in Open Rooms. Players can also join with the code or invite link.'
+    : 'Private room. Players join with the code or invite link.';
   lobbyStatus('Connecting…'); updateLobbyWatch(); netConnect();
 }
 function leaveOnline() {
@@ -1475,7 +1505,7 @@ function adoptState(m) {
   let g; try { g = C.newGame(m.start); } catch (e) { return; }
   for (const u of m.moves) {
     g = C.playUci(g, String(u));
-    if (!g) { toast(`Your game and ${NET.peerName}'s don't match. Both of you reload it (Ctrl+F5 on a computer, or close and reopen it on a phone).`); return; }
+    if (!g) { toast(`Game state mismatch with ${NET.peerName}. Both players must update (Ctrl+F5 on a computer; close and reopen on a phone).`); return; }
   }
   if (done(m.result) && !g.result) g = C.finish(g, m.result.score, m.result.why);
   const back = !NET.started;
@@ -1485,7 +1515,7 @@ function adoptState(m) {
   G = g; state = G.result ? 'over' : 'play'; sel = -1; targets = []; closePanels(); placeAll(G);
   if (back) Object.assign(cam, { mode: 'play', base: NET.me === 'w' ? 0 : PI, yawOff: 0, pitch: 0.95, zoom: 1 });
   showGameUI(); hud(); showMarks();
-  toast(m.fix ? `Your game was put back in step with ${NET.peerName}'s` : `Back in the game with ${NET.peerName}`);
+  toast(m.fix ? `Game resynchronised with ${NET.peerName}` : `Reconnected to ${NET.peerName}`);
   if (NET.verWarn) setTimeout(() => { if (NET.on) toast(NET.verWarn); }, 2800);
   if (state === 'over') showOver();
   saveRejoin(); netProcessQueue();
@@ -1501,15 +1531,15 @@ function netProcessQueue() {
   NET.queue.shift();
   if (G.result || G.pos.turn === NET.me) return;
   const n = C.playUci(G, m.u);
-  if (!n) { toast(`Ignored a move from ${NET.peerName} that isn't legal here`); netSend({ t: 'resync' }); return; }
-  if (typeof m.fen === 'string' && m.fen !== C.toFen(n.pos)) { toast(`That move didn't give the same position on both screens, so your game is being put back in step`); netSend({ t: 'resync' }); return; }
+  if (!n) { toast(`Illegal move from ${NET.peerName} rejected`); netSend({ t: 'resync' }); return; }
+  if (typeof m.fen === 'string' && m.fen !== C.toFen(n.pos)) { toast(`Position mismatch. Resynchronising with ${NET.peerName}…`); netSend({ t: 'resync' }); return; }
   if (state === 'promo') cancelPromo();
   tryMove({ from: C.sq(m.u.slice(0, 2)), to: C.sq(m.u.slice(2, 4)), promo: m.u[4] || '' });
 }
 function netOfferDraw() {
   if (!NET.started || G.result) return;
   if (!NET.peer) { toast(`Waiting for ${NET.peerName} to reconnect`); return; }
-  NET.drawOffered = true; netSend({ t: 'drawOffer' }); toast(`Draw offered. Waiting for ${NET.peerName}`);
+  NET.drawOffered = true; netSend({ t: 'drawOffer' }); toast(`Draw offered to ${NET.peerName}`);
 }
 $('#bOfferYes').onclick = () => { $('#offer').hidden = true; if (!G || G.result) return; netSend({ t: 'drawYes' }); G = C.finish(G, '1/2-1/2', 'agreed'); afterMove(); };
 $('#bOfferNo').onclick = () => { $('#offer').hidden = true; netSend({ t: 'drawNo' }); };
@@ -1517,11 +1547,11 @@ function netBadge() {
   const el = $('#net');
   if (!NET.on) { el.textContent = ''; return; }
   const ok = NET.link === 'online' && NET.peer;
-  el.textContent = NET.link !== 'online' ? 'Reconnecting to the relay…' : ok ? `${NET.peerName} is connected` : `${NET.peerName} is not connected`;
+  el.textContent = NET.link !== 'online' ? 'Reconnecting…' : ok ? `${NET.peerName} is connected` : `${NET.peerName} is disconnected`;
   el.dataset.ok = ok ? '1' : '0';
 }
 // quick chat: preset messages only, so there's nothing to moderate in listed rooms
-const CHAT = ['Good move!', 'Unlucky', 'Good luck', 'Good game', 'Thanks!', 'Oops!', 'Wow!', 'One more?'];
+const CHAT = ['Good luck', 'Well played', 'Good game', 'Thank you', 'Nice move', 'Sorry', 'Impressive', 'Rematch?'];
 let lastChat = 0;
 function sendChat(i) {
   if (!NET.on || performance.now() - lastChat < 1200) return;
@@ -1532,7 +1562,7 @@ $('#bChat').onclick = () => { $('#chatPop').hidden = !$('#chatPop').hidden; };
 // Play again: both players ask, then the host starts the next game with the colours swapped
 function updateAgainBtn() {
   const b = $('#bAgain');
-  b.textContent = !NET.on ? 'Play again' : NET.again[NET.seat] ? `Waiting for ${NET.peerName}…` : NET.again[1 - NET.seat] ? 'Play again: accept' : 'Play again';
+  b.textContent = !NET.on ? 'Rematch' : NET.again[NET.seat] ? `Waiting for ${NET.peerName}…` : NET.again[1 - NET.seat] ? 'Accept Rematch' : 'Rematch';
 }
 function askRematch() { if (NET.again[NET.seat]) return; NET.again[NET.seat] = true; netSend({ t: 'again' }); tryRematch(); }
 function tryRematch() {
@@ -1576,11 +1606,11 @@ async function rejoinChoice() {
 }
 async function updateRejoin() {
   const r = await rejoinChoice(), b = $('#bRejoin');
-  b.hidden = !r; if (r) b.textContent = `Rejoin your game with ${cleanName(r.peer)}`;
+  b.hidden = !r; if (r) b.textContent = `Rejoin: vs ${cleanName(r.peer)}`;
 }
 addEventListener('storage', e => { if (e.key === REJOIN_KEY && state === 'menu') updateRejoin(); });
 addEventListener('focus', () => { if (state === 'menu') updateRejoin(); });
-const waitText = () => NET.rejoin ? `Waiting for ${cleanName(NET.rejoin.peer)} to come back…` : 'Waiting for your friend to join…';
+const waitText = () => NET.rejoin ? `Waiting for ${cleanName(NET.rejoin.peer)} to reconnect…` : 'Waiting for an opponent…';
 $('#bRejoin').onclick = async () => {
   const r = await rejoinChoice(); if (!r) { updateRejoin(); return; }
   try { sessionStorage.setItem('rs.cid', r.cid); } catch (e) {}   // the same player id gets the same seat back
@@ -1595,13 +1625,13 @@ $('#bCopyLink').onclick = async () => {
   const link = inviteLink();
   try {
     if (navigator.share && matchMedia('(pointer: coarse)').matches) { await navigator.share({ title: 'Retro Set', text: 'Play chess with me', url: link }); return; }
-    await navigator.clipboard.writeText(link); lobbyStatus('Invite link copied. Send it to your friend.');
-  } catch (e) { const i = $('#lobbyLink'); i.focus(); i.select(); try { document.execCommand('copy'); lobbyStatus('Invite link copied.'); } catch (e2) { lobbyStatus('Copy the link below and send it to your friend.'); } }
+    await navigator.clipboard.writeText(link); lobbyStatus('Invite link copied.');
+  } catch (e) { const i = $('#lobbyLink'); i.focus(); i.select(); try { document.execCommand('copy'); lobbyStatus('Invite link copied.'); } catch (e2) { lobbyStatus('Copy the link below to share it.'); } }
 };
 try { $('#netName').value = localStorage.getItem('retroSet.name') || ''; } catch (e) {}
 // the open rooms list: watched live from the relay while the Online screen is showing
 const LW = { ws: null, rooms: [], off: 0, retry: 0, timer: 0, pending: 0, want: false, failed: false, loaded: false };
-const COLOUR_NAME = { white: 'They play White', black: 'They play Black', random: 'Colours at random' };
+const COLOUR_NAME = { white: 'Host plays White', black: 'Host plays Black', random: 'Random colours' };
 function updateLobbyWatch() {
   const want = state === 'menu' && !NET.on && !TR.on && (screen === 'online' || (screen === 'cos' && COS.page === 'trade')) && !!relayBase() && document.visibilityState === 'visible';
   LW.want = want;
@@ -1640,19 +1670,19 @@ function renderRooms() {
   const show = (box, liveEl, rooms, none, title, sub, join) => {
     const note = t => { box.textContent = ''; box.append(el('div', 'note', t)); };
     liveEl.textContent = live;
-    if (!relayBase()) { note('Online play isn\'t set up yet: it needs the relay address in config.js (the README explains how).'); return; }
-    if (!rooms.length) { note(LW.loaded ? none : 'Looking for open rooms…'); return; }
+    if (!relayBase()) { note('Online play is unavailable: no relay address is set in config.js.'); return; }
+    if (!rooms.length) { note(LW.loaded ? none : 'Searching for open rooms…'); return; }
     box.textContent = '';
     for (const r of rooms) {
       const row = el('div', 'roomItem'), info = el('div'), mins = Math.max(0, Math.round((now - Number(r.at)) / 60000)), b = el('button', 'btn', 'Join'); b.type = 'button';
-      info.append(el('div', 'rn', title(r)), el('div', 'rm', `${sub(r)}${mins < 1 ? 'just opened' : mins + ' min waiting'}`));
+      info.append(el('div', 'rn', title(r)), el('div', 'rm', `${sub(r)}${mins < 1 ? 'Just opened' : 'Waiting ' + mins + ' min'}`));
       b.addEventListener('click', () => join(r)); row.append(info, b); box.append(row);
     }
   };
-  show($('#roomList'), $('#roomsLive'), LW.rooms.filter(r => !isTradeRoom(r)), 'No open rooms right now. Create a listed room and it will show up here.',
-    r => `${cleanName(r.name, 'Player')}'s room`, r => `${COLOUR_NAME[r.mode] || COLOUR_NAME.random}, `, r => startOnline(cleanCode(r.code)));
-  show($('#trRooms'), $('#trLive'), LW.rooms.filter(isTradeRoom), 'No open trade rooms right now. Create a listed one and it will show up here.',
-    r => `${cleanName(r.name, 'Player')}'s trade room`, () => '', r => startTrade(cleanCode(String(r.code).slice(TR_PRE.length))));
+  show($('#roomList'), $('#roomsLive'), LW.rooms.filter(r => !isTradeRoom(r)), 'No open rooms. Listed rooms appear here.',
+    r => `${cleanName(r.name, 'Player')}'s Room`, r => `${COLOUR_NAME[r.mode] || COLOUR_NAME.random}, `, r => startOnline(cleanCode(r.code)));
+  show($('#trRooms'), $('#trLive'), LW.rooms.filter(isTradeRoom), 'No open trade rooms. Listed rooms appear here.',
+    r => `${cleanName(r.name, 'Player')}'s Trade Room`, () => '', r => startTrade(cleanCode(String(r.code).slice(TR_PRE.length))));
 }
 
 // ------------------------------------------------------------------ trading
@@ -1706,20 +1736,20 @@ function trFinish() {
   if (!TR.ready[0] || !TR.ready[1] || !LK.canGive(LOCK, TR.mine)) { trUnready(); trFit(true); return; }
   TR.sent = trHash(TR.mine, TR.theirs); trSend({ t: 'tdone', h: TR.sent }); trSwap(); renderTrade();
   // the other page has 4 seconds to say it's going ahead too; silent, the trade is off here
-  const h = TR.sent; clearTimeout(TR.wait); TR.wait = setTimeout(() => { if (TR.on && TR.sent === h && TR.got !== h) { trUnready(); trSend({ t: 'tready', on: false }); trSay(`${TR.peerName}'s page didn't answer, so nothing was traded.`); renderTrade(); } }, 4000);
+  const h = TR.sent; clearTimeout(TR.wait); TR.wait = setTimeout(() => { if (TR.on && TR.sent === h && TR.got !== h) { trUnready(); trSend({ t: 'tready', on: false }); trSay(`No response from ${TR.peerName}. Trade cancelled.`); renderTrade(); } }, 4000);
 }
 function trSwap() {
   if (!TR.sent || TR.sent !== TR.got) return;
   const give = TR.mine, get = TR.theirs, ok = lockerEdit(l => LK.trade(l, give, get));
   TR.mine = LK.noOffer(); TR.theirs = LK.noOffer(); TR.asks = []; TR.marks = []; trUnready();
-  if (ok) { TR.trades++; sfx('prize1'); dress(); trSay(LK.offerEmpty(get) ? `Trade done. You gave ${trWords(give)}.` : `Trade done. You got ${trWords(get)}.`); }
-  else trSay("The trade couldn't be made here: something you offered is no longer in your locker.");
+  if (ok) { TR.trades++; sfx('prize1'); dress(); trSay(LK.offerEmpty(get) ? `Trade complete. You gave ${trWords(give)}.` : `Trade complete. You received ${trWords(get)}.`); }
+  else trSay('Trade failed: an offered item is no longer in your locker.');
   trHello();
 }
 // my offer changed: both Ready marks go, and the other player is told
 function trChanged() {
   const was = TR.ready[0] || TR.ready[1]; trUnready(); trSend({ t: 'toffer', offer: TR.mine });
-  if (was) trSay('You changed your offer, so Ready was cleared for both of you.');
+  if (was) trSay('Offer changed. Ready status cleared.');
   renderTrade();
 }
 // the locker changed (another open page spent something): the offer keeps to what's really held, and the other player
@@ -1728,7 +1758,7 @@ function trFit(force) {
   if (!TR.on || TR.sent) return;
   const inv = LK.inventory(LOCK), was = LK.offerKey(TR.mine);
   trClamp(TR.mine, inv); TR.mine.coins = Math.min(TR.mine.coins, LOCK.coins);
-  if (force || LK.offerKey(inv) !== TR.invKey || LK.offerKey(TR.mine) !== was) { trUnready(); trHello(); if (LK.offerKey(TR.mine) !== was) trSay('Your locker changed, so your offer was put right.'); }
+  if (force || LK.offerKey(inv) !== TR.invKey || LK.offerKey(TR.mine) !== was) { trUnready(); trHello(); if (LK.offerKey(TR.mine) !== was) trSay('Locker changed. Your offer has been updated.'); }
   renderTrade();
 }
 function trPut(id, d) {
@@ -1739,21 +1769,21 @@ function trPut(id, d) {
 }
 function trMark(id) {
   if (TR.sent) return;
-  if (held(TR.theirs, id) >= held(TR.inv, id)) { trSay('That is already in the trade.'); renderTrade(); return; }
+  if (held(TR.theirs, id) >= held(TR.inv, id)) { trSay('Already in the offer.'); renderTrade(); return; }
   TR.marks = TR.marks.includes(id) ? TR.marks.filter(m => m !== id) : [...TR.marks, id].slice(-8);
   renderTrade();
 }
 function trBackOut() {
   if (!TR.count) return;
-  trUnready(); trSend({ t: 'tready', on: false }); trSay('You backed out. Nothing was traded.'); renderTrade();
+  trUnready(); trSend({ t: 'tready', on: false }); trSay('You backed out. Trade cancelled.'); renderTrade();
 }
 function onTrade(m) {
   switch (m.t) {
     case 'welcome': TR.seat = m.seat === 1 ? 1 : 0; TR.peer = !!m.peer; TR.link = 'online'; if (TR.peer) trHello(); renderTrade(); break;
-    case 'full': leaveTrade('That trade room already has two people in it.'); break;
+    case 'full': leaveTrade('That trade room is full.'); break;
     case 'peer':
       TR.peer = !!m.on; trUnready();
-      if (m.on) trHello(); else if (TR.seen) trSay(`${TR.peerName} disconnected. Nothing was traded.`);
+      if (m.on) trHello(); else if (TR.seen) trSay(`${TR.peerName} disconnected. Trade cancelled.`);
       renderTrade(); break;
     case 'thello':
       TR.peerName = cleanName(m.name); TR.peer = true; TR.seen = true; TR.verBad = m.v !== BUILD;
@@ -1764,18 +1794,18 @@ function onTrade(m) {
     case 'toffer': {
       const was = TR.ready[0] || TR.ready[1];
       TR.theirs = trClamp(LK.cleanOffer(m.offer), TR.inv); TR.marks = TR.marks.filter(id => held(TR.inv, id) > held(TR.theirs, id)); trUnready();
-      if (was) trSay(`${TR.peerName} changed their offer, so Ready was cleared for both of you.`);
+      if (was) trSay(`${TR.peerName} changed their offer. Ready status cleared.`);
       renderTrade(); break;
     }
     case 'task':   // they ask for things of mine: a short notice, with Add and No
       for (const id of Array.isArray(m.ids) ? m.ids.slice(0, 8) : []) if (typeof id === 'string' && thing(id) && held(LK.inventory(LOCK), id) > held(TR.mine, id) && !TR.asks.includes(id) && TR.asks.length < 8) TR.asks.push(id);
       if (TR.asks.length) sfx('ui');
       renderTrade(); break;
-    case 'tno': if (typeof m.id === 'string' && thing(m.id)) { trSay(`${TR.peerName} said no to ${thing(m.id).name}.`); renderTrade(); } break;
+    case 'tno': if (typeof m.id === 'string' && thing(m.id)) { trSay(`${TR.peerName} declined the request for ${thing(m.id).name}.`); renderTrade(); } break;
     case 'tready':
       if (TR.verBad || !TR.seen) break;
-      if (m.on && m.h !== trHash(TR.theirs, TR.mine)) { trUnready(); trHello(true); trSay("Your two screens didn't show the same trade, so they were put back in step. Check it, then press Ready again."); renderTrade(); break; }
-      if (!m.on && (TR.count || TR.sent)) { trUnready(); trSay(`${TR.peerName} backed out. Nothing was traded.`); }   // out of the countdown: both start again
+      if (m.on && m.h !== trHash(TR.theirs, TR.mine)) { trUnready(); trHello(true); trSay('Offers were out of sync and have been refreshed. Review the trade, then press Ready.'); renderTrade(); break; }
+      if (!m.on && (TR.count || TR.sent)) { trUnready(); trSay(`${TR.peerName} backed out. Trade cancelled.`); }   // out of the countdown: both start again
       else TR.ready[1] = !!m.on;
       trBoth(); break;
     case 'tdone':
@@ -1804,8 +1834,8 @@ function trConnect() {
 setInterval(() => { if (TR.ws && TR.ws.readyState === 1) TR.ws.send('ping'); }, 20000);
 function startTrade(code, listed = false) {
   if (NET.on || TR.on) return;
-  if (!relayBase()) { trMenuNote('Trading needs online play set up first: the relay address goes into config.js (the README explains how).'); return; }
-  if (!code || code.length < 4) { trMenuNote('Trade room codes are 5 letters and numbers.'); return; }
+  if (!relayBase()) { trMenuNote('Trading is unavailable: no relay address is set in config.js.'); return; }
+  if (!code || code.length < 4) { trMenuNote('Enter a valid room code (5 characters).'); return; }
   Object.assign(TR, { on: true, code, cid: getCid(), myName: cleanName($('#netName').value, 'Player'), peerName: 'Friend', list: listed, retry: 0, peer: false, seen: false, link: 'connecting',
     inv: LK.noOffer(), mine: LK.noOffer(), theirs: LK.noOffer(), asks: [], marks: [], side: 'mine', verBad: false, flash: '' });
   trUnready(); trMenuNote(''); LOCK = readLocker();
@@ -1830,7 +1860,7 @@ for (const [f, name] of TR_FILTERS) { const b = el('button', 'btn', name); b.typ
 function renderTrade() {
   if (!TR.on) return;
   const name = TR.peerName, wait = !TR.seen, mine = TR.side === 'mine', inv = mine ? LK.inventory(LOCK) : TR.inv, offer = mine ? TR.mine : TR.theirs;
-  $('#trTitle').textContent = wait ? 'Trade room' : `Trade with ${name}`;
+  $('#trTitle').textContent = wait ? 'Trade Room' : `Trade with ${name}`;
   for (const id of ['#trOffers', '#trBar', '#trGrid', '#trSideSeg']) $(id).hidden = wait;
   $('#trWait').hidden = !wait;
   if (wait) { $('#trCodeBig').textContent = TR.code; $('#trLink').value = tradeLink(); }
@@ -1844,7 +1874,7 @@ function renderTrade() {
     }
   };
   strip($('#trMine'), TR.mine, true); strip($('#trTheirs'), TR.theirs, false);
-  $('#trMineH').textContent = 'You give' + (TR.ready[0] ? ': ready' : ''); $('#trTheirsH').textContent = `${name} gives` + (TR.ready[1] ? ': ready' : '');
+  $('#trMineH').textContent = 'Your Offer' + (TR.ready[0] ? ' · Ready' : ''); $('#trTheirsH').textContent = `${name}'s Offer` + (TR.ready[1] ? ' · Ready' : '');
   $('#trMine').parentNode.classList.toggle('ready', TR.ready[0]); $('#trTheirs').parentNode.classList.toggle('ready', TR.ready[1]);
   const ci = $('#trCoins'); ci.max = LOCK.coins; ci.disabled = !!TR.sent;
   if (document.activeElement !== ci || (Math.floor(+ci.value) || 0) !== TR.mine.coins) ci.value = TR.mine.coins || '';
@@ -1863,38 +1893,38 @@ function renderTrade() {
     b.disabled = !!TR.sent; b.onclick = () => mine ? trPut(id, off < have ? 1 : -off) : trMark(id);
     grid.append(b);
   }
-  if (!ids.length) grid.append(el('div', 'note', mine ? "Nothing of yours to trade here. The looks everyone starts with can't be traded." : TR.filter !== 'cases' && TR.onlyNew ? `${name} has nothing here that you don't have.` : `${name} has nothing here.`));
+  if (!ids.length) grid.append(el('div', 'note', mine ? 'No tradeable items in this category. Default items cannot be traded.' : TR.filter !== 'cases' && TR.onlyNew ? `${name} has no items here that you don't own.` : `${name} has no items in this category.`));
   // the foot: what's going on, something asked for, and Ready
   const ask = TR.asks[0], asks = $('#trAsks'), note = $('#trNote'); asks.textContent = '';
   if (ask && !TR.count && !TR.sent) {
-    const yes = el('button', 'btn', 'Add'), no = el('button', 'btn', 'No'); yes.type = no.type = 'button'; yes.id = 'bTrAdd'; no.id = 'bTrNo';
+    const yes = el('button', 'btn', 'Add'), no = el('button', 'btn', 'Decline'); yes.type = no.type = 'button'; yes.id = 'bTrAdd'; no.id = 'bTrNo';
     yes.onclick = () => trPut(ask, 1); no.onclick = () => { TR.asks.shift(); trSend({ t: 'tno', id: ask }); renderTrade(); };
     asks.append(yes, no);
   }
   note.classList.toggle('count', !!TR.count);
   note.textContent = TR.link !== 'online' ? 'Connecting to the relay…'
-    : wait ? TR.flash || (TR.list ? 'Waiting for someone to join. Your room is listed under Open trade rooms.' : 'Waiting for your friend. Send them the link or the code.')
-    : TR.verBad ? `You and ${name} have different versions of Retro Set. Both of you reload it (Ctrl+F5 on a computer), then come back to trade.`
-    : !TR.peer ? TR.flash || `${name} isn't connected. Waiting for them to come back.`
-    : TR.sent ? 'Finishing the trade…'
+    : wait ? TR.flash || (TR.list ? 'Waiting for a trade partner. Listed in Open Trade Rooms.' : 'Waiting for a trade partner. Share the code or invite link.')
+    : TR.verBad ? `Version mismatch with ${name}. Both players must update (Ctrl+F5 on a computer) to trade.`
+    : !TR.peer ? TR.flash || `${name} disconnected. Waiting to reconnect…`
+    : TR.sent ? 'Completing trade…'
     : TR.count ? `Trading in ${TR.sec}…`
-    : ask ? `${name} asks for ${thing(ask).name}${TR.asks.length > 1 ? ` (and ${TR.asks.length - 1} more)` : ''}.`
+    : ask ? `${name} requests ${thing(ask).name}${TR.asks.length > 1 ? ` (+${TR.asks.length - 1} more)` : ''}.`
     : TR.flash ? TR.flash
-    : TR.ready[0] ? `Waiting for ${name} to press Ready.`
-    : TR.ready[1] ? `${name} is ready. Press Ready when you're happy with the trade.`
-    : mine ? 'Tap your things to put them in the trade.' : "Tap what you'd like, then Ask for it.";
+    : TR.ready[0] ? `Waiting for ${name}.`
+    : TR.ready[1] ? `${name} is ready.`
+    : mine ? 'Select items to add them to your offer.' : 'Select items, then Request.';
   const live = !wait && TR.peer && !TR.verBad && TR.link === 'online';
-  $('#bTrAsk').hidden = wait || mine || !!TR.count || !!TR.sent; $('#bTrAsk').disabled = !TR.marks.length || !live; $('#bTrAsk').textContent = TR.marks.length > 1 ? `Ask for ${TR.marks.length}` : 'Ask for it';
+  $('#bTrAsk').hidden = wait || mine || !!TR.count || !!TR.sent; $('#bTrAsk').disabled = !TR.marks.length || !live; $('#bTrAsk').textContent = TR.marks.length > 1 ? `Request ${TR.marks.length}` : 'Request';
   $('#bTrBack').hidden = !TR.count;
   $('#bTrReady').hidden = wait || !!TR.count || !!TR.sent; $('#bTrReady').disabled = !live || (LK.offerEmpty(TR.mine) && LK.offerEmpty(TR.theirs));
-  $('#bTrReady').setAttribute('aria-pressed', String(TR.ready[0])); $('#bTrReady').textContent = TR.ready[0] ? 'Not ready' : 'Ready';
+  $('#bTrReady').setAttribute('aria-pressed', String(TR.ready[0])); $('#bTrReady').textContent = TR.ready[0] ? 'Not Ready' : 'Ready';
 }
 for (const b of document.querySelectorAll('#trSideSeg .btn')) b.onclick = () => { TR.side = b.dataset.side; renderTrade(); };
 $('#bTrNew').onclick = () => { TR.onlyNew = !TR.onlyNew; renderTrade(); };
 $('#trCoins').addEventListener('input', () => { const n = Math.max(0, Math.min(LOCK.coins, Math.floor(+$('#trCoins').value) || 0)); if (n !== TR.mine.coins && !TR.sent) { TR.mine.coins = n; trChanged(); } });
 $('#bTrAsk').onclick = () => {
   if (!TR.marks.length) return;
-  trSend({ t: 'task', ids: TR.marks }); trSay(`Asked ${TR.peerName} for ${TR.marks.map(id => thing(id).name).join(', ')}.`); TR.marks = []; renderTrade();
+  trSend({ t: 'task', ids: TR.marks }); trSay(`Request sent to ${TR.peerName}: ${TR.marks.map(id => thing(id).name).join(', ')}.`); TR.marks = []; renderTrade();
 };
 $('#bTrReady').onclick = () => {
   if (TR.count || TR.sent) return;
@@ -1909,8 +1939,8 @@ $('#bTrCopy').onclick = async () => {
   const link = tradeLink(), say = t => { TR.flash = t; renderTrade(); };
   try {
     if (navigator.share && matchMedia('(pointer: coarse)').matches) { await navigator.share({ title: 'Retro Set', text: 'Trade with me', url: link }); return; }
-    await navigator.clipboard.writeText(link); say('Invite link copied. Send it to your friend.');
-  } catch (e) { const i = $('#trLink'); i.focus(); i.select(); try { document.execCommand('copy'); say('Invite link copied.'); } catch (e2) { say('Copy the link and send it to your friend.'); } }
+    await navigator.clipboard.writeText(link); say('Invite link copied.');
+  } catch (e) { const i = $('#trLink'); i.focus(); i.select(); try { document.execCommand('copy'); say('Invite link copied.'); } catch (e2) { say('Copy the link to share it.'); } }
 };
 // the Trade page of the Cosmetics tab: the open trade rooms, join with a code, and make a room
 function renderTradePage() {
@@ -1972,11 +2002,11 @@ function frame(now) {
 addEventListener('resize', resize);
 resize(); applyLook(); dress(); refit();
 { const s = loadSaved(); placeAll(s ? s.g : C.newGame()); }   // behind the menu: the game waiting to be resumed, or a fresh set
-menuGo('home'); dailyGift();
+showCoins(); menuGo('home'); dailyGift();
 requestAnimationFrame(frame);
 { // opening an invite link joins the room straight away
   const m = /#room=([A-Za-z0-9]+)/.exec(location.hash);
-  if (m) { const code = cleanCode(m[1]); $('#netCode').value = code; if (relayBase()) startOnline(code); else { menuGo('online'); menuNote('This is an invite link, but online play needs the relay address in config.js first.'); } }
+  if (m) { const code = cleanCode(m[1]); $('#netCode').value = code; if (relayBase()) startOnline(code); else { menuGo('online'); menuNote('Online play is unavailable: no relay address is set in config.js.'); } }
 }
 { // and a trade room's link opens the room
   const m = /#trade=([A-Za-z0-9]+)/.exec(location.hash);

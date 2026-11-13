@@ -14,8 +14,8 @@ const { chromium, SITE, shot, watch, ok } = require('./lib');
   await p.goto(SITE.new); await p.waitForTimeout(1200);
   // --- the menu's tabs
   let i = await rs(() => ({ tabs: [...document.querySelectorAll('.hTab')].map(t => t.textContent + (t.getAttribute('aria-selected') === 'true' ? '*' : '')), cards: document.querySelector('#bLocal').offsetParent !== null }));
-  ok(i.tabs.join() === 'Play*,Cosmetics,Settings' && i.cards, `the menu has Play, Cosmetics and Settings along the top, Play first (${i.tabs.join(', ')})`);
-  await p.click('.hTab[data-go="settings"]'); await p.waitForTimeout(150);
+  ok(i.tabs.join() === 'Play*,Locker,Store,Trade' && i.cards && await rs(() => !!document.querySelector('#bSettings').offsetParent), `the top bar has Play, Locker, Store and Trade, Play first, and the Settings button (${i.tabs.join(', ')})`);
+  await p.click('#bSettings'); await p.waitForTimeout(150);
   ok((await shown('.sTab')).join() === 'game,board,display,device' && (await shown('.sPage')).join() === 'game', `Settings has four tabs of its own, opening on Game (${(await shown('.sTab')).join(', ')})`);
   for (const t of ['board', 'display', 'device']) { await p.click(`.sTab[data-tab="${t}"]`); ok((await shown('.sPage')).join() === t, `the ${t} tab shows its page and hides the others`); }
   await p.keyboard.press('ArrowLeft');
@@ -25,14 +25,18 @@ const { chromium, SITE, shot, watch, ok } = require('./lib');
   await p.screenshot({ path: shot('settings-menu.png') });
   await p.goBack(); await p.waitForTimeout(200);
   ok(await rs(() => document.querySelector('#sc-settings').hidden && !document.querySelector('#sc-home').hidden && location.href.startsWith('http')), 'the back gesture goes from Settings to Play, not off the page');
-  await p.click('.hTab[data-go="settings"]'); await p.keyboard.press('Escape'); await p.waitForTimeout(100);
+  await p.click('#bSettings'); await p.keyboard.press('Escape'); await p.waitForTimeout(100);
   ok(await rs(() => !document.querySelector('#sc-home').hidden), 'Esc does too');
+  await p.click('#bSettings');
+  ok(await rs(() => document.querySelector('#bSettings').getAttribute('aria-pressed') === 'true' && !document.querySelector('#sc-settings').hidden), 'the Settings button opens Settings and stays lit while it is open');
+  await p.click('#bSettings');
+  ok(await rs(() => !document.querySelector('#sc-home').hidden && document.querySelector('#bSettings').getAttribute('aria-pressed') === 'false'), 'and a second tap closes it again');
   await p.click('#bCpu'); await p.waitForTimeout(100);
-  ok(await rs(() => document.querySelector('#hTabs').hidden && !document.querySelector('#mTop').hidden), 'a screen further in has its Back bar instead of the tabs');
+  ok(await rs(() => !document.querySelector('#hTabs').hidden && !document.querySelector('#mTop').hidden && document.querySelector('#mTitle').textContent === 'Play / Vs Computer' && document.querySelector('.hTab[data-go="home"]').getAttribute('aria-selected') === 'true'), 'a screen further in keeps the top bar, with Play lit, and has a Back bar showing where it is ("Play / Vs Computer")');
   await p.click('#mBack');
 
   // --- a setting changed in the menu is saved, and is in force in a game
-  await p.click('.hTab[data-go="settings"]'); await p.click('.sTab[data-tab="game"]'); await p.click('.seg[data-key="hints"] .btn[data-v="0"]');
+  await p.click('#bSettings'); await p.click('.sTab[data-tab="game"]'); await p.click('.seg[data-key="hints"] .btn[data-v="0"]');
   i = await rs(() => ({ s: window.__rs.S.hints, saved: JSON.parse(localStorage.getItem('retroSet.settings')).hints, pressed: document.querySelector('.seg[data-key="hints"] .btn[data-v="0"]').getAttribute('aria-pressed') }));
   ok(i.s === false && i.saved === false && i.pressed === 'true', `Move hints Off is saved and its button lit (${JSON.stringify(i)})`);
   await p.click('.hTab[data-go="home"]');
@@ -159,7 +163,7 @@ const { chromium, SITE, shot, watch, ok } = require('./lib');
   await tap('d8'); await tap('h4'); await p.waitForTimeout(250);
   ok((await rs(n => window.__rs.soundsFrom(n), n0)).join() === 'move,win', `checkmate: the move, then the winning notes (${(await rs(n => window.__rs.soundsFrom(n), n0)).join()})`);
   await p.click('#bOverMenu'); await p.waitForTimeout(150);
-  await p.click('.hTab[data-go="settings"]'); await p.click('.sTab[data-tab="device"]');
+  await p.click('#bSettings'); await p.click('.sTab[data-tab="device"]');
   n0 = await rs(() => window.__rs.soundCount);
   await p.click('.seg[data-key="volume"] .btn[data-v="0.25"]');
   ok(await rs(() => window.__rs.S.volume) === 0.25 && (await rs(n => window.__rs.soundsFrom(n), n0)).includes('move'), 'changing the volume plays a move, to hear it by');
@@ -175,7 +179,7 @@ const { chromium, SITE, shot, watch, ok } = require('./lib');
   await p.reload(); await p.waitForTimeout(1200);
   i = await rs(() => ({ S: window.__rs.S, coords: window.__rs.coords, w: document.querySelector('#view').width }));
   ok(i.S.volume === 0 && i.S.coords === false && !i.coords && i.S.autoQueen === true && i.S.pixel === 2 && i.S.levels === 16 && i.w === 320, 'the settings are kept through a reload and in force at once');
-  await p.click('.hTab[data-go="settings"]'); await p.click('.sTab[data-tab="display"]');
+  await p.click('#bSettings'); await p.click('.sTab[data-tab="display"]');
   ok(await rs(() => document.querySelector('.seg[data-key="pixel"] .btn[data-v="2"]').getAttribute('aria-pressed')) === 'true', 'and the Settings tab shows them');
 
   // --- the sideways hint, on a phone held upright

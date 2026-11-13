@@ -51,15 +51,15 @@ const slotItems = slot => ITEMS.filter(it => it.slot === slot);
 // shop asks. The Super Lucky Box never gives a duplicate. Every case needs a key: the standard key opens it for any
 // slot, a slot's own key guarantees a look for that slot. A key never changes the rarity.
 const GRADES = {
-  bronze: { name: 'Bronze case', odds: [62, 28, 8, 1.6, 0.4], price: 40 },
-  silver: { name: 'Silver case', odds: [38, 38, 18, 5, 1], price: 90 },
-  gold: { name: 'Gold case', odds: [14, 36, 32, 14, 4], price: 200 },
-  diamond: { name: 'Diamond case', odds: [0, 20, 42, 28, 10], price: 420 },
+  bronze: { name: 'Bronze Case', odds: [62, 28, 8, 1.6, 0.4], price: 40 },
+  silver: { name: 'Silver Case', odds: [38, 38, 18, 5, 1], price: 90 },
+  gold: { name: 'Gold Case', odds: [14, 36, 32, 14, 4], price: 200 },
+  diamond: { name: 'Diamond Case', odds: [0, 20, 42, 28, 10], price: 420 },
   lucky: { name: 'Super Lucky Box', odds: [0, 6, 34, 38, 22], price: 1500, fresh: true },
 };
 const GRADE_IDS = Object.keys(GRADES);
-const KEYS = { any: { name: 'Standard key', price: 60 } };
-for (const s of SLOTS) KEYS[s.id] = { name: s.name + ' key', price: 110, slot: s.id };
+const KEYS = { any: { name: 'Standard Key', price: 60 } };
+for (const s of SLOTS) KEYS[s.id] = { name: s.name + ' Key', price: 110, slot: s.id };
 const KEY_IDS = Object.keys(KEYS);
 // OWNED_WEIGHT: how likely a look you own is to come up again, against one you don't (1 would be an even draw).
 // PITY: an epic or better is certain within this many cases. LUCKY_FULL: a Super Lucky Box with nothing left to give.

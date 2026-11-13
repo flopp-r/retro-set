@@ -37,7 +37,7 @@ const same = async (a, c) => { const [x, y] = [await info(a), await info(c)]; re
   console.log('--- 1. Two windows: a game through the relay');
   const room1 = 'S' + run + 'A';
   const host = await win('Host', NEW + '#room=' + room1);
-  ok(await until(async () => /Waiting for your friend/.test((await info(host)).lobby)), 'an invite link opens the waiting room');
+  ok(await until(async () => /Waiting for an opponent/.test((await info(host)).lobby)), 'an invite link opens the waiting room');
   const guest = await win('Guest', NEW + '#room=' + room1);
   ok(await until(async () => (await info(host)).started && (await info(guest)).started), 'the game starts for both when the friend opens the link');
   let [h, g] = [await info(host), await info(guest)];
@@ -68,7 +68,7 @@ const same = async (a, c) => { const [x, y] = [await info(a), await info(c)]; re
 
   console.log('--- 3. Chat, and a draw offer declined then accepted');
   await host.click('#bChat'); await host.click('#chatPop [data-i="0"]');
-  ok(await until(async () => (await info(guest)).toasts.some(t => t === 'Host: Good move!')), 'quick chat: the guest sees "Host: Good move!"');
+  ok(await until(async () => (await info(guest)).toasts.some(t => t === 'Host: Good luck')), 'quick chat: the guest sees "Host: Good luck"');
   await guest.click('#bMenu'); await guest.click('#bDraw');
   ok(await until(async () => host.isVisible('#offer')) && /Guest offers a draw/.test(await host.textContent('#offerTxt')), 'the guest offers a draw: the host is asked');
   await host.click('#bOfferNo');
@@ -81,7 +81,7 @@ const same = async (a, c) => { const [x, y] = [await info(a), await info(c)]; re
   const meBefore = (await info(host)).me;
   await until(async () => host.isVisible('#over')); await until(async () => guest.isVisible('#over'));
   await host.click('#bAgain');
-  ok(await until(async () => /Waiting for Guest/.test(await host.textContent('#bAgain')) && /accept/.test(await guest.textContent('#bAgain'))), 'the host asks: their button waits, the guest\'s says accept');
+  ok(await until(async () => /Waiting for Guest/.test(await host.textContent('#bAgain')) && /Accept/.test(await guest.textContent('#bAgain'))), 'the host asks: their button waits, the guest\'s says accept');
   await guest.click('#bAgain');
   ok(await until(async () => { const [x, y] = [await info(host), await info(guest)]; return x.state === 'play' && y.state === 'play' && !x.moves && !y.moves && x.games === 1; }), 'a new game starts for both');
   ok((await info(host)).me !== meBefore && (await info(guest)).me === meBefore, `the colours swapped (the host now plays ${(await info(host)).me})`);
@@ -90,8 +90,8 @@ const same = async (a, c) => { const [x, y] = [await info(a), await info(c)]; re
   ok(await play(host, guest, 'd2', 'd4'), 'a normal move first');
   { const [x] = [await info(host)], mover = x.fen.split(' ')[1] === x.me ? host : guest, other = mover === host ? guest : host;
     await mover.evaluate(() => window.__rs.send({ t: 'move', n: window.__rs.moves.length + 1, u: 'e8e1', fen: 'nonsense' }));
-    ok(await until(async () => (await info(other)).toasts.some(t => /isn't legal/.test(t))), 'an illegal move from a modified copy is ignored, with a message');
-    ok(await until(async () => (await info(other)).toasts.some(t => /back in step/.test(t))) && await same(host, guest), 'the whole game is fetched again, and both screens still match'); }
+    ok(await until(async () => (await info(other)).toasts.some(t => /Illegal move/.test(t))), 'an illegal move from a modified copy is ignored, with a message');
+    ok(await until(async () => (await info(other)).toasts.some(t => /resynchronised/.test(t))) && await same(host, guest), 'the whole game is fetched again, and both screens still match'); }
 
   console.log('--- 6. No moving while the other player is away');
   { const x = await info(host), mover = x.fen.split(' ')[1] === x.me ? host : guest, away = mover === host ? guest : host, moverName = mover === host ? 'Host' : 'Guest';
@@ -118,7 +118,7 @@ const same = async (a, c) => { const [x, y] = [await info(a), await info(c)]; re
   console.log('--- 8. Duplicating a tab during a game');
   const [dup] = await Promise.all([r1.context().waitForEvent('page'), r1.evaluate(() => window.open(location.href))]);
   logs['Ann duplicate'] = watch(dup, []);
-  ok(await until(async () => /already has two players/.test((await info(dup)).note), 15000), 'the copy is told the room is full');
+  ok(await until(async () => /is full/.test((await info(dup)).note), 15000), 'the copy is told the room is full');
   ok((await info(dup)).cid !== (await info(r1)).cid, 'the copy gets its own player id');
   await sleep(800);
   ok((await info(r1)).peer && (await info(r1)).link === 'online' && (await info(r1)).seat === 0, 'the original keeps its seat and connection');
@@ -137,7 +137,7 @@ const same = async (a, c) => { const [x, y] = [await info(a), await info(c)]; re
   const room4 = 'S' + run + 'D';
   const va = await win('Version A', NEW + '#room=' + room4); await sleep(1200);
   const vb = await win('Version B', ALT + '#room=' + room4);
-  ok(await until(async () => /different versions/.test((await info(va)).lobby) && /different versions/.test((await info(vb)).lobby), 15000), `both are told, and neither starts: "${(await info(va)).lobby}"`);
+  ok(await until(async () => /Version mismatch/.test((await info(va)).lobby) && /Version mismatch/.test((await info(vb)).lobby), 15000), `both are told, and neither starts: "${(await info(va)).lobby}"`);
   ok((await info(va)).state === 'lobby' && (await info(vb)).state === 'lobby', 'both stay in the waiting room');
 
   console.log('--- 11. Mid-game, one player reloads onto a different version');
@@ -147,7 +147,7 @@ const same = async (a, c) => { const [x, y] = [await info(a), await info(c)]; re
   await sleep(1500); fs.writeFileSync(live, keep);
   ok(await until(async () => { const i = await info(twin); return i.started && i.state === 'play'; }), 'the game carries on rather than blocking');
   ok((await info(twin)).ver === 'Version deadbeef', `the reloaded tab really is on the other version (${(await info(twin)).ver})`);
-  ok(await until(async () => (await info(solo)).toasts.some(t => /different versions/.test(t)) && (await info(twin)).toasts.some(t => /different versions/.test(t)), 8000), 'both are warned');
+  ok(await until(async () => (await info(solo)).toasts.some(t => /Version mismatch/.test(t)) && (await info(twin)).toasts.some(t => /Version mismatch/.test(t)), 8000), 'both are warned');
   ok(await same(solo, twin), 'and both screens still match');
 
   console.log('--- Console');

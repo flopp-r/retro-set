@@ -47,7 +47,7 @@ async function newRoom(h, g) {
   await g.close();                                        // like swiping the app away: no goodbye is sent
   ok(await until(async () => (await info(h)).peer === false), "Sam's game notices Alex has gone");
   g = await open(gc, 'Alex');                             // reopened from the icon: a fresh page, no room in the address
-  ok(await g.isVisible('#bRejoin') && (await g.textContent('#bRejoin')) === 'Rejoin your game with Sam', `home screen offers "${await g.textContent('#bRejoin')}"`);
+  ok(await g.isVisible('#bRejoin') && (await g.textContent('#bRejoin')) === 'Rejoin: vs Sam', `home screen offers "${await g.textContent('#bRejoin')}"`);
   await g.click('#bRejoin');
   ok(await until(async () => { const i = await info(g); return i.started && i.state === 'play'; }), 'Rejoin puts Alex back in the game');
   const after = await info(g);
@@ -70,7 +70,7 @@ async function newRoom(h, g) {
   const hs = (await info(h)).seat, gs = (await info(g)).seat;
   await h.close(); await g.close(); await sleep(1500);
   g = await open(gc, 'Alex'); await g.click('#bRejoin'); await sleep(1500);
-  ok((await info(g)).state === 'lobby' && /Waiting for Sam to come back/.test(await g.textContent('#lobbyStatus')), `first back waits: "${await g.textContent('#lobbyStatus')}"`);
+  ok((await info(g)).state === 'lobby' && /Waiting for Sam to reconnect/.test(await g.textContent('#lobbyStatus')), `first back waits: "${await g.textContent('#lobbyStatus')}"`);
   h = await open(hc, 'Sam'); ok(await h.isVisible('#bRejoin'), 'Sam is offered Rejoin too');
   await h.click('#bRejoin');
   ok(await until(async () => (await info(h)).started && (await info(g)).started), 'when Sam rejoins, a fresh game starts in the same room');

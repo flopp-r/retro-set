@@ -1,12 +1,11 @@
 // Measures the computer opponents' strength by playing games with the real rules and engine: against Stockfish at its
-// calibrated strength settings (the anchor), and against each other (the 200-point gaps). Usage:
+// calibrated strength settings (the anchor), and against each other (the gaps between them). Usage:
 //   node tools/sim-bots.js match <a> <b> [games]   a, b: a bot (pip, mabel …), a bot with another knob setting
-//                                                  (nell@0.15, or nell@0.15/4 to look 4 moves ahead), or Stockfish
-//                                                  at a strength (sf1320, sf1500)
-//   node tools/sim-bots.js tune [games] [bot]      finds each bot's knob: Nell and Tariq against Stockfish, then each
-//                                                  of the others 200 points below the bot above it; prints the values
-//                                                  to put into src/bots.js. Given a bot, it starts there, the bots
-//                                                  above keeping their values in src/bots.js
+//                                                  (ted@0.15, or ted@0.15/4 to look 4 moves ahead), Stockfish at a
+//                                                  strength (sf1320, sf1500), or a fixed reference player (old100)
+//   node tools/sim-bots.js tune [games] [bot]      finds each bot's knob against its reference (ANCHOR, or the bot
+//                                                  above it); prints the values to put into src/bots.js. Given a bot,
+//                                                  it starts there, the bots above keeping their values in src/bots.js
 //   node tools/sim-bots.js check [games] [bot]     plays each bot against its anchor or the bot above, and prints the
 //                                                  measured ratings (given a bot, from there down)
 // Stockfish (stockfish.js 19, GPL-3.0) is installed into a temporary folder on first use. It is only used here to
@@ -19,10 +18,18 @@ const C = require('../src/core.js'), BOTS = require('../src/bots.js');
 const SF_VERSION = '19.0.1', SF_MS = 60;   // Stockfish's time a move: its weakened play picks its move after a very shallow search, so more time changes little
 const MAX_PLY = 240;                       // a game still going after this is decided on material (see adjudicate)
 
+// Fixed reference players, never in the game: old100 is Torben as he was until 14 November 2026, measured at 119 ±145
+// on 7 November 2026 (at the foot of the chain down from Stockfish). The easy bots' ladder is anchored to him, since the
+// gap from the easiest of the strong bots (Jake, 1150) to the hardest easy one (Magnus, 100) is too large to measure.
+const REFS = { old100: { rating: 119, err: 145, cfg: { depth: 1, qs: true, blunder: 0.30, ...BOTS.knob(0.279) } } };
+// the bots measured against something other than the bot above them
+const ANCHOR = { ted: 'sf1500', daws: 'sf1320', magnus: 'old100' };
+const refRating = ref => ref.startsWith('sf') ? +ref.slice(2) : REFS[ref] ? REFS[ref].rating : null;
 // a player spec: { bot, cfg } or { sf: elo }
 function spec(name) {
   const m = /^sf(\d+)$/.exec(name);
   if (m) return { name, sf: +m[1] };
+  if (REFS[name]) return { name, cfg: REFS[name].cfg };
   const [id, rest] = name.split('@'), [k, d] = (rest || '').split('/'), bot = BOTS.byId(id);   // nell@0.1/4: knob 0.1, 4 moves deep
   if (!bot) throw new Error(`No bot called "${id}" (the bots: ${BOTS.LIST.map(b => b.id).join(', ')}; or sf1320 and so on)`);
   const cfg = BOTS.settings(bot, k ? +k : undefined);
@@ -112,8 +119,8 @@ function band(r, games) {
 }
 const line = (a, b, r, games) => `${a.name.padEnd(12)} v ${b.name.padEnd(12)} ${(r.score * 100).toFixed(1).padStart(5)}%  (${r.w} won, ${r.d} drawn, ${r.l} lost; ${Math.round(r.plies)} plies a game)  ${elo(r.score) >= 0 ? '+' : ''}${Math.round(elo(r.score))} ±${band(r, games)}`;
 
-// each bot's reference and its rating gap to it: the top two against Stockfish, each of the rest against the bot above
-const CHAIN = BOTS.LIST.slice().reverse().map((b, i, all) => i === 0 ? [b.id, 'sf1500', b.rating - 1500] : i === 1 ? [b.id, 'sf1320', b.rating - 1320] : [b.id, all[i - 1].id, b.rating - all[i - 1].rating]);
+// each bot's reference and its rating gap to it: its ANCHOR (Stockfish, or a fixed reference player), else the bot above
+const CHAIN = BOTS.LIST.slice().reverse().map((b, i, all) => { const ref = ANCHOR[b.id] || all[i - 1].id; return [b.id, ref, b.rating - (refRating(ref) ?? BOTS.byId(ref).rating)]; });
 
 (async () => {
   const [cmd, x, y, z] = process.argv.slice(2);
@@ -134,7 +141,7 @@ const CHAIN = BOTS.LIST.slice().reverse().map((b, i, all) => i === 0 ? [b.id, 's
       if (from < 0) throw new Error(`No bot called "${y}" in the chain`);
       for (const [id, ref, gap] of CHAIN.slice(from)) {
         const bot = BOTS.byId(id), want = E(expected(gap));
-        const refSpec = ref.startsWith('sf') ? spec(ref) : { name: ref, bot: ref, cfg: BOTS.settings(BOTS.byId(ref), tuned[ref]) };
+        const refSpec = refRating(ref) !== null ? spec(ref) : { name: ref, bot: ref, cfg: BOTS.settings(BOTS.byId(ref), tuned[ref]) };
         const at = async k => {
           const me = { name: `${id}@${k.toFixed(3)}`, cfg: BOTS.settings(bot, k) }, r = await match(me, refSpec, games);
           console.log('  ' + line(me, refSpec, r, games)); return E(r.score);
@@ -165,7 +172,7 @@ const CHAIN = BOTS.LIST.slice().reverse().map((b, i, all) => i === 0 ? [b.id, 's
       if (from < 0) throw new Error(`No bot called "${y}" in the chain`);
       for (const [id, ref, gap] of CHAIN.slice(from)) {
         const a = spec(id), b = spec(ref), r = await match(a, b, games), bot = BOTS.byId(id), d = elo(r.score), e = band(r, games);
-        const base = ref.startsWith('sf') ? +ref.slice(2) : got[ref] ?? BOTS.byId(ref).rating, baseErr = ref.startsWith('sf') ? 0 : err[ref] ?? 0;
+        const base = refRating(ref) ?? got[ref] ?? BOTS.byId(ref).rating, baseErr = ref.startsWith('sf') ? 0 : REFS[ref] ? REFS[ref].err : err[ref] ?? 0;
         got[id] = Math.round(base + d); err[id] = Math.round(Math.sqrt(e * e + baseErr * baseErr));
         console.log(`${line(a, b, r, games)}  → ${bot.name} measures ${got[id]} ±${err[id]} (target ${bot.rating})`);
       }

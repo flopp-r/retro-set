@@ -66,12 +66,13 @@ const KEY_IDS = Object.keys(KEYS);
 const OWNED_WEIGHT = 0.3, PITY = 6, LUCKY_FULL = 1000;
 
 // ------------------------------------------------------------------ earning
-// A win against the computer pays coins by the bot's rating and drops WIN_CASES cases (three, since a game of chess
+// A win against the computer pays coins by the bot's rating (60 for a bot rated 0 or below: the easiest measure below
+// zero) and drops WIN_CASES cases (three, since a game of chess
 // takes a while: the owner's choice), the grade by how strong the bot is; the first win against each bot brings one
 // more case, one grade better (a Super Lucky Box for the three strongest). A draw
 // pays a quarter and drops nothing. Opening the game on a new day pays a gift that grows over a week of days running;
 // the seventh day in a row brings a Super Lucky Box, and the week starts again.
-const winCoins = rating => 60 + Math.round(rating / 5), WIN_CASES = 3;
+const winCoins = rating => 60 + Math.round(Math.max(0, rating) / 5), WIN_CASES = 3;
 const gradeFor = rating => rating < 500 ? 'bronze' : rating < 950 ? 'silver' : rating < 1250 ? 'gold' : 'diamond';
 const better = g => GRADE_IDS[Math.min(GRADE_IDS.indexOf(g) + 1, GRADE_IDS.indexOf('diamond'))];
 const DAILY = [40, 50, 60, 70, 80, 90, 120];

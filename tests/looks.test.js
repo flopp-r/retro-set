@@ -119,6 +119,12 @@ test('a win pays more the stronger the bot and drops three cases of its grade; a
   const d = L.gameOver(l, { id: 'ted', rating: 1500, top: true }, 'draw'), e = L.gameOver(l, { id: 'ted', rating: 1500, top: true }, 'loss');
   assert.ok(d.coins === Math.round(c.coins / 4) && !d.cases.length && e.coins === 0 && !e.cases.length);
 });
+test('a bot rated below zero (the easiest measure there) pays what a bot rated 0 does, never less', () => {
+  const l = L.fresh(); l.beaten = ['torben', 'barney'];
+  const a = L.gameOver(l, { id: 'torben', rating: -500 }, 'win'), b = L.gameOver(l, { id: 'barney', rating: 0 }, 'win');
+  assert.ok(a.coins === 60 && b.coins === 60 && L.winCoins(100) === 80, a.coins + ', ' + b.coins);
+  assert.deepStrictEqual(a.cases, ['bronze', 'bronze', 'bronze']);
+});
 test('the first win against a bot brings one more, better case: a Super Lucky Box for the three strongest', () => {
   const l = L.fresh();
   const a = L.gameOver(l, { id: 'torben', rating: 100 }, 'win'), b = L.gameOver(l, { id: 'torben', rating: 100 }, 'win'), c = L.gameOver(l, { id: 'jake', rating: 1150, top: true }, 'win');

@@ -13,9 +13,9 @@ const mirror = fen => { const [p, t, c, e] = fen.split(' '); const sw = s => s.r
   return [sw(p.split('/').reverse().join('/')), t === 'w' ? 'b' : 'w', c === '-' ? '-' : [...sw(c)].sort().join(''), e === '-' ? '-' : e[0] + (9 - e[1]), 0, 1].join(' '); };
 
 console.log('\nThe bots');
-test('ten bots, Torben 100 to Ted 1500 in steps of 150 (the last 200), each with a name, a face, a line and settings', () => {
+test('ten bots: seven easy ones, Torben −500 to Magnus 100 in steps of 100, then Jake 1150, Daws 1300 and Ted 1500, each with a name, a face, a line and settings', () => {
   assert.deepStrictEqual(BOTS.LIST.map(b => b.name), ['Torben', 'Alfie', 'Ollie', 'Dom', 'Joseph', 'Barney', 'Magnus', 'Jake', 'Daws', 'Ted']);
-  assert.deepStrictEqual(BOTS.LIST.map(b => b.rating), [100, 250, 400, 550, 700, 850, 1000, 1150, 1300, 1500]);
+  assert.deepStrictEqual(BOTS.LIST.map(b => b.rating), [-500, -400, -300, -200, -100, 0, 100, 1150, 1300, 1500]);
   assert.strictEqual(new Set(BOTS.LIST.map(b => b.id)).size, 10);
   for (const b of BOTS.LIST) {
     assert.ok(b.name && b.blurb && b.look && b.look.s && b.look.skin && b.look.hair && b.look.shirt, b.id + ' is missing something');
@@ -26,6 +26,9 @@ test('every bot blunders now and then: most often the weakest, less as they get 
   const r = BOTS.LIST.map(b => b.cfg.blunder);
   for (let i = 1; i < r.length; i++) assert.ok(r[i] <= r[i - 1], BOTS.LIST[i].id);
   assert.ok(r[0] >= 0.2 && r[r.length - 1] > 0, r.join(', '));
+});
+test('a rating below zero is shown with a true minus sign', () => {
+  assert.deepStrictEqual([-500, 0, 100, 1500].map(BOTS.rated), ['\u2212500', '0', '100', '1500']);
 });
 test('a game against a bot from before the renaming carries on against the nearest new one', () => {
   assert.deepStrictEqual(['pip', 'mabel', 'dev', 'priya', 'gus', 'ruth', 'tariq', 'nell'].map(id => BOTS.byId(id).id), ['torben', 'alfie', 'dom', 'joseph', 'barney', 'jake', 'daws', 'ted']);

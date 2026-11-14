@@ -3,8 +3,8 @@
 // The pretend player logs in every day, wins 3 or 4 games (by default) against bots that get stronger as the days go
 // by, opens every case they can find a key for, and spends what's left on more cases and keys, aiming type keys at the
 // slot they're furthest behind in. Nothing here is part of the game.
-const C = require('../src/core.js'), L = require('../src/looks.js');
-const RATINGS = [100, 250, 400, 550, 700, 850, 1000, 1150, 1300, 1500], IDS = 'torben alfie ollie dom joseph barney magnus jake daws ted'.split(' ');
+const C = require('../src/core.js'), L = require('../src/looks.js'), BOTS = require('../src/bots.js');
+const RATINGS = BOTS.LIST.map(b => b.rating), IDS = BOTS.LIST.map(b => b.id);
 const players = +process.argv[2] || 400, perDay = +process.argv[3] || 3.5, MAX = 400;
 // the slot with most still to win, if a type key would help; otherwise the standard key
 const behind = l => { const left = L.SLOTS.map(s => [s.id, L.slotItems(s.id).filter(it => !L.owns(l, it.key)).length]).sort((a, b) => b[1] - a[1]); return left[0][1] ? left[0][0] : null; };

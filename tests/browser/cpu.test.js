@@ -11,7 +11,7 @@ const { chromium, SITE, shot, watch, ok } = require('./lib');
   await p.goto(SITE.new); await p.waitForTimeout(1000);
   await p.click('#bCpu'); await p.waitForTimeout(200);
   let i = await rs(() => ({ cards: [...document.querySelectorAll('.botCard')].map(c => c.textContent), title: document.querySelector('#mTitle').textContent }));
-  ok(i.cards.length === 10 && i.cards[0] === 'Torben100' && i.cards[9] === 'Ted1500' && i.title === 'Play / Vs Computer', `Vs Computer shows the ten bots (${i.cards.join(', ')})`);
+  ok(i.cards.length === 10 && i.cards[0] === 'Torben\u2212500' && i.cards[9] === 'Ted1500' && i.title === 'Play / Vs Computer', `Vs Computer shows the ten bots (${i.cards.join(', ')})`);
   await p.click('[data-bot="daws"]'); await p.click('#sColour [data-v="white"]');
   ok(await rs(() => document.querySelector('#botBlurb').textContent.startsWith('Daws · 1300: Tactical.')), 'picking a bot shows its line');
   await p.screenshot({ path: shot('cpu-picker.png') });

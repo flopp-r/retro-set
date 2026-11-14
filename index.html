@@ -872,9 +872,10 @@ if (typeof module !== 'undefined') module.exports = CORE;
 //  RETRO SET — the computer opponents: who they are, how they look and how they play
 // ============================================================================
 // No DOM here: this file also runs in Node, for the tests and tools/sim-bots.js. Each bot's rating is the target its
-// settings were tuned to, by playing thousands of games: the top two against Stockfish at its calibrated strength
-// settings (1500 and 1320), then each of the others 150 points below the bot above it. See HANDOVER.md, section 5,
-// for the measured results.
+// settings were tuned to, by playing thousands of games: Ted and Daws against Stockfish at its calibrated strength
+// settings (1500 and 1320), Jake 150 below Daws; the seven easy bots (the owner's choice, 14 November 2026) from
+// Magnus, anchored to Torben as he was before (measured at 119), down in steps of 100, Torben near random. The
+// weakest measure below zero. See HANDOVER.md, section 5, for the measured results.
 const BOTS = (() => {
 'use strict';
 
@@ -886,20 +887,20 @@ const knob = k => ({ temp: Math.round(5 + 595 * Math.pow(k, 1.5)) });
 // the bots get stronger but never zero; k is found by tools/sim-bots.js. style: bonuses (centipawns) for the moves the
 // bot likes.
 const LIST = [
-  { id: 'torben', name: 'Torben', rating: 100, look: { s: 'cap', skin: '#f6d2b4', hair: '#d9a441', shirt: '#6cb8ff' },
-    blurb: 'Beginner. Knows the moves; frequently leaves pieces undefended.', cfg: { depth: 1, qs: true, blunder: 0.30, k: 0.279 } },
-  { id: 'alfie', name: 'Alfie', rating: 250, look: { s: 'man', skin: '#f2c49b', hair: '#b5432a', shirt: '#1d8a74' },
-    blurb: 'Novice. Advances pawns at the expense of development.', cfg: { depth: 1, qs: true, blunder: 0.24, k: 0.248, style: { pawn: 30 } } },
-  { id: 'ollie', name: 'Ollie', rating: 400, look: { s: 'glasses', skin: '#d9a07a', hair: '#1a1206', shirt: '#ff6f8f' },
-    blurb: 'Novice. Accepts offered material without checking for traps.', cfg: { depth: 1, qs: true, blunder: 0.19, k: 0.237, style: { capture: 80 } } },
-  { id: 'dom', name: 'Dom', rating: 550, look: { s: 'beard', skin: '#a8714a', hair: '#1a1206', shirt: '#ffc56b' },
-    blurb: 'Aggressive. Develops the queen early and attacks.', cfg: { depth: 1, qs: true, blunder: 0.15, k: 0.157, style: { queen: 25 } } },
-  { id: 'joseph', name: 'Joseph', rating: 700, look: { s: 'man', skin: '#6b4429', hair: '#1a1206', shirt: '#56399a' },
-    blurb: 'Knows standard openings; loses direction in the middlegame.', cfg: { depth: 1, qs: true, blunder: 0.12, k: 0.111 } },
-  { id: 'barney', name: 'Barney', rating: 850, look: { s: 'bald', skin: '#f2c49b', hair: '#c9c3bd', shirt: '#b04a7a' },
-    blurb: 'Club level. Punishes undefended pieces.', cfg: { depth: 2, qs: true, blunder: 0.09, k: 0.133 } },
-  { id: 'magnus', name: 'Magnus', rating: 1000, look: { s: 'long', skin: '#f6d2b4', hair: '#d9a441', shirt: '#f7ead2' },
-    blurb: 'Positional. Castles early and waits for errors.', cfg: { depth: 2, qs: true, blunder: 0.07, k: 0.076, style: { castle: 40 } } },
+  { id: 'torben', name: 'Torben', rating: -500, look: { s: 'cap', skin: '#f6d2b4', hair: '#d9a441', shirt: '#6cb8ff' },
+    blurb: 'Absolute beginner. Moves almost at random.', cfg: { depth: 1, qs: true, blunder: 0.60, k: 0.505 } },
+  { id: 'alfie', name: 'Alfie', rating: -400, look: { s: 'man', skin: '#f2c49b', hair: '#b5432a', shirt: '#1d8a74' },
+    blurb: 'Beginner. Advances pawns and leaves pieces undefended.', cfg: { depth: 1, qs: true, blunder: 0.54, k: 0.43, style: { pawn: 30 } } },
+  { id: 'ollie', name: 'Ollie', rating: -300, look: { s: 'glasses', skin: '#d9a07a', hair: '#1a1206', shirt: '#ff6f8f' },
+    blurb: 'Beginner. Accepts offered material without checking for traps.', cfg: { depth: 1, qs: true, blunder: 0.48, k: 0.452, style: { capture: 80 } } },
+  { id: 'dom', name: 'Dom', rating: -200, look: { s: 'beard', skin: '#a8714a', hair: '#1a1206', shirt: '#ffc56b' },
+    blurb: 'Beginner. Brings the queen out early and attacks with it.', cfg: { depth: 1, qs: true, blunder: 0.43, k: 0.385, style: { queen: 25 } } },
+  { id: 'joseph', name: 'Joseph', rating: -100, look: { s: 'man', skin: '#6b4429', hair: '#1a1206', shirt: '#56399a' },
+    blurb: 'Beginner. Takes free pieces; misses most threats.', cfg: { depth: 1, qs: true, blunder: 0.38, k: 0.352 } },
+  { id: 'barney', name: 'Barney', rating: 0, look: { s: 'bald', skin: '#f2c49b', hair: '#c9c3bd', shirt: '#b04a7a' },
+    blurb: 'Improving beginner. Usually takes undefended pieces.', cfg: { depth: 1, qs: true, blunder: 0.34, k: 0.321 } },
+  { id: 'magnus', name: 'Magnus', rating: 100, look: { s: 'long', skin: '#f6d2b4', hair: '#d9a441', shirt: '#f7ead2' },
+    blurb: 'The strongest beginner. Castles early; still loses pieces.', cfg: { depth: 1, qs: true, blunder: 0.30, k: 0.296, style: { castle: 40 } } },
   { id: 'jake', name: 'Jake', rating: 1150, look: { s: 'cap', skin: '#d9a07a', hair: '#5a3420', shirt: '#7a8b3a' },
     blurb: 'Consistent. Rarely blunders material; occasionally drifts.', cfg: { depth: 2, qs: true, blunder: 0.05, k: 0.062 } },
   { id: 'daws', name: 'Daws', rating: 1300, look: { s: 'glasses', skin: '#f2c49b', hair: '#5a3420', shirt: '#1d8a74' },
@@ -912,8 +913,10 @@ const RENAMED = { pip: 'torben', mabel: 'alfie', dev: 'dom', priya: 'joseph', gu
 // a bot's full settings for think(): its own, with the knob turned into a temperature
 const settings = (bot, k = bot.cfg.k) => ({ ...bot.cfg, ...knob(k) });
 const byId = id => LIST.find(b => b.id === (RENAMED[id] || id));
+// a rating as the screen shows it: the weakest bots measure below zero, written with a true minus sign
+const rated = r => r < 0 ? '\u2212' + -r : String(r);
 
-return { LIST, knob, settings, byId };
+return { LIST, knob, settings, byId, rated };
 })();
 if (typeof module !== 'undefined') module.exports = BOTS;
 
@@ -985,12 +988,13 @@ const KEY_IDS = Object.keys(KEYS);
 const OWNED_WEIGHT = 0.3, PITY = 6, LUCKY_FULL = 1000;
 
 // ------------------------------------------------------------------ earning
-// A win against the computer pays coins by the bot's rating and drops WIN_CASES cases (three, since a game of chess
+// A win against the computer pays coins by the bot's rating (60 for a bot rated 0 or below: the easiest measure below
+// zero) and drops WIN_CASES cases (three, since a game of chess
 // takes a while: the owner's choice), the grade by how strong the bot is; the first win against each bot brings one
 // more case, one grade better (a Super Lucky Box for the three strongest). A draw
 // pays a quarter and drops nothing. Opening the game on a new day pays a gift that grows over a week of days running;
 // the seventh day in a row brings a Super Lucky Box, and the week starts again.
-const winCoins = rating => 60 + Math.round(rating / 5), WIN_CASES = 3;
+const winCoins = rating => 60 + Math.round(Math.max(0, rating) / 5), WIN_CASES = 3;
 const gradeFor = rating => rating < 500 ? 'bronze' : rating < 950 ? 'silver' : rating < 1250 ? 'gold' : 'diamond';
 const better = g => GRADE_IDS[Math.min(GRADE_IDS.indexOf(g) + 1, GRADE_IDS.indexOf('diamond'))];
 const DAILY = [40, 50, 60, 70, 80, 90, 120];
@@ -1466,7 +1470,7 @@ const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const lerp = (a, b, t) => a + (b - a) * t;
 const ease = t => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
 const wrapA = a => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
-const BUILD = 'd02ce13c';   // version: tools/build.js fills in a fingerprint of the game code
+const BUILD = '63ad01ab';   // version: tools/build.js fills in a fingerprint of the game code
 const reduceMotion = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 // ------------------------------------------------------------------ settings
@@ -2317,7 +2321,7 @@ function hud() {
   const bot = botOf(), me = meCol();
   for (const c of ['w', 'b']) {   // the names (and against the computer, its face)
     const pl = $(c === 'w' ? '#plW' : '#plB'), its = bot && c !== vs.me;
-    pl.querySelector('.plName').textContent = !me ? turnName(c) : c === me ? 'You' : NET.on ? NET.peerName : `${bot.name} ${bot.rating}`;
+    pl.querySelector('.plName').textContent = !me ? turnName(c) : c === me ? 'You' : NET.on ? NET.peerName : `${bot.name} ${BT.rated(bot.rating)}`;
     const face = pl.querySelector('.plFace'); face.textContent = '';
     if (its) face.append(portrait(bot.look, 2)); else if (me && c === me) face.append(portrait(AVATARS[W.avatar] || AVATARS.plain, 2));   // the computer's face, and yours
     else if (NET.on && me && NET.peerLook) face.append(portrait(AVATARS[NET.peerLook.avatar] || AVATARS.plain, 2));   // and online, the other player's
@@ -2718,7 +2722,7 @@ function refreshHome() {
   const saved = loadSaved(), b = $('#bResume');
   b.hidden = !saved;
   $('#bLocal .cardTxt').textContent = saved && !saved.vs ? 'New match replaces saved match' : '2 players · 1 device';
-  $('#bCpu .cardTxt').textContent = saved && saved.vs ? 'New match replaces saved match' : `${BT.LIST.length} opponents · ${BT.LIST[0].rating}–${BT.LIST[BT.LIST.length - 1].rating}`;
+  $('#bCpu .cardTxt').textContent = saved && saved.vs ? 'New match replaces saved match' : `${BT.LIST.length - 3} easy · 3 hard`;   // the three strongest are the hard ones (as in gamePaid())
   if (saved) { const bot = saved.vs && BT.byId(saved.vs.bot); b.textContent = `Continue: ${bot ? 'vs ' + bot.name : 'Local Match'} · Move ${Math.ceil((saved.g.list.length + 1) / 2)}`; }
   $('#bOnline .cardTxt').textContent = relayBase() ? 'Public and private rooms' : 'Unavailable';
   cardIcons(); updateRejoin();
@@ -2745,13 +2749,13 @@ function renderCpu() {
   for (const bot of BT.LIST) {
     const b = document.createElement('button'); b.className = 'botCard'; b.type = 'button'; b.dataset.bot = bot.id; b.setAttribute('aria-pressed', String(M.bot === bot.id));
     const name = document.createElement('span'); name.className = 'botName'; name.textContent = bot.name;
-    const elo = document.createElement('span'); elo.className = 'botElo'; elo.textContent = bot.rating;
+    const elo = document.createElement('span'); elo.className = 'botElo'; elo.textContent = BT.rated(bot.rating);
     b.append(portrait(bot.look, 2), name, elo);
     b.onclick = () => { M.bot = bot.id; saveM(); renderCpu(); };
     grid.append(b);
   }
   const bot = BT.byId(M.bot);
-  $('#botBlurb').textContent = `${bot.name} · ${bot.rating}: ${bot.blurb}`;
+  $('#botBlurb').textContent = `${bot.name} · ${BT.rated(bot.rating)}: ${bot.blurb}`;
   for (const b of document.querySelectorAll('#sColour .btn')) b.setAttribute('aria-pressed', String(b.dataset.v === M.colour));
 }
 for (const b of document.querySelectorAll('#sColour .btn')) b.onclick = () => { M.colour = b.dataset.v; saveM(); renderCpu(); };

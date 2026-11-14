@@ -1,6 +1,6 @@
 # Retro Set
 
-3D pixel-art chess, a sister to Retro Rack. Play a friend on one device or online, or ten computer opponents from 100 to 1500, with the full rules.
+3D pixel-art chess, a sister to Retro Rack. Play a friend on one device or online, or ten computer opponents (seven easy ones, three hard), with the full rules.
 
 Play it at https://flopp-r.github.io/retro-set/
 
@@ -83,19 +83,20 @@ Choose **Vs Computer**, pick an opponent and your colour (White, Black or Random
 
 | Opponent | Rating | How they play |
 |---|---|---|
-| Torben | 100 | Has just learnt how the pieces move, and leaves them anywhere. |
-| Alfie | 250 | Loves pushing pawns, and forgets the pieces behind them. |
-| Ollie | 400 | Grabs anything you offer, even when it's a trap. |
-| Dom | 550 | Gets the queen out early and goes hunting. |
-| Joseph | 700 | Knows a few openings, then loses the thread. |
-| Barney | 850 | A club-night regular. Takes any piece you leave loose. |
-| Magnus | 1000 | Plays it safe: castles early and waits for you to slip. |
+| Torben | −500 | Moves almost at random. |
+| Alfie | −400 | Loves pushing pawns, and forgets the pieces behind them. |
+| Ollie | −300 | Grabs anything you offer, even when it's a trap. |
+| Dom | −200 | Gets the queen out early and goes hunting. |
+| Joseph | −100 | Takes a free piece, but misses most threats. |
+| Barney | 0 | Usually takes any piece you leave loose. |
+| Magnus | 100 | The strongest beginner: castles early, still loses pieces. |
 | Jake | 1150 | Steady. Rarely hangs a piece, but sometimes drifts. |
 | Daws | 1300 | Sharp tactics: looks for checks and captures first. |
 | Ted | 1500 | The strongest here. Gives very little away. |
 
-- **How they play:** like people, every one of them makes real blunders (leaving a piece to be taken, grabbing a pawn that can't be held, missing a mate), Torben on nearly a third of his moves and Ted on about one in thirty, as well as plenty of middling moves.
-- **What the ratings mean:** they're measured, not guessed. Ted and Daws were tuned by playing hundreds of games against Stockfish at its official strength settings (1500 and 1320), and each of the others to be 150 points below the one above, which means the stronger one wins about seven games in ten. Measured over 240 games each, every bot came out within 30 points of its rating (the lower the bot, the wider the margin: about ±45 for Ted up to ±145 for Torben). They are close to, but not the same as, chess.com ratings: every site's scale is a little different, especially at the low end.
+- **Seven easy, three hard:** Torben to Magnus are for learning, Jake, Daws and Ted for a real game. There's a big jump between them: from Magnus (100) to Jake (1150) is over 1,000 points, so beating Magnus doesn't mean you'll beat Jake.
+- **How they play:** like people, every one of them makes real blunders (leaving a piece to be taken, grabbing a pawn that can't be held, missing a mate), Torben on more than half his moves and Ted on about one in thirty, as well as plenty of middling moves.
+- **What the ratings mean:** they're measured, not guessed. Ted and Daws were tuned by playing hundreds of games against Stockfish at its official strength settings (1500 and 1320), and Jake to be 150 points below Daws. The easy seven were tuned against how Torben used to play (measured at 119), each 100 points below the one above, which means the stronger one wins about six games in ten. Ratings below zero are real: a player who moves completely at random would measure about −640 on this scale. Every bot came out within 36 points of its rating over 240 to 400 games. They are close to, but not the same as, chess.com ratings: every site's scale is a little different, especially at the low end, and chess.com's stops at 100.
 - **Take back** undoes your last move and the computer's reply. **Menu** has **Offer a draw** (the computer accepts only if it thinks it's worse, or the game is level late on) and **Resign**.
 
 ## Playing online

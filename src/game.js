@@ -859,7 +859,7 @@ function hud() {
   const bot = botOf(), me = meCol();
   for (const c of ['w', 'b']) {   // the names (and against the computer, its face)
     const pl = $(c === 'w' ? '#plW' : '#plB'), its = bot && c !== vs.me;
-    pl.querySelector('.plName').textContent = !me ? turnName(c) : c === me ? 'You' : NET.on ? NET.peerName : `${bot.name} ${bot.rating}`;
+    pl.querySelector('.plName').textContent = !me ? turnName(c) : c === me ? 'You' : NET.on ? NET.peerName : `${bot.name} ${BT.rated(bot.rating)}`;
     const face = pl.querySelector('.plFace'); face.textContent = '';
     if (its) face.append(portrait(bot.look, 2)); else if (me && c === me) face.append(portrait(AVATARS[W.avatar] || AVATARS.plain, 2));   // the computer's face, and yours
     else if (NET.on && me && NET.peerLook) face.append(portrait(AVATARS[NET.peerLook.avatar] || AVATARS.plain, 2));   // and online, the other player's
@@ -1260,7 +1260,7 @@ function refreshHome() {
   const saved = loadSaved(), b = $('#bResume');
   b.hidden = !saved;
   $('#bLocal .cardTxt').textContent = saved && !saved.vs ? 'New match replaces saved match' : '2 players · 1 device';
-  $('#bCpu .cardTxt').textContent = saved && saved.vs ? 'New match replaces saved match' : `${BT.LIST.length} opponents · ${BT.LIST[0].rating}–${BT.LIST[BT.LIST.length - 1].rating}`;
+  $('#bCpu .cardTxt').textContent = saved && saved.vs ? 'New match replaces saved match' : `${BT.LIST.length - 3} easy · 3 hard`;   // the three strongest are the hard ones (as in gamePaid())
   if (saved) { const bot = saved.vs && BT.byId(saved.vs.bot); b.textContent = `Continue: ${bot ? 'vs ' + bot.name : 'Local Match'} · Move ${Math.ceil((saved.g.list.length + 1) / 2)}`; }
   $('#bOnline .cardTxt').textContent = relayBase() ? 'Public and private rooms' : 'Unavailable';
   cardIcons(); updateRejoin();
@@ -1287,13 +1287,13 @@ function renderCpu() {
   for (const bot of BT.LIST) {
     const b = document.createElement('button'); b.className = 'botCard'; b.type = 'button'; b.dataset.bot = bot.id; b.setAttribute('aria-pressed', String(M.bot === bot.id));
     const name = document.createElement('span'); name.className = 'botName'; name.textContent = bot.name;
-    const elo = document.createElement('span'); elo.className = 'botElo'; elo.textContent = bot.rating;
+    const elo = document.createElement('span'); elo.className = 'botElo'; elo.textContent = BT.rated(bot.rating);
     b.append(portrait(bot.look, 2), name, elo);
     b.onclick = () => { M.bot = bot.id; saveM(); renderCpu(); };
     grid.append(b);
   }
   const bot = BT.byId(M.bot);
-  $('#botBlurb').textContent = `${bot.name} · ${bot.rating}: ${bot.blurb}`;
+  $('#botBlurb').textContent = `${bot.name} · ${BT.rated(bot.rating)}: ${bot.blurb}`;
   for (const b of document.querySelectorAll('#sColour .btn')) b.setAttribute('aria-pressed', String(b.dataset.v === M.colour));
 }
 for (const b of document.querySelectorAll('#sColour .btn')) b.onclick = () => { M.colour = b.dataset.v; saveM(); renderCpu(); };
